@@ -1,13 +1,24 @@
 from sqlalchemy import create_engine
+import psycopg2
 from fastapi import FastAPI
+import config
+from models import Base
+from sqlalchemy.orm import sessionmaker
 
+url_db = config.settings.get_url()
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
  
 # создание движка
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    url_db,
 )
 
+Session = sessionmaker(bind=engine)
+
+with Session() as session:
+    with session.begin():
+        
+
+Base.metadata.create_all(engine)
 #создание экземпляра приложения
 app = FastAPI(title="Сервис контроля версий")
