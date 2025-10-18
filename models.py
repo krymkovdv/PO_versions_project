@@ -6,36 +6,43 @@ from sqlalchemy.orm import relationship
 class Base(DeclarativeBase): pass
  
 class Tractors(Base):
-    __tablename__ = 'tractors'
+    __tablename__ = 'Tractors'
 
     terminal_id = Column(Integer, primary_key=True, index = True)
     model = Column(Text)
     region = Column(String)
     owner_name = Column(String)
     assembly_date = Column(DateTime, default = datetime.now)
+    
     comp_list = relationship('TractorComponent', back_populates='tractors')
 
 
 class TractorComponent(Base):
-    __tablename__='tractor_component'
+    __tablename__='Tractor_component'
 
     row_id = Column(Integer, primary_key=True,index=True)
     time_comp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    tractor = Column(Integer, ForeignKey('tractors.terminal_id'), nullable=False)
+    tractor = Column(Text, nullable=False)
+    comp_id = Column(Integer)
 
-    tractors = relationship('Tractors', back_populates='comp_list')
+    tractors = relationship('Tractors', back_populates='comp_list', 
+                            foreign_keys='Tractors.terminal_id')
+    
+    comp_rel = relationship('Components', back_populates='traccomp_rel', 
+                            foreign_keys='Components.id_comp') 
 
 
 
 class Archiv_FW(Base):
-    __tablename__ = 'arkhiv_fw'
+    __tablename__ = 'Arkhiv_fw'
 
     id = Column(Integer, primary_key=True, index=True)
     inner_version = Column(Text)
     producer_version = Column(Text)
+    components = Column(Integer, unique=True)
 
-    # comp_id = Column(Integer, ForeignKey('components.id'), unique=True)
-    # comp_list = relationship('Components', back_populates='archive_list')
+    comp_list = relationship('Components', back_populates='archive_list', 
+                             foreign_keys='Components.id_comp')
 
 
 #класс компонентов
@@ -53,14 +60,16 @@ class Components(Base):
     time_cur = Column(DateTime)
     time_rec = Column(DateTime)
     time_m = Column(DateTime)
+    
+    archive_list = relationship('Archive_FW', back_populates='comp_list',
+                                 uselist=False)
 
-    # Связь с Firmwares: один компонент может иметь одну рекомендованную прошивку
     firmware_recommended = relationship("Firmwares", back_populates="component_recommended",
                                         foreign_keys="Firmwares.id_Firmwares")
-
-    # Связь с Firmwares: один компонент может иметь текущую прошивку
     firmware_current = relationship("Firmwares", back_populates="component_current",
                                     foreign_keys="Firmwares.id_Firmwares")
+    trac_comp_rel = relationship('TractorComponent', back_populates='comp_rel', 
+                                 uselist=False)
 
 
 #класс прошивок
@@ -79,7 +88,7 @@ class Firmwares(Base):
    time_Min = Column(DateTime)
 
    # Обратная связь с компонентами
-   component_recommended = relationship("Component", back_populates="firmware_recommended",
-                                         foreign_keys="Components.recommended_version")
+   component_recommended = relationship("Component", back_populates="firmware_recommended", 
+                                    uselist=False)
    component_current = relationship("Component", back_populates="firmware_current",
-                                     foreign_keys="Components.current_version")
+                                    uselist=False)

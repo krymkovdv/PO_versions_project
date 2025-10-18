@@ -15,8 +15,8 @@ engine = create_engine(
 
 Session = sessionmaker(bind=engine)
 
-with Session() as session:
-    with session.begin():
+# with Session() as session:
+#     with session.begin():
         
 
 Base.metadata.create_all(engine)
