@@ -49,7 +49,7 @@ class Telemetry_components(Base):
 
     firmware = relationship('Firmwares', back_populates='telemetry')
     trac_comp_rel = relationship('TractorComponent', back_populates='comp_rel', uselist=False)
-    true_rel = relationship('TrueComponents', back_populates='telemetry_real')
+    true_rel = relationship('TrueComponents', back_populates='telemetry_rel')
 
 
 
@@ -70,7 +70,7 @@ class Firmwares(Base):
     time_Maj = Column(DateTime)
     time_Min = Column(DateTime)
    
-   telemetry = relationship('Telemetry_components', back_populates='firmware', 
+    telemetry = relationship('Telemetry_components', back_populates='firmware', 
                                     uselist=False)
 
     # component_recommended = relationship("Components", back_populates="firmware_recommended",
@@ -80,14 +80,14 @@ class Firmwares(Base):
    
 
 
-    class TrueComponents(Base):
-       __tablename__='TrueComponents'
-    
-    id = Column(Integer, primary_key=True, index=True)
-    Type_component = Column(Text)
-    Model_component = Column(Text)
-    Year_component = Column(Date)
+class TrueComponents(Base):
+    __tablename__='TrueComponents'
 
-    telemetry_rel = relationship('TelemetryComp', back_populates='true_rel')
+id = Column(Integer, primary_key=True, index=True)
+Type_component = Column(Text)
+Model_component = Column(Text)
+Year_component = Column(Date)
+
+telemetry_rel = relationship('TelemetryComp', back_populates='true_rel')
 
 
