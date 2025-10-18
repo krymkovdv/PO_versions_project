@@ -22,14 +22,12 @@ class TractorComponent(Base):
 
     row_id = Column(Integer, primary_key=True,index=True)
     time_comp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    tractor = Column(Text, nullable=False)
-    comp_id = Column(Integer)
+    tractor = Column(Text, ForeignKey('Tractors.terminal_id'), nullable=False)
+    comp_id = Column(Integer, ForeignKey('Components.id_comp'), unique=True)
 
-    tractors = relationship('Tractors', back_populates='comp_list', 
-                            foreign_keys='Tractors.terminal_id')
+    tractors = relationship('Tractors', back_populates='comp_list')
     
-    comp_rel = relationship('Components', back_populates='traccomp_rel', 
-                            foreign_keys='Components.id_comp') 
+    comp_rel = relationship('Components', back_populates='traccomp_rel') 
 
 
 
@@ -39,10 +37,9 @@ class Archiv_FW(Base):
     id = Column(Integer, primary_key=True, index=True)
     inner_version = Column(Text)
     producer_version = Column(Text)
-    components = Column(Integer, unique=True)
+    components = Column(Integer,ForeignKey('Components.id_comp'), unique=True)
 
-    comp_list = relationship('Components', back_populates='archive_list', 
-                             foreign_keys='Components.id_comp')
+    comp_list = relationship('Components', back_populates='archive_list')
 
 
 #класс компонентов
@@ -54,20 +51,17 @@ class Components(Base):
     type_comp = Column(String(255), nullable=False)
     model_comp = Column(Text, nullable=False)
     year_comp = Column(DateTime)  
-    current_version = Column(Double(precision=53))  
-    recommended_version = Column(Double(precision=53))
+    current_version = Column(Double(precision=53), ForeignKey("Firmwares.id_Firmwares"))  
+    recommended_version = Column(Double(precision=53), ForeignKey("Firmwares.id_Firmwares"))
     maj_Min = Column(String(255))
     time_cur = Column(DateTime)
     time_rec = Column(DateTime)
     time_m = Column(DateTime)
     
-    archive_list = relationship('Archive_FW', back_populates='comp_list',
-                                 uselist=False)
+    archive_list = relationship('Archive_FW', back_populates='comp_list', uselist=False)
 
-    firmware_recommended = relationship("Firmwares", back_populates="component_recommended",
-                                        foreign_keys="Firmwares.id_Firmwares")
-    firmware_current = relationship("Firmwares", back_populates="component_current",
-                                    foreign_keys="Firmwares.id_Firmwares")
+    firmware_recommended = relationship("Firmwares", back_populates="component_recommended")
+    firmware_current = relationship("Firmwares", back_populates="component_current")
     trac_comp_rel = relationship('TractorComponent', back_populates='comp_rel', 
                                  uselist=False)
 
