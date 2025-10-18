@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import  Column, Integer, String, Text, DateTime, Double, ForeignKey
+from sqlalchemy import  Column, Integer, String, Text, DateTime, Double, ForeignKey, Boolean
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 
@@ -23,7 +23,7 @@ class TractorComponent(Base):
     row_id = Column(Integer, primary_key=True,index=True)
     time_comp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     tractor = Column(Text, ForeignKey('Tractors.terminal_id'), nullable=False)
-    comp_id = Column(Integer, ForeignKey('Components.id_comp'), unique=True)
+    comp_id = Column(Integer, ForeignKey('Telemetry_components.id_telemetry'), unique=True)
 
     tractors = relationship('Tractors', back_populates='comp_list')
     
@@ -42,28 +42,19 @@ class TractorComponent(Base):
 #     comp_list = relationship('Components', back_populates='archive_list')
 
 
-#класс компонентов
-# class Components(Base):
-#     __tablename__ = 'Components'
-
-#     id_comp = Column(Integer, primary_key=True, index=True)
-#     fact_num_comp = Column(Text, nullable=False)
-#     type_comp = Column(String(255), nullable=False)
-#     model_comp = Column(Text, nullable=False)
-#     year_comp = Column(DateTime)  
-#     current_version = Column(Double(precision=53), ForeignKey("Firmwares.id_Firmwares"))  
-#     recommended_version = Column(Double(precision=53), ForeignKey("Firmwares.id_Firmwares"))
-#     maj_Min = Column(String(255))
-#     time_cur = Column(DateTime)
-#     time_rec = Column(DateTime)
-#     time_m = Column(DateTime)
+class Telemetry_components(Base):
+    table_name = 'Telemetry_components'
     
-#     archive_list = relationship('Archive_FW', back_populates='comp_list', uselist=False)
+    id_telemetry = Column(Integer, primary_key=True, index=True)
+    true_comp = Column(Text, ForeignKey('TrueComponents.id'), nullable=False)
+    current_version = Column(String(255), ForeignKey('Firmwares.id_Firmwares'),nullable=False)
+    is_maj = Column(Boolean, nullable=False)
 
-#     firmware_recommended = relationship("Firmwares", back_populates="component_recommended")
-#     firmware_current = relationship("Firmwares", back_populates="component_current")
-#     trac_comp_rel = relationship('TractorComponent', back_populates='comp_rel', 
-#                                  uselist=False)
+    firmware = relationship('Firmwares', back_populates='telemetry')
+    trac_comp_rel = relationship('TractorComponent', back_populates='comp_rel', uselist=False)
+    true_rel = relationship('TrueComponents', back_populates='telemetry_real')
+
+
 
 
 #класс прошивок
@@ -80,8 +71,10 @@ class Firmwares(Base):
    min_for_c_model = Column(String(255))
    time_Maj = Column(DateTime)
    time_Min = Column(DateTime)
+   
+   telemetry = relationship('Telemetry_components', back_populates='firmware', 
+                                    uselist=False)
 
-   # Обратная связь с компонентами
    component_recommended = relationship("Components", back_populates="firmware_recommended",
                                     uselist=False)
    component_current = relationship("Components", back_populates="firmware_current",
