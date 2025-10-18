@@ -18,12 +18,12 @@ class Tractors(Base):
 
 
 class TractorComponent(Base):
-    __tablename__='Tractor_component'
+    __tablename__='TractorComponent'
 
     row_id = Column(Integer, primary_key=True,index=True)
     time_comp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     tractor = Column(Text, ForeignKey('Tractors.terminal_id'), nullable=False)
-    comp_id = Column(Integer, ForeignKey('Telemetry_components.id_telemetry'), unique=True)
+    comp_id = Column(Integer, ForeignKey('TelemetryComponents.id_telemetry'), unique=True)
 
     tractors = relationship('Tractors', back_populates='comp_list')
     
@@ -39,16 +39,28 @@ class TractorComponent(Base):
 #     comp_list = relationship('Components', back_populates='archive_list')
 
 
-class Telemetry_components(Base):
-    table_name = 'Telemetry_components'
+
+
+class TrueComponents(Base):
+    __tablename__='TrueComponents'
+
+    id = Column(Integer, primary_key=True, index=True)
+    Type_component = Column(Text, nullable=False)
+    Model_component = Column(Text, nullable=False)
+    Year_component = Column(Date, nullable=False)
+
+    telemetry_rel = relationship('TelemetryComponent', back_populates='true_rel')
+
+class TelemetryComponents(Base):
+    __tablename__ = 'TelemetryComponents'
     
     id_telemetry = Column(Integer, primary_key=True, index=True)
-    true_comp = Column(Text, ForeignKey('TrueComponents.id'), nullable=False)
-    current_version = Column(String(255), ForeignKey('Firmwares.id_Firmwares'),nullable=False)
+    true_comp = Column(Integer, ForeignKey('TrueComponents.id'), nullable=False)
+    current_version = Column(Integer, ForeignKey('Firmwares.id_Firmwares'), unique=True, nullable=False)
     is_maj = Column(Boolean, nullable=False)
 
-    firmware = relationship('Firmwares', back_populates='telemetry')
-    trac_comp_rel = relationship('TractorComponent', back_populates='comp_rel', uselist=False)
+    firmware_rel = relationship('Firmwares', back_populates='telemetry')
+    trac_comp_rel = relationship('TractorComponents', back_populates='comp_rel', uselist=False)
     true_rel = relationship('TrueComponents', back_populates='telemetry_rel')
 
 
@@ -70,24 +82,10 @@ class Firmwares(Base):
     time_Maj = Column(DateTime)
     time_Min = Column(DateTime)
    
-    telemetry = relationship('Telemetry_components', back_populates='firmware', 
+    telemetry = relationship('TelemetryComponents', back_populates='firmware_rel', 
                                     uselist=False)
 
-    # component_recommended = relationship("Components", back_populates="firmware_recommended",
-    #                                 uselist=False)
-    # component_current = relationship("Components", back_populates="firmware_current",
-    #                                 uselist=False)
-   
 
 
-class TrueComponents(Base):
-    __tablename__='TrueComponents'
-
-id = Column(Integer, primary_key=True, index=True)
-Type_component = Column(Text)
-Model_component = Column(Text)
-Year_component = Column(Date)
-
-telemetry_rel = relationship('TelemetryComp', back_populates='true_rel')
 
 
