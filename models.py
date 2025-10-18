@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import  Column, Integer, String, Text, DateTime, Double, ForeignKey
+from sqlalchemy import  Column, Integer, String, Text, DateTime, Double, ForeignKey, Date
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 
@@ -27,7 +27,7 @@ class TractorComponent(Base):
 
     tractors = relationship('Tractors', back_populates='comp_list')
     
-    comp_rel = relationship('Components', back_populates='trac_comp_rel') 
+    # comp_rel = relationship('Components', back_populates='trac_comp_rel') 
 
 
 
@@ -68,23 +68,36 @@ class TractorComponent(Base):
 
 #класс прошивок
 class Firmwares(Base):
-   __tablename__ = 'Firmwares'
-   id_Firmwares = Column(Integer, primary_key=True, index=True)
-   inner_version = Column(Text, nullable=False)
-   producer_version = Column(Text, nullable=False)
-   download_link = Column(Text, nullable=False)
-   release_date = Column(DateTime)
-   maj_to = Column(String(255))  
-   min_to = Column(String(255))
-   maj_for_c_model = Column(String(255))  
-   min_for_c_model = Column(String(255))
-   time_Maj = Column(DateTime)
-   time_Min = Column(DateTime)
+    __tablename__ = 'Firmwares'
+
+    id_Firmwares = Column(Integer, primary_key=True, index=True)
+    inner_version = Column(Text, nullable=False)
+    producer_version = Column(Text, nullable=False)
+    download_link = Column(Text, nullable=False)
+    release_date = Column(DateTime)
+    maj_to = Column(String(255))  
+    min_to = Column(String(255))
+    maj_for_c_model = Column(String(255))  
+    min_for_c_model = Column(String(255))
+    time_Maj = Column(DateTime)
+    time_Min = Column(DateTime)
 
    # Обратная связь с компонентами
-   component_recommended = relationship("Components", back_populates="firmware_recommended",
-                                    uselist=False)
-   component_current = relationship("Components", back_populates="firmware_current",
-                                    uselist=False)
+    # component_recommended = relationship("Components", back_populates="firmware_recommended",
+    #                                 uselist=False)
+    # component_current = relationship("Components", back_populates="firmware_current",
+    #                                 uselist=False)
    
-   
+
+
+    class TrueComponents(Base):
+       __tablename__='TrueComponents'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    Type_component = Column(Text)
+    Model_component = Column(Text)
+    Year_component = Column(Date)
+
+    telemetry_rel = relationship('TelemetryComp', back_populates='true_rel')
+
+
