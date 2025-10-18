@@ -8,9 +8,8 @@ class Base(DeclarativeBase): pass
 class Tractors(Base):
     __tablename__ = 'tractors'
 
-    row_id = Column(Integer, primary_key=True, index = True)
+    terminal_id = Column(Integer, primary_key=True, index = True)
     model = Column(Text)
-    terminal_id = Column(Integer)
     region = Column(String)
     owner_name = Column(String)
     assembly_date = Column(DateTime, default = datetime.now)
@@ -22,20 +21,9 @@ class TractorComponent(Base):
 
     row_id = Column(Integer, primary_key=True,index=True)
     time_comp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    tractor = Column(Integer, ForeignKey('tractors.row_id'))
+    tractor = Column(Integer, ForeignKey('tractors.terminal_id'), nullable=False)
 
     tractors = relationship('Tractors', back_populates='comp_list')
-
-
-class Components(Base):
-    __tablename__ = 'components'
-
-    id = Column(Integer, primary_key=True, index=True)
-    Fact_num_comp = Column(Text)
-    Type_comp = Column(Text)
-    
-    archive_list = relationship('Archiv_FW', back_populates='comp_list', uselist=False)
-
 
 
 
@@ -46,8 +34,8 @@ class Archiv_FW(Base):
     inner_version = Column(Text)
     producer_version = Column(Text)
 
-    comp_id = Column(Integer, ForeignKey('components.id'), unique=True)
-    comp_list = relationship('Components', back_populates='archive_list')
+    # comp_id = Column(Integer, ForeignKey('components.id'), unique=True)
+    # comp_list = relationship('Components', back_populates='archive_list')
 
 
 #класс компонентов
