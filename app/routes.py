@@ -44,6 +44,22 @@ def get_tractors(session: Session = Depends(get_session)):
         )
 
 
+
+@router.post("/tractors/", response_model=schemas.TractorResponse, status_code=status.HTTP_201_CREATED)
+def create_tractor(tractor: schemas.TractorCreate, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_tractor_by_terminal(db, tractor.terminal_id):
+        raise HTTPException(status_code=400, detail="Tractor with this terminal_id already exists")
+    return CRUDs.create_tractor(db, tractor)
+
+@router.delete("/tractors/{tractor_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_tractor(tractor_id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_tractor(db, tractor_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Tractor not found")
+
+
+
 @router.get("/firmwares/", response_model=list[FirmwareInfo])
 def get_firmwares(session: Session = Depends(get_session)):
     try:
