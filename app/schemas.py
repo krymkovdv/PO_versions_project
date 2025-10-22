@@ -1,9 +1,10 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 
 class TractorsSchema(BaseModel):
+    terminal_id: int
     model: str
     region: str
     owner_name: str
@@ -11,8 +12,7 @@ class TractorsSchema(BaseModel):
 
     class Config:
         from_attributes = True  # ← позволяет читать из ORM-объекта
-from pydantic import BaseModel
-from typing import List, Optional
+
 
 # Для фильтрации
 class TractorFilter(BaseModel):

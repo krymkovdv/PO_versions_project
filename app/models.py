@@ -3,6 +3,11 @@ from sqlalchemy import  Column, Integer, String, Text, DateTime, Double, Foreign
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 
+
+
+
+
+
 class Base(DeclarativeBase): pass
  
 class Tractors(Base):
