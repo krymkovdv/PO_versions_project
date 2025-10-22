@@ -118,3 +118,33 @@ def smart_search_tractors(db: Session, query: str):
     ).all()
 
     return tractors
+
+
+def create_tractor(db: Session, tractor: schemas.TractorCreate):
+    db_tractor = models.Tractors(
+        terminal_id=tractor.terminal_id,
+        model=tractor.model,
+        region=tractor.region,
+        owner_name=tractor.owner_name,
+        assembly_date=tractor.assembly_date or datetime.utcnow()
+    )
+    db.add(db_tractor)
+    db.commit()
+    db.refresh(db_tractor)
+    return db_tractor
+
+
+def get_tractor(db: Session, tractor_id: int):
+    return db.query(models.Tractors).filter(models.Tractors.id == tractor_id).first()
+
+def get_tractor_by_terminal(db: Session, terminal_id: str):
+    return db.query(models.Tractors).filter(models.Tractors.terminal_id == terminal_id).first()
+
+
+def delete_tractor(db: Session, tractor_id: int):
+    tractor = db.query(models.Tractors).filter(models.Tractors.terminal_id == tractor_id).first()
+    if tractor is None:
+        return False
+    db.delete(tractor)
+    db.commit()
+    return True

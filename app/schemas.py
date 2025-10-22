@@ -10,8 +10,22 @@ class TractorsSchema(BaseModel):
     owner_name: str
     assembly_date: datetime
 
-    class Config:
-        from_attributes = True  # ← позволяет читать из ORM-объекта
+
+
+class TractorCreate(BaseModel):
+    terminal_id: int
+    model: str
+    region: str
+    owner_name: str
+    assembly_date: Optional[datetime] = None
+
+class TractorResponse(BaseModel):
+    terminal_id: int
+    model: str
+    region: str
+    owner_name: str
+    assembly_date: datetime
+
 
 
 # Для фильтрации
