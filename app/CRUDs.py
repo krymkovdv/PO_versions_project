@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from . import models, schemas
 from sqlalchemy import and_, or_, func
+from sqlalchemy import cast, String
 
 def get_tractor_software(db: Session, filters: schemas.TractorFilter):
     """
@@ -42,7 +43,7 @@ def get_tractor_software(db: Session, filters: schemas.TractorFilter):
         search = f"%{filters.search_query}%"
         query = query.filter(
             or_(
-                models.Tractors.terminal_id.like(search),  # если terminal_id = VIN
+                cast(models.Tractors.terminal_id, String).like(search),  # если terminal_id = VIN
                 models.Tractors.model.like(search),
                 models.Tractors.owner_name.like(search),
                 models.Tractors.region.like(search)
@@ -58,8 +59,8 @@ def get_tractor_software(db: Session, filters: schemas.TractorFilter):
             "model": tractor.model,
             "assembly_date": tractor.assembly_date.isoformat(),
             "region": tractor.region,
-            "motocycles": 0,  # нет поля в модели — нужно добавить
-            "last_activity": "N/A",  # нет поля — нужно добавить
+            # "motocycles": 0,  # нет поля в модели — нужно добавить
+            # "last_activity": "N/A",  # нет поля — нужно добавить
             "dvс": "Номер ПО / необходимость обновления",
             "kpp": "Номер ПО / необходимость обновления",
             "pk": "Номер ПО / необходимость обновления",
@@ -109,7 +110,7 @@ def smart_search_tractors(db: Session, query: str):
     search = f"%{query}%"
     tractors = db.query(models.Tractors).filter(
         or_(
-            models.Tractors.terminal_id.like(search),
+            cast(models.Tractors.terminal_id, String).like(search),
             models.Tractors.model.like(search),
             models.Tractors.owner_name.like(search),
             models.Tractors.region.like(search)

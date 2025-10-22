@@ -19,7 +19,7 @@ class TractorFilter(BaseModel):
     models: List[str] = []           # ['K-742MCT', 'K-735']
     release_date_from: Optional[str] = None  # "2025-01-01"
     release_date_to: Optional[str] = None
-    component_types: List[str] = []   # ['Серийное', 'Опытное']
+    component_types: Optional[List[str]] = None   # ['Серийное', 'Опытное']
     requires_maj: bool = False
     requires_min: bool = False
     search_query: Optional[str] = None  # для умного поиска
