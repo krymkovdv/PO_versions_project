@@ -4,6 +4,7 @@ from . import models, schemas
 from sqlalchemy import and_, or_, func
 from sqlalchemy import cast, String
 
+#Большой поиск по фильтрам(непроверено)
 def get_tractor_software(db: Session, filters: schemas.TractorFilter):
     """
     Получить список тракторов с их ПО по фильтрам
@@ -93,16 +94,7 @@ def get_tractor_software(db: Session, filters: schemas.TractorFilter):
     return result
 
 
-def download_firmware(db: Session, firmware_id: int):
-    """
-    Получить информацию о прошивке для скачивания
-    """
-    fw = db.query(models.Firmwares).filter(models.Firmwares.id_Firmwares == firmware_id).first()
-    if not fw:
-        return None
-    return fw
-
-
+#Cruds for Tractor
 def smart_search_tractors(db: Session, query: str):
     """
     Умный поиск по VIN, модели, дилеру, региону
@@ -119,7 +111,6 @@ def smart_search_tractors(db: Session, query: str):
 
     return tractors
 
-#Cruds for Tractor
 def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db_tractor = models.Tractors(
         terminal_id=tractor.terminal_id,
@@ -133,10 +124,8 @@ def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db.refresh(db_tractor)
     return db_tractor
 
-
 def get_tractor_by_terminal(db: Session, terminal_id: str):
     return db.query(models.Tractors).filter(models.Tractors.terminal_id == terminal_id).first()
-
 
 def delete_tractor(db: Session, tractor_id: int):
     tractor = db.query(models.Tractors).filter(models.Tractors.terminal_id == tractor_id).first()
@@ -150,10 +139,6 @@ def delete_tractor(db: Session, tractor_id: int):
 #Cruds for TractorComponent
 def get_tractor_component_by_terminal(db: Session, row_id: str):
     return db.query(models.TractorComponent).filter(models.TractorComponent.row_id == row_id).first()
-
-def get_tractor_component(db: Session, tractor_component_row_id: int):
-    return db.query(models.TractorComponent).filter(models.TractorComponent.row_id == tractor_component_row_id).first()
-
 
 def create_tractor_component(db: Session, tractor_component: schemas.TractorsComponentSchema):
     db_tractor_component = models.TractorComponent(
@@ -174,3 +159,37 @@ def delete_tractor_component(db: Session, tractor_component_row_id: int):
     db.delete(tractor_component)
     db.commit()
     return True
+
+#CRUDs for TelemetryComponent
+def get_telemetry_component_by_terminal(db: Session, id_telemetry: str):
+    return db.query(models.TelemetryComponents).filter(models.TelemetryComponents.id_telemetry == id_telemetry).first()
+
+def create_telemetry_component(db: Session, telemetry_component: schemas.TelemetryComponentSchema):
+    db_telemetry_component = models.TelemetryComponents(
+        id_telemetry = telemetry_component.id_telemetry,
+        current_version = telemetry_component.current_version,
+        true_comp = telemetry_component.true_comp,
+        is_maj = telemetry_component.is_maj
+    )
+    db.add(db_telemetry_component)
+    db.commit()
+    db.refresh(db_telemetry_component)
+    return db_telemetry_component
+
+def delete_telemetry_component(db: Session, telemetry_component_id_telemetry: int):
+    telemetry_component = db.query(models.TelemetryComponents).filter(models.TelemetryComponents.id_telemetry == telemetry_component_id_telemetry).first()
+    if telemetry_component is None:
+        return False
+    db.delete(telemetry_component)
+    db.commit()
+    return True
+
+#CRUDs for Firmware
+def download_firmware(db: Session, firmware_id: int):
+    """
+    Получить информацию о прошивке для скачивания
+    """
+    fw = db.query(models.Firmwares).filter(models.Firmwares.id_Firmwares == firmware_id).first()
+    if not fw:
+        return None
+    return fw

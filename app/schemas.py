@@ -10,16 +10,17 @@ class TractorsSchema(BaseModel):
     owner_name: str
     assembly_date: datetime
 
-
-
 class TractorsComponentSchema(BaseModel):
     row_id: int
     time_comp: str
     tractor: int
     comp_id: int
 
-
-
+class TelemetryComponentSchema(BaseModel):
+    id_telemetry: int
+    true_comp: int
+    current_version: int
+    is_maj: bool
 
 # Для фильтрации
 class TractorFilter(BaseModel):
@@ -40,14 +41,6 @@ class FirmwareInfo(BaseModel):
     maj_to: str
     min_to: str
 
-class TelemetryComponentInfo(BaseModel):
-    type_component: str
-    model_component: str
-    year_component: str
-    current_version: int
-    is_maj: bool
-    firmware: FirmwareInfo
-
 class TractorSoftwareResponse(BaseModel):
     vin: str
     model: str
@@ -59,7 +52,7 @@ class TractorSoftwareResponse(BaseModel):
     kpp: str
     pk: str
     bk: str
-    components: List[TelemetryComponentInfo]
+    components: List[TelemetryComponentSchema]
 
     class Config:
         from_attributes = True

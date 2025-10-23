@@ -57,6 +57,14 @@ def delete_tractor(tractor_id: int, db: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Tractor not found")
 
 
+# Эндпоинт 3: Умный поиск
+@router.post("/tractors/search")
+def smart_search_tractors(query: str, db: Session = Depends(get_session)):
+    tractors = CRUDs.smart_search_tractors(db, query)
+    return [{"terminal_id": t.terminal_id, "model": t.model, "region": t.region} for t in tractors]
+
+
+
 #Routes компонентов трактора
 @router.get("/tractorsComponent/", response_model=list[TractorsComponentSchema])
 def get_tractors_component(session: Session = Depends(get_session)):
@@ -90,7 +98,7 @@ def delete_tractor_component(tractorComponent_row_id: int, db: Session = Depends
         raise HTTPException(status_code=404, detail="Tractor not found")
 
 
-
+#Routes ПО
 @router.get("/firmwares/", response_model=list[FirmwareInfo])
 def get_firmwares(session: Session = Depends(get_session)):
     try:
@@ -108,8 +116,34 @@ def get_firmwares(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
+@router.get("/firmware/download/{firmware_id}")
+def download_firmware(firmware_id: int, db: Session = Depends(get_session)):
+    fw = CRUDs.download_firmware(db, firmware_id)
+    if not fw:
+        raise HTTPException(status_code=404, detail="Firmware not found")
+    
+    # В реальности здесь должен быть редирект или отправка файла
+    # Например:
+    # return FileResponse(path=fw.download_link, filename=f"{fw.producer_version}.bin")
+    
+    # Для теста — возвращаем JSON с ссылкой
+    return {"download_url": fw.download_link, "filename": f"{fw.producer_version}.bin"}
 
-@router.get("/telemetryComponents/", response_model=list[TelemetryComponentInfo])
+
+
+
+#Routes ПО на тракторе БОЛЬШОЙ ПОИСК
+@router.post("/tractors/software", response_model=List[schemas.TractorSoftwareResponse])
+def get_tractor_software(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
+    try:
+        software_list = CRUDs.get_tractor_software(db, filters)
+        return software_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+#Routes Телеметрии
+@router.get("/telemetryComponents/", response_model=list[TelemetryComponentSchema])
 def get_telemetry_components(session: Session = Depends(get_session)): 
     try:
         stmt = select(TelemetryComponents)
@@ -126,41 +160,23 @@ def get_telemetry_components(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
+@router.post("/telemetryComponent/", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED)
+def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_telemetry_component_by_terminal(db, telemetry_component.id_telemetry):
+        raise HTTPException(status_code=400, detail="Tractor with this terminal_id already exists")
+    return    CRUDs.create_telemetry_component(db, telemetry_component)
+
+
+@router.delete("/telemetryComponent/{id_terminal}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_tractor_component(telemetry_component_id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_telemetry_component(db, telemetry_component_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Tractor not found")
 
 
 
 
 
 
-
-# Эндпоинт 1: Получить список ПО по фильтрам
-@router.post("/tractors/software", response_model=List[schemas.TractorSoftwareResponse])
-def get_tractor_software(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
-    try:
-        software_list = CRUDs.get_tractor_software(db, filters)
-        return software_list
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Эндпоинт 2: Скачать прошивку
-@router.get("/firmware/download/{firmware_id}")
-def download_firmware(firmware_id: int, db: Session = Depends(get_session)):
-    fw = CRUDs.download_firmware(db, firmware_id)
-    if not fw:
-        raise HTTPException(status_code=404, detail="Firmware not found")
-    
-    # В реальности здесь должен быть редирект или отправка файла
-    # Например:
-    # return FileResponse(path=fw.download_link, filename=f"{fw.producer_version}.bin")
-    
-    # Для теста — возвращаем JSON с ссылкой
-    return {"download_url": fw.download_link, "filename": f"{fw.producer_version}.bin"}
-
-
-# Эндпоинт 3: Умный поиск
-@router.post("/tractors/search")
-def smart_search_tractors(query: str, db: Session = Depends(get_session)):
-    tractors = CRUDs.smart_search_tractors(db, query)
-    return [{"terminal_id": t.terminal_id, "model": t.model, "region": t.region} for t in tractors]
 
