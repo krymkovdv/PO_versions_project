@@ -144,14 +144,7 @@ def delete_firmware(Firmware_id: int, db: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Tractor not found")
 
 
-#Routes ПО на тракторе БОЛЬШОЙ ПОИСК
-@router.post("/tractors/software", response_model=List[schemas.TractorSoftwareResponse])
-def get_tractor_big_search(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
-    try:
-        software_list = CRUDs.get_tractor_software(db, filters)
-        return software_list
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+#Routes БОЛЬШОЙ ПОИСК
 
 
 #Routes True components
