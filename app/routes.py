@@ -117,8 +117,8 @@ def get_firmwares(session: Session = Depends(get_session)):
         )
 
 @router.get("/firmware/download/{firmware_id}")
-def download_firmware(firmware_id: int, db: Session = Depends(get_session)):
-    fw = CRUDs.download_firmware(db, firmware_id)
+def download_firmware(firmware: int, db: Session = Depends(get_session)):
+    fw = CRUDs.download_firmware(db, firmware.id_Firmwares)
     if not fw:
         raise HTTPException(status_code=404, detail="Firmware not found")
     
@@ -129,7 +129,19 @@ def download_firmware(firmware_id: int, db: Session = Depends(get_session)):
     # Для теста — возвращаем JSON с ссылкой
     return {"download_url": fw.download_link, "filename": f"{fw.producer_version}.bin"}
 
+@router.post("/firmware/", response_model=schemas.FirmwareSchema, status_code=status.HTTP_201_CREATED)
+def create_firmware(firmware: schemas.FirmwareSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_firmwares_by_terminal(db, firmware.id_Firmwares):
+        raise HTTPException(status_code=400, detail="Firmware with this terminal_id already exists")
+    return    CRUDs.create_firmwares(db, firmware)
 
+
+@router.delete("/firmware/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_firmware(Firmware_id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_firmwares(db, Firmware_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Tractor not found")
 
 
 #Routes ПО на тракторе БОЛЬШОЙ ПОИСК
