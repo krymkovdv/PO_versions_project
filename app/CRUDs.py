@@ -4,7 +4,6 @@ from . import models, schemas
 from sqlalchemy import and_, or_, func
 from sqlalchemy import cast, String
 
-#Большой поиск по фильтрам(надо сделать)
 
 #Cruds for Tractor
 def smart_search_tractors(db: Session, query: str):
@@ -161,4 +160,72 @@ def delete_true_component(db: Session, true_component_id: int):
     db.delete(true_component)
     db.commit()
     return True
+
+#Большой поиск по фильтрам(надо сделать)
+def get_tractor_software(db: Session, filters: schemas.TractorFilter):
+    query = (
+        db.query(models.Tractors)
+        .join(models.TractorComponent)
+        .join(models.TelemetryComponents)
+        .join(models.Firmwares)
+        .join(models.TrueComponents, models.TelemetryComponents.true_comp == models.TrueComponents.id)
+    )
+
+    # 1. Фильтр по моделям трактора
+    if filters.models:
+        query = query.filter(models.Tractors.model.in_(filters.models))
+
+    # 2. Фильтр по дате выпуска (assembly_date)
+    if filters.release_date_from:
+        date_from = datetime.fromisoformat(filters.release_date_from)
+        query = query.filter(models.Tractors.assembly_date >= date_from)
+    if filters.release_date_to:
+        date_to = datetime.fromisoformat(filters.release_date_to)
+        query = query.filter(models.Tractors.assembly_date <= date_to)
+
+    # 3. Фильтр по MAJ/MIN
+    if filters.requires_maj:
+        query = query.filter(models.TelemetryComponents.is_maj == True)
+    if filters.requires_min:
+        query = query.filter(models.TelemetryComponents.is_maj == False)
+
+    tractors = query.all()
+
+    # Формируем ответ
+    result = []
+    for tractor in tractors:
+        components = []
+        for tc in tractor.comp_list:
+            fw = tc.comp_rel.firmware_rel
+            true_comp = tc.comp_rel.true_rel
+
+            components.append({
+                "type_component": true_comp.Type_component,
+                "model_component": true_comp.Model_component,
+                "year_component": true_comp.Year_component.isoformat() if true_comp.Year_component else None,
+                "current_version": tc.comp_rel.current_version,
+                "is_maj": tc.comp_rel.is_maj,
+                "firmware": {
+                    "inner_version": fw.inner_version,
+                    "producer_version": fw.producer_version,
+                    "download_link": fw.download_link,
+                    "release_date": fw.release_date.isoformat() if fw.release_date else None,
+                    "maj_to": fw.maj_to,
+                    "min_to": fw.min_to,
+                }
+            })
+
+        result.append({
+            "vin": str(tractor.terminal_id),
+            "model": tractor.model,
+            "assembly_date": tractor.assembly_date.isoformat() if tractor.assembly_date else None,
+            "region": tractor.region,
+            "dvс": "Н/Д",
+            "kpp": "Н/Д",
+            "pk": "Н/Д",
+            "bk": "Н/Д",
+            "components": components
+        })
+
+    return result
 

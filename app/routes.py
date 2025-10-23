@@ -143,10 +143,6 @@ def delete_firmware(Firmware_id: int, db: Session = Depends(get_session)):
     if not success:
         raise HTTPException(status_code=404, detail="Firmware not found")
 
-
-#Routes БОЛЬШОЙ ПОИСК
-
-
 #Routes True components
 @router.get("/trueComponents/", response_model=list[TrueComponentSchema])
 def get_true_components(session: Session = Depends(get_session)): 
@@ -213,5 +209,10 @@ def delete_telemetry_component(telemetry_component_id: int, db: Session = Depend
         raise HTTPException(status_code=404, detail="Telemetry not found")
 
 
-
-
+#Routes БОЛЬШОЙ ПОИСК
+@router.post("/tractors/software", response_model=List[TractorSoftwareResponse])
+def get_tractor_software(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
+    try:
+        return CRUDs.get_tractor_software(db, filters)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
