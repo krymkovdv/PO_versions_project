@@ -98,8 +98,8 @@ def delete_tractor_component(tractorComponent_row_id: int, db: Session = Depends
         raise HTTPException(status_code=404, detail="Tractor not found")
 
 
-#Routes ПО
-@router.get("/firmwares/", response_model=list[FirmwareInfo])
+#Routes Firmwares
+@router.get("/firmwares/", response_model=list[FirmwareSchema])
 def get_firmwares(session: Session = Depends(get_session)):
     try:
         stmt = select(Firmwares)
@@ -134,7 +134,7 @@ def download_firmware(firmware_id: int, db: Session = Depends(get_session)):
 
 #Routes ПО на тракторе БОЛЬШОЙ ПОИСК
 @router.post("/tractors/software", response_model=List[schemas.TractorSoftwareResponse])
-def get_tractor_software(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
+def get_tractor_big_search(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
     try:
         software_list = CRUDs.get_tractor_software(db, filters)
         return software_list
@@ -142,7 +142,40 @@ def get_tractor_software(filters: schemas.TractorFilter, db: Session = Depends(g
         raise HTTPException(status_code=500, detail=str(e))
 
 
-#Routes Телеметрии
+#Routes True components
+@router.get("/trueComponents/", response_model=list[TrueComponentSchema])
+def get_true_components(session: Session = Depends(get_session)): 
+    try:
+        stmt = select(TrueComponents)
+        result = session.execute(stmt).scalars().all()
+        return result
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при получении компонентов: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Неизвестная ошибка: {str(e)}"
+        )
+    
+@router.post("/trueComponent/", response_model=schemas.TrueComponentSchema, status_code=status.HTTP_201_CREATED)
+def create_true_component(true_component: schemas.TrueComponentSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_true_component_by_terminal(db, true_component.id):
+        raise HTTPException(status_code=400, detail="Tractor with this terminal_id already exists")
+    return    CRUDs.create_true_component(db, true_component)
+
+
+@router.delete("/trueComponent/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_true_component(true_component_id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_true_component(db, true_component_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Tractor not found")
+
+
+#Routes for Telemetry components
 @router.get("/telemetryComponents/", response_model=list[TelemetryComponentSchema])
 def get_telemetry_components(session: Session = Depends(get_session)): 
     try:
@@ -168,14 +201,11 @@ def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSc
     return    CRUDs.create_telemetry_component(db, telemetry_component)
 
 
-@router.delete("/telemetryComponent/{id_terminal}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_tractor_component(telemetry_component_id: int, db: Session = Depends(get_session)):
+@router.delete("/telemetryComponent/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_telemetry_component(telemetry_component_id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_telemetry_component(db, telemetry_component_id)
     if not success:
         raise HTTPException(status_code=404, detail="Tractor not found")
-
-
-
 
 
 

@@ -193,3 +193,29 @@ def download_firmware(db: Session, firmware_id: int):
     if not fw:
         return None
     return fw
+
+
+#CRUDs for TrueComponents
+def get_true_component_by_terminal(db: Session, id: str):
+    return db.query(models.TrueComponents).filter(models.TrueComponents.id == id).first()
+
+def create_true_component(db: Session, true_component: schemas.TrueComponentSchema):
+    db_true_component = models.TrueComponents(
+        id = true_component.id,
+        Type_component = true_component.Type_component,
+        Model_component = true_component.Model_component,
+        Year_component = true_component.Year_component,
+    )
+    db.add(db_true_component)
+    db.commit()
+    db.refresh(db_true_component)
+    return db_true_component
+
+def delete_true_component(db: Session, true_component_id: int):
+    true_component = db.query(models.TrueComponents).filter(models.TrueComponents.id == true_component_id).first()
+    if true_component is None:
+        return False
+    db.delete(true_component)
+    db.commit()
+    return True
+
