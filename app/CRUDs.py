@@ -194,6 +194,37 @@ def download_firmware(db: Session, firmware_id: int):
         return None
     return fw
 
+def get_firmwares_by_terminal(db: Session, id_Firmwares: str):
+    return db.query(models.Firmwares).filter(models.Firmwares.id_Firmwares == id_Firmwares).first()
+
+def create_firmwares(db: Session, firmwares: schemas.FirmwareSchema):
+    db_firmwares = models.Firmwares(
+        id_Firmwares = firmwares.id_Firmwares,
+        inner_version = firmwares.inner_version,
+        producer_version = firmwares.producer_version,
+        download_link = firmwares.download_link,
+        release_date = firmwares.release_date,
+        maj_to = firmwares.maj_to,
+        min_to = firmwares.min_to,
+        maj_for_c_model = firmwares.maj_for_c_model,
+        min_for_c_model = firmwares.min_for_c_model,
+        time_Maj = firmwares.time_Maj,
+        time_Min = firmwares.time_Min
+    )
+    db.add(db_firmwares)
+    db.commit()
+    db.refresh(db_firmwares)
+    return db_firmwares
+
+def delete_firmwares(db: Session, firmwares_id: int):
+    firmwares = db.query(models.Firmwares).filter(models.Firmwares.id_Firmwares == firmwares_id).first()
+    if firmwares is None:
+        return False
+    db.delete(firmwares)
+    db.commit()
+    return True
+
+
 
 #CRUDs for TrueComponents
 def get_true_component_by_terminal(db: Session, id: str):
