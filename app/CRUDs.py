@@ -119,7 +119,7 @@ def smart_search_tractors(db: Session, query: str):
 
     return tractors
 
-
+#Cruds for Tractor
 def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db_tractor = models.Tractors(
         terminal_id=tractor.terminal_id,
@@ -145,6 +145,11 @@ def delete_tractor(db: Session, tractor_id: int):
     db.delete(tractor)
     db.commit()
     return True
+
+
+#Cruds for TractorComponent
+def get_tractor_component_by_terminal(db: Session, row_id: str):
+    return db.query(models.TractorComponent).filter(models.TractorComponent.row_id == row_id).first()
 
 def get_tractor_component(db: Session, tractor_component_row_id: int):
     return db.query(models.TractorComponent).filter(models.TractorComponent.row_id == tractor_component_row_id).first()

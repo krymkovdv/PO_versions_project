@@ -25,7 +25,7 @@ def get_session():
         yield session
 
 
-#CRUD'ы трактора
+#Routes трактора
 @router.get("/tractors/", response_model=list[TractorsSchema])
 def get_tractors(session: Session = Depends(get_session)):
     try:
@@ -57,7 +57,7 @@ def delete_tractor(tractor_id: int, db: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Tractor not found")
 
 
-#CRUD'ы компонентов трактора
+#Routes компонентов трактора
 @router.get("/tractorsComponent/", response_model=list[TractorsComponentSchema])
 def get_tractors_component(session: Session = Depends(get_session)):
     try:
@@ -78,7 +78,10 @@ def get_tractors_component(session: Session = Depends(get_session)):
 @router.post("/tractorComponent/", response_model=schemas.TractorsComponentSchema, status_code=status.HTTP_201_CREATED)
 def create_tractor_component(tractor_component: schemas.TractorsComponentSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат terminal_id
-   CRUDs.create_tractor_component(db, tractor_component)
+    if CRUDs.get_tractor_component_by_terminal(db, tractor_component.row_id):
+        raise HTTPException(status_code=400, detail="Tractor with this terminal_id already exists")
+    return    CRUDs.create_tractor_component(db, tractor_component)
+
 
 @router.delete("/tractorComponent/{row_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_tractor_component(tractorComponent_row_id: int, db: Session = Depends(get_session)):

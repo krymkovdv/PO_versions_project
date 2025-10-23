@@ -13,11 +13,11 @@ class TractorsSchema(BaseModel):
 
 
 class TractorsComponentSchema(BaseModel):
-    terminal_id: int
-    model: str
-    region: str
-    owner_name: str
-    assembly_date: datetime
+    row_id: int
+    time_comp: str
+    tractor: int
+    comp_id: int
+
 
 
 
