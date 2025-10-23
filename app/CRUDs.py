@@ -120,7 +120,7 @@ def smart_search_tractors(db: Session, query: str):
     return tractors
 
 
-def create_tractor(db: Session, tractor: schemas.TractorCreate):
+def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db_tractor = models.Tractors(
         terminal_id=tractor.terminal_id,
         model=tractor.model,
@@ -146,5 +146,29 @@ def delete_tractor(db: Session, tractor_id: int):
     if tractor is None:
         return False
     db.delete(tractor)
+    db.commit()
+    return True
+
+def get_tractor_component(db: Session, tractor_component_row_id: int):
+    return db.query(models.TractorComponent).filter(models.TractorComponent.row_id == tractor_component_row_id).first()
+
+
+def create_tractor_component(db: Session, tractor_component: schemas.TractorsComponentSchema):
+    db_tractor_component = models.TractorComponent(
+        row_id = tractor_component.row_id,
+        time_comp = tractor_component.time_comp,
+        tractor= tractor_component.tractor,
+        comp_id = tractor_component.comp_id
+    )
+    db.add(db_tractor_component)
+    db.commit()
+    db.refresh(db_tractor_component)
+    return db_tractor_component
+
+def delete_tractor_component(db: Session, tractor_component_row_id: int):
+    tractor_component = db.query(models.TractorComponent).filter(models.TractorComponent.row_id == tractor_component_row_id).first()
+    if tractor_component is None:
+        return False
+    db.delete(tractor_component)
     db.commit()
     return True

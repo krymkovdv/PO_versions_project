@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError  # ← для перехвата ошибок БД
-from app.schemas import TractorsSchema, FirmwareInfo, ComponentInfo
-from app.models import Tractors, Firmwares, TelemetryComponents
+from app.schemas import *
+from app.models import *
 import app.config as config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -25,7 +25,7 @@ def get_session():
         yield session
 
 
-
+#CRUD'ы трактора
 @router.get("/tractors/", response_model=list[TractorsSchema])
 def get_tractors(session: Session = Depends(get_session)):
     try:
@@ -43,10 +43,8 @@ def get_tractors(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-
-
-@router.post("/tractors/", response_model=schemas.TractorResponse, status_code=status.HTTP_201_CREATED)
-def create_tractor(tractor: schemas.TractorCreate, db: Session = Depends(get_session)):
+@router.post("/tractors/", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED)
+def create_tractor(tractor: schemas.TractorsSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат terminal_id
     if CRUDs.get_tractor_by_terminal(db, tractor.terminal_id):
         raise HTTPException(status_code=400, detail="Tractor with this terminal_id already exists")
@@ -55,6 +53,36 @@ def create_tractor(tractor: schemas.TractorCreate, db: Session = Depends(get_ses
 @router.delete("/tractors/{tractor_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_tractor(tractor_id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_tractor(db, tractor_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Tractor not found")
+
+
+#CRUD'ы компонентов трактора
+@router.get("/tractorsComponent/", response_model=list[TractorsComponentSchema])
+def get_tractors_component(session: Session = Depends(get_session)):
+    try:
+        stmt = select(TractorComponent)
+        result = session.execute(stmt).scalars().all()
+        return result
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при получении тракторов: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Неизвестная ошибка: {str(e)}"
+        )
+
+@router.post("/tractorComponent/", response_model=schemas.TractorsComponentSchema, status_code=status.HTTP_201_CREATED)
+def create_tractor_component(tractor_component: schemas.TractorsComponentSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+   CRUDs.create_tractor_component(db, tractor_component)
+
+@router.delete("/tractorComponent/{row_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_tractor_component(tractorComponent_row_id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_tractor_component(db, tractorComponent_row_id)
     if not success:
         raise HTTPException(status_code=404, detail="Tractor not found")
 
@@ -78,8 +106,8 @@ def get_firmwares(session: Session = Depends(get_session)):
         )
 
 
-@router.get("/components/", response_model=list[ComponentInfo])
-def get_components(session: Session = Depends(get_session)): 
+@router.get("/telemetryComponents/", response_model=list[TelemetryComponentInfo])
+def get_telemetry_components(session: Session = Depends(get_session)): 
     try:
         stmt = select(TelemetryComponents)
         result = session.execute(stmt).scalars().all()
@@ -129,6 +157,7 @@ def download_firmware(firmware_id: int, db: Session = Depends(get_session)):
 
 # Эндпоинт 3: Умный поиск
 @router.post("/tractors/search")
-def search_tractors(query: str, db: Session = Depends(get_session)):
+def smart_search_tractors(query: str, db: Session = Depends(get_session)):
     tractors = CRUDs.smart_search_tractors(db, query)
     return [{"terminal_id": t.terminal_id, "model": t.model, "region": t.region} for t in tractors]
+

@@ -12,14 +12,7 @@ class TractorsSchema(BaseModel):
 
 
 
-class TractorCreate(BaseModel):
-    terminal_id: int
-    model: str
-    region: str
-    owner_name: str
-    assembly_date: Optional[datetime] = None
-
-class TractorResponse(BaseModel):
+class TractorsComponentSchema(BaseModel):
     terminal_id: int
     model: str
     region: str
@@ -47,7 +40,7 @@ class FirmwareInfo(BaseModel):
     maj_to: str
     min_to: str
 
-class ComponentInfo(BaseModel):
+class TelemetryComponentInfo(BaseModel):
     type_component: str
     model_component: str
     year_component: str
@@ -66,7 +59,7 @@ class TractorSoftwareResponse(BaseModel):
     kpp: str
     pk: str
     bk: str
-    components: List[ComponentInfo]
+    components: List[TelemetryComponentInfo]
 
     class Config:
         from_attributes = True
