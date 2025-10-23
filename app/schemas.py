@@ -16,6 +16,20 @@ class TractorsComponentSchema(BaseModel):
     tractor: int
     comp_id: int
 
+class TrueComponentSchema(BaseModel):
+    id: int
+    Type_component: str
+    Model_component: str
+    Year_component: datetime
+
+class FirmwareSchema(BaseModel):
+    inner_version: str
+    producer_version: str
+    download_link: str
+    release_date: Optional[str]
+    maj_to: str
+    min_to: str
+
 class TelemetryComponentSchema(BaseModel):
     id_telemetry: int
     true_comp: int
@@ -31,15 +45,6 @@ class TractorFilter(BaseModel):
     requires_maj: bool = False
     requires_min: bool = False
     search_query: Optional[str] = None  # для умного поиска
-
-# Для ответа — строка таблицы
-class FirmwareInfo(BaseModel):
-    inner_version: str
-    producer_version: str
-    download_link: str
-    release_date: Optional[str]
-    maj_to: str
-    min_to: str
 
 class TractorSoftwareResponse(BaseModel):
     vin: str
