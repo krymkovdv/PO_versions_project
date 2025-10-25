@@ -193,6 +193,7 @@ def delete_relations(db: Session, id: int):
 #     return result
 # def get_software_components_by_terminal(db: Session, id: str):
 #     return db.query(models.SoftwareComponents).filter(models.SoftwareComponents.id == id).first()
+
 # #Большой поиск по фильтрам(надо сделать)
 # def get_tractor_software(db: Session, filters: schemas.TractorFilter):
 #     query = (
