@@ -29,7 +29,7 @@ class TelemetryComponents(Base):
     serial_number = Column(Text, unique=True) 
 
     components = relationship('Component', back_populates='tel_comp')
-    tractors = relationship('Tractor', back_populates='tel_trac')
+    tractors = relationship('Tractors', back_populates='tel_trac')
     softwares = relationship('Software', back_populates='telemetry')
 
 SoftwareComponents = Table('SoftwareComponents',
@@ -63,8 +63,20 @@ class Software(Base):
     next_version = Column(Integer, ForeignKey('Software.id'))
     release_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+    soft_comp = relationship('Component', secondary = SoftwareComponents, back_populates='comp_soft')
     telemetry = relationship('TelemetryComponents', back_populates='softwares')
-    relation  = relationship('Relations', back_populates='softwares')
+    # Связи, где этот Software — software1
+    as_software1 = relationship(
+        'Relations',
+        foreign_keys='Relations.software1',
+        back_populates='sw1'
+    )
+    # Связи, где этот Software — software2
+    as_software2 = relationship(
+        'Relations',
+        foreign_keys='Relations.software2',
+        back_populates='sw2'
+    )
 
 class Relations(Base):
     __tablename__ = 'Relations'
@@ -73,5 +85,6 @@ class Relations(Base):
     software1 = Column(Integer, ForeignKey('Software.id'), nullable=False)
     software2 = Column(Integer, ForeignKey('Software.id'), nullable=False)
 
-    softwares = relationship('Software', back_populates='relation')
+    sw1 = relationship('Software', foreign_keys=[software1], back_populates='as_software1')
+    sw2 = relationship('Software', foreign_keys=[software2], back_populates='as_software2')
 

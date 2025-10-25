@@ -1,9 +1,6 @@
 from sqlalchemy.orm import Session
-from datetime import datetime
-from . import models, schemas
-from sqlalchemy import and_, or_, func, select
-from sqlalchemy import cast, String
-
+from . import models, schemas  
+from sqlalchemy import or_, cast, String, select
 
 #Cruds for Tractor
 def smart_search_tractors(db: Session, query: str):
@@ -13,22 +10,23 @@ def smart_search_tractors(db: Session, query: str):
     search = f"%{query}%"
     tractors = db.query(models.Tractors).filter(
         or_(
-            cast(models.Tractors.terminal_id, String).like(search),
+            cast(models.Tractors.id, String).like(search),
             models.Tractors.model.like(search),
             models.Tractors.vin.like(search),
-            models.Tractors.last_activity.like(search)
+            cast(models.Tractors.last_activity, String).like(search),      
+            cast(models.Tractors.assembly_date, String).like(search)  
         )
     ).all()
-
     return tractors
-def get_tractor(db: Session):
+
+def get_tractors(db: Session):
     stmt = select(models.Tractors)
     result = db.execute(stmt).scalars().all()
     return result
 
 def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db_tractor = models.Tractors(
-        tractor_id = tractor.id,
+        id = tractor.id,
         model=tractor.model,
         vin =tractor.vin,
         oh_hour = tractor.oh_hour,
@@ -40,7 +38,7 @@ def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db.refresh(db_tractor)
     return db_tractor
 
-def get_tractor_by_terminal(db: Session, id: str):
+def get_tractor_by_terminal(db: Session, id: int):
     return db.query(models.Tractors).filter(models.Tractors.id == id).first()
 
 def delete_tractor(db: Session, id: int):
