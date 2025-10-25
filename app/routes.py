@@ -1,21 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError  # ← для перехвата ошибок БД
-from app.schemas import *
-from app.models import *
-import app.config as config
+from sqlalchemy.exc import SQLAlchemyError
+from . import CRUDs, schemas, config, models 
+from .config import settings 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from . import CRUDs, schemas
 from typing import List
+
 
 
 router = APIRouter()
 
-# Настройка подключения к БД (лучше вынести в отдельный файл, но оставим пока здесь)
+# Настройка подключения к БД
 url_db = config.settings.get_url()
 engine = create_engine(url_db)
 SessionLocal = sessionmaker(bind=engine)
@@ -26,9 +22,10 @@ def get_session():
 
 
 #Routes трактора
-@router.get("/tractors/", response_model=list[TractorsSchema])
+@router.get("/tractors/", response_model=list[schemas.TractorsSchema])
 def get_tractors(db: Session = Depends(get_session)):
-    try: CRUDs.get_tractors(db)
+    try: 
+        return CRUDs.get_tractors(db)
     except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -48,8 +45,8 @@ def create_tractor(tractor: schemas.TractorsSchema, db: Session = Depends(get_se
     return CRUDs.create_tractor(db, tractor)
 
 @router.delete("/tractors/{tractor_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_tractor(id: int, db: Session = Depends(get_session)):
-    success = CRUDs.delete_tractor(db, id)
+def delete_tractor(tractor_id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_tractor(db, tractor_id)
     if not success:
         raise HTTPException(status_code=404, detail="Tractor not found")
 
@@ -58,7 +55,7 @@ def delete_tractor(id: int, db: Session = Depends(get_session)):
 @router.post("/tractors/search")
 def smart_search_tractors(query: str, db: Session = Depends(get_session)):
     tractors = CRUDs.smart_search_tractors(db, query)
-    return [{"terminal_id": t.id, "model": t.model, "region": t.vin, "assemble": t.assembly_date} for t in tractors]
+    return [{"terminal_id": t.id, "model": t.model, "vin": t.vin, "assemble": t.assembly_date, "last activity": t.last_activity} for t in tractors]
 
 
 

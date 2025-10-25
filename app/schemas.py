@@ -4,7 +4,7 @@ from typing import Optional, List
 
 
 class TractorsSchema(BaseModel):
-    tractor_id: int
+    id: int
     model: str
     vin: str
     oh_hour: int
@@ -12,13 +12,13 @@ class TractorsSchema(BaseModel):
     assembly_date: Optional[datetime] = None
 
 class ComponentSchema(BaseModel):
-    component_id: int
+    id: int
     type: str
     model: int
     date_create: date
 
 class TelemetryComponentSchema(BaseModel):
-    telemetry_id: int
+    id: int
     software: int
     tractor: int
     component: int
@@ -26,16 +26,16 @@ class TelemetryComponentSchema(BaseModel):
     serial_number: str
 
 class SoftwareSchema(BaseModel):
-    software_id: int
+    id: int
     path: str
     name: str
     inner_name: str
-    prev_version = Optional[int]
-    next_version = Optional[int]
+    prev_version: Optional[int] = None
+    next_version: Optional[int] = None
     release_date: datetime
 
 class ComponentSoftwareSchema(BaseModel):
-    component_software_id: int
+    id: int
     software: int
     tractor: int
     component: int
@@ -44,9 +44,9 @@ class ComponentSoftwareSchema(BaseModel):
 
 class relation(BaseModel):
     
-    relation_id = int
-    software1 = int
-    software2 = int
+    id: int
+    software1: int
+    software2: int
 
 # # Для фильтра СХЕМА
 # class TractorFilter(BaseModel):
