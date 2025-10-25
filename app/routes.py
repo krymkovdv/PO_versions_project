@@ -27,11 +27,8 @@ def get_session():
 
 #Routes трактора
 @router.get("/tractors/", response_model=list[TractorsSchema])
-def get_tractors(session: Session = Depends(get_session)):
-    try:
-        stmt = select(Tractors)
-        result = session.execute(stmt).scalars().all()
-        return result
+def get_tractors(db: Session = Depends(get_session)):
+    try: CRUDs.get_tractors(db)
     except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
