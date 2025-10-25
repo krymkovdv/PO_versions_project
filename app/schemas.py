@@ -22,7 +22,7 @@ class TelemetryComponentSchema(BaseModel):
     software: int
     tractor: int
     component: int
-    time_record: datetime
+    time_rec: datetime
     serial_number: str
 
 class SoftwareSchema(BaseModel):
@@ -34,7 +34,7 @@ class SoftwareSchema(BaseModel):
     next_version: Optional[int] = None
     release_date: datetime
 
-class ComponentSoftwareSchema(BaseModel):
+class SoftwareComponentsSchema(BaseModel):
     id: int
     software: int
     tractor: int
@@ -42,8 +42,7 @@ class ComponentSoftwareSchema(BaseModel):
     time_record: datetime
     serial_number: str
 
-class relation(BaseModel):
-    
+class RelationSchema(BaseModel):
     id: int
     software1: int
     software2: int

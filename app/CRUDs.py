@@ -49,121 +49,150 @@ def delete_tractor(db: Session, id: int):
     db.commit()
     return True
 
+# #Cruds for Component
+def get_component(db: Session):
+    stmt = select(models.Component)
+    result = db.execute(stmt).scalars().all()
+    return result
 
-# #Cruds for TractorComponent
-# def get_tractor_component_by_terminal(db: Session, row_id: str):
-#     return db.query(models.TractorComponent).filter(models.TractorComponent.row_id == row_id).first()
+def get_component_by_terminal(db: Session, id: str):
+    return db.query(models.Component).filter(models.Component.id == id).first()
 
-# def create_tractor_component(db: Session, tractor_component: schemas.TractorsComponentSchema):
-#     db_tractor_component = models.TractorComponent(
-#         row_id = tractor_component.row_id,
-#         time_comp = tractor_component.time_comp,
-#         tractor= tractor_component.tractor,
-#         comp_id = tractor_component.comp_id
-#     )
-#     db.add(db_tractor_component)
-#     db.commit()
-#     db.refresh(db_tractor_component)
-#     return db_tractor_component
+def create_component(db: Session, component: schemas.ComponentSchema):
+    db_component = models.Component(
+        id = component.id,
+        type = component.type,
+        model = component.model,
+        date_create = component.date_create
+    )
+    db.add(db_component)
+    db.commit()
+    db.refresh(db_component)
+    return db_component
 
-# def delete_tractor_component(db: Session, tractor_component_row_id: int):
-#     tractor_component = db.query(models.TractorComponent).filter(models.TractorComponent.row_id == tractor_component_row_id).first()
-#     if tractor_component is None:
-#         return False
-#     db.delete(tractor_component)
-#     db.commit()
-#     return True
+def delete_component(db: Session, id: int):
+    component = db.query(models.Component).filter(models.Component.id == id).first()
+    if component is None:
+        return False
+    db.delete(component)
+    db.commit()
+    return True
 
-# #CRUDs for TelemetryComponent
-# def get_telemetry_component_by_terminal(db: Session, telemetry_id: str):
-#     return db.query(models.TelemetryComponents).filter(models.TelemetryComponents.telemetry_id == telemetry_id).first()
+#CRUDs for TelemetryComponent
+def get_telemetry_component(db: Session):
+    stmt = select(models.TelemetryComponents)
+    result = db.execute(stmt).scalars().all()
+    return result
 
-# def create_telemetry_component(db: Session, telemetry_component: schemas.TelemetryComponentSchema):
-#     db_telemetry_component = models.TelemetryComponents(
-#         telemetry_id= telemetry_component.telemetry_id,
-#         current_version = telemetry_component.current_version,
-#         true_comp = telemetry_component.true_comp,
-#         is_maj = telemetry_component.is_maj
-#     )
-#     db.add(db_telemetry_component)
-#     db.commit()
-#     db.refresh(db_telemetry_component)
-#     return db_telemetry_component
+def get_telemetry_component_by_terminal(db: Session, id: str):
+    return db.query(models.TelemetryComponents).filter(models.TelemetryComponents.id == id).first()
 
-# def delete_telemetry_component(db: Session, telemetry_component_telemetry_id: int):
-#     telemetry_component = db.query(models.TelemetryComponents).filter(models.TelemetryComponents.telemetry_id == telemetry_component_telemetry_id).first()
-#     if telemetry_component is None:
-#         return False
-#     db.delete(telemetry_component)
-#     db.commit()
-#     return True
+def create_telemetry_component(db: Session, telemetry_component: schemas.TelemetryComponentSchema):
+    db_telemetry_component = models.TelemetryComponents(
+        id= telemetry_component.id,
+        software = telemetry_component.software,
+        tractor = telemetry_component.tractor,
+        component = telemetry_component.component,
+        time_rec = telemetry_component.time_rec,
+        serial_number = telemetry_component.serial_number
+    )
+    db.add(db_telemetry_component)
+    db.commit()
+    db.refresh(db_telemetry_component)
+    return db_telemetry_component
 
-# #CRUDs for Firmware
-# def download_firmware(db: Session, firmware_id: int):
+def delete_telemetry_component(db: Session, id: int):
+    telemetry_component = db.query(models.TelemetryComponents).filter(models.TelemetryComponents.id == id).first()
+    if telemetry_component is None:
+        return False
+    db.delete(telemetry_component)
+    db.commit()
+    return True
+
+#CRUDs for Software
+# def download_software(db: Session, firmware_id: int):
 #     """
 #     Получить информацию о прошивке для скачивания
 #     """
-#     fw = db.query(models.Firmwares).filter(models.Firmwares.id_Firmwares == firmware_id).first()
+#     fw = db.query(models.Software).filter(models.Firmwares.id_Firmwares == firmware_id).first()
 #     if not fw:
 #         return None
 #     return fw
+# для скачки НАДО СДЕЛАТЬ
 
-# def get_firmwares_by_terminal(db: Session, id_Firmwares: str):
-#     return db.query(models.Firmwares).filter(models.Firmwares.id_Firmwares == id_Firmwares).first()
+def get_software(db: Session):
+    stmt = select(models.Software)
+    result = db.execute(stmt).scalars().all()
+    return result
 
-# def create_firmwares(db: Session, firmwares: schemas.FirmwareSchema):
-#     db_firmwares = models.Firmwares(
-#         id_Firmwares = firmwares.id_Firmwares,
-#         inner_version = firmwares.inner_version,
-#         producer_version = firmwares.producer_version,
-#         download_link = firmwares.download_link,
-#         release_date = firmwares.release_date,
-#         maj_to = firmwares.maj_to,
-#         min_to = firmwares.min_to,
-#         maj_for_c_model = firmwares.maj_for_c_model,
-#         min_for_c_model = firmwares.min_for_c_model,
-#         time_Maj = firmwares.time_Maj,
-#         time_Min = firmwares.time_Min
-#     )
-#     db.add(db_firmwares)
-#     db.commit()
-#     db.refresh(db_firmwares)
-#     return db_firmwares
+def get_software_by_terminal(db: Session, id: str):
+    return db.query(models.Software).filter(models.Software.id == id).first()
 
-# def delete_firmwares(db: Session, firmwares_id: int):
-#     firmwares = db.query(models.Firmwares).filter(models.Firmwares.id_Firmwares == firmwares_id).first()
-#     if firmwares is None:
-#         return False
-#     db.delete(firmwares)
-#     db.commit()
-#     return True
+def create_software(db: Session, software: schemas.SoftwareSchema):
+    db_software = models.Software(
+        id = software.id,
+        path = software.path,
+        name = software.name,
+        inner_name = software.inner_name,
+        prev_version = software.prev_version,
+        next_version = software.next_version,
+        release_date = software.release_date
+    )
+    db.add(db_software)
+    db.commit()
+    db.refresh(db_software)
+    return db_software
 
+def delete_software(db: Session, id: int):
+    software = db.query(models.Software).filter(models.Software.id == id).first()
+    if software is None:
+        return False
+    db.delete(software)
+    db.commit()
+    return True
 
+# #CRUDs for Relations
+def get_relations(db: Session):
+    stmt = select(models.Relations)
+    result = db.execute(stmt).scalars().all()
+    return result
 
-# #CRUDs for TrueComponents
-# def get_true_component_by_terminal(db: Session, id: str):
-#     return db.query(models.TrueComponents).filter(models.TrueComponents.id == id).first()
+def get_relations_by_terminal(db: Session, id: str):
+    return db.query(models.Relations).filter(models.Relations.id == id).first()
 
-# def create_true_component(db: Session, true_component: schemas.TrueComponentSchema):
-#     db_true_component = models.TrueComponents(
-#         id = true_component.id,
-#         Type_component = true_component.Type_component,
-#         Model_component = true_component.Model_component,
-#         Year_component = true_component.Year_component,
-#     )
-#     db.add(db_true_component)
-#     db.commit()
-#     db.refresh(db_true_component)
-#     return db_true_component
+def create_relations(db: Session, relations: schemas.RelationSchema):
+        db_relations = models.Relations(
+            id = relations.id,
+            software1 = relations.software1,
+            software2 = relations.software2
+        )        
+        db.add(db_relations)
+        db.commit()
+        db.refresh(db_relations)
+        return db_relations
 
-# def delete_true_component(db: Session, true_component_id: int):
-#     true_component = db.query(models.TrueComponents).filter(models.TrueComponents.id == true_component_id).first()
-#     if true_component is None:
-#         return False
-#     db.delete(true_component)
-#     db.commit()
-#     return True
+def delete_relations(db: Session, id: int):
+    relations = db.query(models.Relations).filter(models.Relations.id == id).first()
+    if relations is None:
+        return False
+    db.delete(relations)
+    db.commit()
+    return True
 
+#CRUDs for SoftwareComponents
+    # id: int
+    # software: int
+    # tractor: int
+    # component: int
+    # time_record: datetime
+    # serial_number: str
+
+# def get_software_components(db: Session):
+#     stmt = select(models.SoftwareComponents)
+#     result = db.execute(stmt).scalars().all()
+#     return result
+# def get_software_components_by_terminal(db: Session, id: str):
+#     return db.query(models.SoftwareComponents).filter(models.SoftwareComponents.id == id).first()
 # #Большой поиск по фильтрам(надо сделать)
 # def get_tractor_software(db: Session, filters: schemas.TractorFilter):
 #     query = (
