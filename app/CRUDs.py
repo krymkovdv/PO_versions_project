@@ -28,7 +28,7 @@ def get_tractor(db: Session):
 
 def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db_tractor = models.Tractors(
-        id = tractor.id,
+        tractor_id = tractor.id,
         model=tractor.model,
         vin =tractor.vin,
         oh_hour = tractor.oh_hour,
