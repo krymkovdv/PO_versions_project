@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 from . import models, schemas
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, select
 from sqlalchemy import cast, String
 
 
@@ -21,6 +21,10 @@ def smart_search_tractors(db: Session, query: str):
     ).all()
 
     return tractors
+def get_tractor(db: Session):
+    stmt = select(models.Tractors)
+    result = db.execute(stmt).scalars().all()
+    return result
 
 def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db_tractor = models.Tractors(
@@ -72,12 +76,12 @@ def delete_tractor_component(db: Session, tractor_component_row_id: int):
     return True
 
 #CRUDs for TelemetryComponent
-def get_telemetry_component_by_terminal(db: Session, id_telemetry: str):
-    return db.query(models.TelemetryComponents).filter(models.TelemetryComponents.id_telemetry == id_telemetry).first()
+def get_telemetry_component_by_terminal(db: Session, telemetry_id: str):
+    return db.query(models.TelemetryComponents).filter(models.TelemetryComponents.telemetry_id == telemetry_id).first()
 
 def create_telemetry_component(db: Session, telemetry_component: schemas.TelemetryComponentSchema):
     db_telemetry_component = models.TelemetryComponents(
-        id_telemetry = telemetry_component.id_telemetry,
+        telemetry_id= telemetry_component.telemetry_id,
         current_version = telemetry_component.current_version,
         true_comp = telemetry_component.true_comp,
         is_maj = telemetry_component.is_maj
@@ -87,8 +91,8 @@ def create_telemetry_component(db: Session, telemetry_component: schemas.Telemet
     db.refresh(db_telemetry_component)
     return db_telemetry_component
 
-def delete_telemetry_component(db: Session, telemetry_component_id_telemetry: int):
-    telemetry_component = db.query(models.TelemetryComponents).filter(models.TelemetryComponents.id_telemetry == telemetry_component_id_telemetry).first()
+def delete_telemetry_component(db: Session, telemetry_component_telemetry_id: int):
+    telemetry_component = db.query(models.TelemetryComponents).filter(models.TelemetryComponents.telemetry_id == telemetry_component_telemetry_id).first()
     if telemetry_component is None:
         return False
     db.delete(telemetry_component)
