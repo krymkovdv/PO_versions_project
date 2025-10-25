@@ -57,150 +57,132 @@ def smart_search_tractors(query: str, db: Session = Depends(get_session)):
     tractors = CRUDs.smart_search_tractors(db, query)
     return [{"terminal_id": t.id, "model": t.model, "vin": t.vin, "assemble": t.assembly_date, "last activity": t.last_activity} for t in tractors]
 
+#Routes компонентов трактора
+@router.get("/component/", response_model=list[schemas.ComponentSchema])
+def get_component(session: Session = Depends(get_session)):
+    try:
+        return CRUDs.get_component(session)
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при получении компонентов тракторов: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Неизвестная ошибка: {str(e)}"
+        )
+
+@router.post("/component/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED)
+def create_component(component: schemas.ComponentSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_component_by_terminal(db, component.id):
+        raise HTTPException(status_code=400, detail="Tractor component with this terminal_id already exists")
+    return    CRUDs.create_component(db, component)
 
 
-# #Routes компонентов трактора
-# @router.get("/tractorsComponent/", response_model=list[TractorsComponentSchema])
-# def get_tractors_component(session: Session = Depends(get_session)):
-#     try:
-#         stmt = select(TractorComponent)
-#         result = session.execute(stmt).scalars().all()
-#         return result
-#     except SQLAlchemyError as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Ошибка базы данных при получении компонентов тракторов: {str(e)}"
-#         )
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Неизвестная ошибка: {str(e)}"
-#         )
-
-# @router.post("/tractorComponent/", response_model=schemas.TractorsComponentSchema, status_code=status.HTTP_201_CREATED)
-# def create_tractor_component(tractor_component: schemas.TractorsComponentSchema, db: Session = Depends(get_session)):
-#     # Проверка на дубликат terminal_id
-#     if CRUDs.get_tractor_component_by_terminal(db, tractor_component.row_id):
-#         raise HTTPException(status_code=400, detail="Tractor component with this terminal_id already exists")
-#     return    CRUDs.create_tractor_component(db, tractor_component)
-
-
-# @router.delete("/tractorComponent/{row_id}", status_code=status.HTTP_204_NO_CONTENT)
-# def delete_tractor_component(tractorComponent_row_id: int, db: Session = Depends(get_session)):
-#     success = CRUDs.delete_tractor_component(db, tractorComponent_row_id)
-#     if not success:
-#         raise HTTPException(status_code=404, detail="Tractor component not found")
-
-
-# #Routes Firmwares
-# @router.get("/firmwares/", response_model=list[FirmwareSchema])
-# def get_firmwares(session: Session = Depends(get_session)):
-#     try:
-#         stmt = select(Firmwares)
-#         result = session.execute(stmt).scalars().all()
-#         return result
-#     except SQLAlchemyError as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Ошибка базы данных при получении прошивок: {str(e)}"
-#         )
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Неизвестная ошибка: {str(e)}"
-#         )
-
-# @router.get("/firmware/download/{firmware_id}")
-# def download_firmware(firmware: int, db: Session = Depends(get_session)):
-#     fw = CRUDs.download_firmware(db, firmware.id_Firmwares)
-#     if not fw:
-#         raise HTTPException(status_code=404, detail="Firmware not found")
-    
-#     # В реальности здесь должен быть редирект или отправка файла
-#     # Например:
-#     # return FileResponse(path=fw.download_link, filename=f"{fw.producer_version}.bin")
-    
-#     # Для теста — возвращаем JSON с ссылкой
-#     return {"download_url": fw.download_link, "filename": f"{fw.producer_version}.bin"}
-
-# @router.post("/firmware/", response_model=schemas.FirmwareSchema, status_code=status.HTTP_201_CREATED)
-# def create_firmware(firmware: schemas.FirmwareSchema, db: Session = Depends(get_session)):
-#     # Проверка на дубликат terminal_id
-#     if CRUDs.get_firmwares_by_terminal(db, firmware.id_Firmwares):
-#         raise HTTPException(status_code=400, detail="Firmware with this terminal_id already exists")
-#     return    CRUDs.create_firmwares(db, firmware)
-
-
-# @router.delete("/firmware/{id}", status_code=status.HTTP_204_NO_CONTENT)
-# def delete_firmware(Firmware_id: int, db: Session = Depends(get_session)):
-#     success = CRUDs.delete_firmwares(db, Firmware_id)
-#     if not success:
-#         raise HTTPException(status_code=404, detail="Firmware not found")
-
-# #Routes True components
-# @router.get("/trueComponents/", response_model=list[TrueComponentSchema])
-# def get_true_components(session: Session = Depends(get_session)): 
-#     try:
-#         stmt = select(TrueComponents)
-#         result = session.execute(stmt).scalars().all()
-#         return result
-#     except SQLAlchemyError as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Ошибка базы данных при получении компонентов: {str(e)}"
-#         )
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Неизвестная ошибка: {str(e)}"
-#         )
-    
-# @router.post("/trueComponent/", response_model=schemas.TrueComponentSchema, status_code=status.HTTP_201_CREATED)
-# def create_true_component(true_component: schemas.TrueComponentSchema, db: Session = Depends(get_session)):
-#     # Проверка на дубликат terminal_id
-#     if CRUDs.get_true_component_by_terminal(db, true_component.id):
-#         raise HTTPException(status_code=400, detail="true component with this id already exists")
-#     return    CRUDs.create_true_component(db, true_component)
-
-
-# @router.delete("/trueComponent/{id}", status_code=status.HTTP_204_NO_CONTENT)
-# def delete_true_component(true_component_id: int, db: Session = Depends(get_session)):
-#     success = CRUDs.delete_true_component(db, true_component_id)
-#     if not success:
-#         raise HTTPException(status_code=404, detail="true component not found")
+@router.delete("/component/{row_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_component(id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_component(db, id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Tractor component not found")
 
 
 # #Routes for Telemetry components
-# @router.get("/telemetryComponents/", response_model=list[TelemetryComponentSchema])
-# def get_telemetry_components(session: Session = Depends(get_session)): 
-#     try:
-#         stmt = select(TelemetryComponents)
-#         result = session.execute(stmt).scalars().all()
-#         return result
-#     except SQLAlchemyError as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Ошибка базы данных при получении компонентов: {str(e)}"
-#         )
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Неизвестная ошибка: {str(e)}"
-#         )
+@router.get("/telemetryComponents/", response_model=list[schemas.TelemetryComponentSchema])
+def get_telemetry_components(session: Session = Depends(get_session)): 
+    try:
+        return CRUDs.get_telemetry_component(session)
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при получении компонентов: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Неизвестная ошибка: {str(e)}"
+        )
     
-# @router.post("/telemetryComponent/", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED)
-# def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSchema, db: Session = Depends(get_session)):
-#     # Проверка на дубликат terminal_id
-#     if CRUDs.get_telemetry_component_by_terminal(db, telemetry_component.id_telemetry):
-#         raise HTTPException(status_code=400, detail="Telemetry with this id already exists")
-#     return    CRUDs.create_telemetry_component(db, telemetry_component)
+@router.post("/telemetryComponent/", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED)
+def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_telemetry_component_by_terminal(db, telemetry_component.id):
+        raise HTTPException(status_code=400, detail="Telemetry with this id already exists")
+    return    CRUDs.create_telemetry_component(db, telemetry_component)
 
 
-# @router.delete("/telemetryComponent/{id}", status_code=status.HTTP_204_NO_CONTENT)
-# def delete_telemetry_component(telemetry_component_id: int, db: Session = Depends(get_session)):
-#     success = CRUDs.delete_telemetry_component(db, telemetry_component_id)
-#     if not success:
-#         raise HTTPException(status_code=404, detail="Telemetry not found")
+@router.delete("/telemetryComponent/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_telemetry_component(id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_telemetry_component(db, id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Telemetry not found")
+
+
+# #Routes Software
+@router.get("/software/", response_model=list[schemas.SoftwareSchema])
+def get_software(session: Session = Depends(get_session)):
+    try:
+        return CRUDs.get_software(session)
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при получении прошивок: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Неизвестная ошибка: {str(e)}"
+        )
+
+# @router.get("/software/download/{firmware_id}")
+# def download_firmware(firmware: int, db: Session = Depends(get_session)):
+#     fw = CRUDs.download_firmware(db, firmware.id_Firmwares)
+#     if not fw:
+#     return {"download_url": fw.download_link, "filename": f"{fw.producer_version}.bin"}
+
+@router.post("/software/", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED)
+def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_software_by_terminal(db, software.id):
+        raise HTTPException(status_code=400, detail="Firmware with this terminal_id already exists")
+    return    CRUDs.create_software(db, software)
+
+@router.delete("/software/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_software(id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_software(db, id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Firmware not found")
+    
+#routes for Relations
+@router.get("/relations/", response_model=list[schemas.RelationSchema])
+def get_relations(session: Session = Depends(get_session)): 
+    try:
+        return CRUDs.get_relations(session)
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при получении компонентов: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Неизвестная ошибка: {str(e)}"
+        )
+    
+@router.post("/relations/", response_model=schemas.RelationSchema, status_code=status.HTTP_201_CREATED)
+def create_relations(relation: schemas.RelationSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_relations_by_terminal(db, relation.id):
+        raise HTTPException(status_code=400, detail="Telemetry with this id already exists")
+    return    CRUDs.create_relations(db, relation)
+
+
+@router.delete("/relations/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_relations(id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_relations(db, id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Telemetry not found")
 
 
 # #Routes БОЛЬШОЙ ПОИСК
