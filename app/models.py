@@ -1,11 +1,7 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import  Column, Integer, String, Text, DateTime, Double, ForeignKey, Boolean, Date, CHAR
+from sqlalchemy import  Column, Integer, Text, DateTime, ForeignKey, Boolean, Date, CHAR, Table
 from datetime import datetime, timezone
-from sqlalchemy.orm import relationship, Table
-
-
-
-
+from sqlalchemy.orm import relationship
 
 
 class Base(DeclarativeBase): pass
@@ -27,7 +23,7 @@ class TelemetryComponents(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     software = Column(Integer, ForeignKey('Software.id'), nullable=False)
-    tractor = Column(Integer, ForeignKey('Tractor.id'), unique=True, nullable=False)
+    tractor = Column(Integer, ForeignKey('Tractors.id'), unique=True, nullable=False)
     component = Column(Integer, ForeignKey('Component.id'), unique=True, nullable=False)
     time_rec = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     serial_number = Column(Text, unique=True) 
@@ -37,6 +33,7 @@ class TelemetryComponents(Base):
     softwares = relationship('Software', back_populates='telemetry')
 
 SoftwareComponents = Table('SoftwareComponents',
+    Base.metadata,
     Column('id', Integer, primary_key=True),
     Column('ComponentId', Integer, ForeignKey('Component.id'), nullable = False),
     Column('SoftwareId', Integer, ForeignKey('Software.id'), nullable = False),
@@ -63,7 +60,7 @@ class Software(Base):
     name = Column(Text, unique = True, nullable=False)
     inner_name = Column(Text, unique = True)
     prev_version = Column(Integer, ForeignKey('Software.id'))
-    next_vers = Column(Integer, ForeignKey('Software.id'))
+    next_version = Column(Integer, ForeignKey('Software.id'))
     release_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     telemetry = relationship('TelemetryComponents', back_populates='softwares')

@@ -7,7 +7,7 @@ class TractorsSchema(BaseModel):
     id: int
     model: str
     vin: str
-    on_hour: int
+    oh_hour: int
     last_activity: Optional[datetime] = None
     assembly_date: Optional[datetime] = None
 
@@ -25,6 +25,28 @@ class TelemetryComponentSchema(BaseModel):
     time_record: datetime
     serial_number: str
 
+class SoftwareSchema(BaseModel):
+    id: int
+    path: str
+    name: str
+    inner_name: str
+    prev_version = Optional[int]
+    next_version = Optional[int]
+    release_date: datetime
+
+class ComponentSoftwareSchema(BaseModel):
+    id: int
+    software: int
+    tractor: int
+    component: int
+    time_record: datetime
+    serial_number: str
+
+class relation(BaseModel):
+    
+    id = int
+    software1 = int
+    software2 = int
 
 # Для фильтра СХЕМА
 class TractorFilter(BaseModel):
