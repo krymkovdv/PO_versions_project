@@ -1,14 +1,10 @@
-from sqlalchemy import create_engine,select
-import psycopg2
-from fastapi import FastAPI,Depends
-import app.config as config
-from app.models import Base, Tractors,TractorComponent
+from sqlalchemy import create_engine, select
+from fastapi import FastAPI, Depends
+import config as config
+from models import *
 from sqlalchemy.orm import sessionmaker, Session
+import psycopg2
 from app.routes import *
-
-
-
-
 
 
 
@@ -18,7 +14,7 @@ from app.routes import *
 #         session.add(trac1)
 
 
-
+# Base.metadata.drop_all(engine)
 # Base.metadata.create_all(engine)
 #создание экземпляра приложения
 app = FastAPI(title="Сервис контроля версий")
