@@ -255,7 +255,7 @@ def get_tractor_software(db: Session, filters: schemas.TractorFilter):
             comp = tel.components  # ← relationship, не foreign key!
             if comp is None:
                 continue  
-            
+
         for sc in comp.software_links:
             software = sc.software
                 # Собираем данные прошивки
@@ -287,3 +287,70 @@ def get_tractor_software(db: Session, filters: schemas.TractorFilter):
         result.append(resp)
 
     return result
+
+#Дописать
+# def get_tractor_component_by_vin(vin: str,db: Session):
+#     if not vin:
+#         raise HTTPException(status_code=400, detail="vin is required")
+
+#     # Находим трактор по VIN
+#     tractor = db.query(models.Tractors).filter(models.Tractors.vin == vin).first()
+#     if not tractor:
+#         raise HTTPException(status_code=404, detail="Tractor not found")
+
+#     # Находим все телеметрические записи для этого трактора
+#     tel_components = db.query(models.TelemetryComponents).filter(
+#         models.TelemetryComponents.tractor == tractor.id
+#     ).all()
+
+#     info = []
+#     for tel in tel_components:
+#         # Получаем компонент (один, так как tel.component — FK)
+#         comp = db.query(models.Component).filter(models.Component.id == tel.component).first()
+#         if not comp:
+#             continue  # или raise, если компонент обязан существовать
+
+#         # Получаем связь "компонент-софт" (предполагаем одну активную запись)
+#         soft_link = db.query(models.SoftwareComponent).filter(
+#             models.SoftwareComponent.component_id == comp.id,
+#             models.SoftwareComponent.status == 'S'  # только стабильные версии
+#         ).first()
+
+#         if not soft_link:
+#             # Можно пропустить или использовать заглушку
+#             continue
+
+#         # Получаем саму прошивку
+#         software = db.query(models.Software).filter(
+#             models.Software.id == soft_link.software_id
+#         ).first()
+#         if not software:
+#             continue
+
+#         # Собираем данные прошивки
+#         firmware_info = schemas.FirmwareInfo(
+#             inner_version=software.inner_name or "",
+#             producer_version=software.name,
+#             download_link=software.path,
+#             release_date=software.release_date.isoformat() if software.release_date else None
+#         )
+
+#         # Собираем информацию о компоненте
+#         comp_info = schemas.ComponentInfo(
+#             type_component=comp.type,
+#             model_component=comp.model,
+#             year_component=comp.date_create.isoformat() if comp.date_create else None,
+#             current_version_id=soft_link.software_id,
+#             is_maj=soft_link.is_major,
+#             firmware=firmware_info,
+#         )
+#         info.append(comp_info)
+
+#     # Возвращаем ответ в формате TractorSoftwareResponse
+#     response = schemas.TractorSoftwareResponse(
+#         vin=tractor.vin,
+#         model=tractor.model,
+#         assembly_date=tractor.assembly_date.isoformat() if tractor.assembly_date else None,
+#         components=info
+#     )
+#     return response
