@@ -55,16 +55,7 @@ def smart_search_tractors(query: str, db: Session = Depends(get_session)):
     tractors = CRUDs.smart_search_tractors(db, query)
     return [{"terminal_id": t.id, "model": t.model, "vin": t.vin, "assemble": t.assembly_date, "last activity": t.last_activity} for t in tractors]
 
-@router.post("/tractors/software", response_model=List[schemas.TractorSoftwareResponse])
-def get_tractor_software_endpoint(
-    filters: schemas.TractorFilter,
-    db: Session = Depends(get_session)
-):
-    try:
-        return CRUDs.get_tractor_software(db, filters)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
-    
+
 #Routes компонентов трактора
 @router.get("/component/", response_model=list[schemas.ComponentSchema])
 def get_component(session: Session = Depends(get_session)):
@@ -233,3 +224,10 @@ def get_Search(
         return CRUDs.get_tractor_software(db, filters)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
+    
+# @router.get("/Tractors/Components", response_model=schemas.TractorSoftwareResponse)
+# def tractor_component_by_vin(vin: str, db: Session = Depends(get_session)):
+#     try:
+#         return CRUDs.get_tractor_component_by_vin(vin, db)
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
