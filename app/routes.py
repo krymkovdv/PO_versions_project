@@ -8,10 +8,8 @@ from sqlalchemy.orm import sessionmaker
 from typing import List
 
 
-
 router = APIRouter()
 
-# Настройка подключения к БД
 url_db = config.settings.get_url()
 engine = create_engine(url_db)
 SessionLocal = sessionmaker(bind=engine)
@@ -57,6 +55,16 @@ def smart_search_tractors(query: str, db: Session = Depends(get_session)):
     tractors = CRUDs.smart_search_tractors(db, query)
     return [{"terminal_id": t.id, "model": t.model, "vin": t.vin, "assemble": t.assembly_date, "last activity": t.last_activity} for t in tractors]
 
+@router.post("/tractors/software", response_model=List[schemas.TractorSoftwareResponse])
+def get_tractor_software_endpoint(
+    filters: schemas.TractorFilter,
+    db: Session = Depends(get_session)
+):
+    try:
+        return CRUDs.get_tractor_software(db, filters)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
+    
 #Routes компонентов трактора
 @router.get("/component/", response_model=list[schemas.ComponentSchema])
 def get_component(session: Session = Depends(get_session)):
@@ -135,11 +143,12 @@ def get_software(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-# @router.get("/software/download/{firmware_id}")
-# def download_firmware(firmware: int, db: Session = Depends(get_session)):
-#     fw = CRUDs.download_firmware(db, firmware.id_Firmwares)
-#     if not fw:
-#     return {"download_url": fw.download_link, "filename": f"{fw.producer_version}.bin"}
+@router.get("/software/download/{id}")
+def download_software(id: int, db: Session = Depends(get_session)):
+    fw = CRUDs.download_software(db, id)
+    if not fw:
+        return HTTPException(status_code=400, detail="Software with this id doesnt exist")
+    return {"download_url": fw.path, "filename": f"{fw.name}.bin"}
 
 @router.post("/software/", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED)
 def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_session)):
@@ -174,7 +183,7 @@ def get_relations(session: Session = Depends(get_session)):
 def create_relations(relation: schemas.RelationSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат terminal_id
     if CRUDs.get_relations_by_terminal(db, relation.id):
-        raise HTTPException(status_code=400, detail="Telemetry with this id already exists")
+        raise HTTPException(status_code=400, detail="Relations with this id already exists")
     return    CRUDs.create_relations(db, relation)
 
 
@@ -182,13 +191,45 @@ def create_relations(relation: schemas.RelationSchema, db: Session = Depends(get
 def delete_relations(id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_relations(db, id)
     if not success:
-        raise HTTPException(status_code=404, detail="Telemetry not found")
+        raise HTTPException(status_code=404, detail="Relations not found")
 
+
+#routes for ComponentsSoftware
+@router.get("/softwareComponents/", response_model=list[schemas.SoftwareComponentsSchema])
+def get_SoftwareComponents(session: Session = Depends(get_session)): 
+    try:
+        return CRUDs.get_software_components(session)
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при получении компонентов: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Неизвестная ошибка: {str(e)}"
+        )
+    
+@router.post("/softwareComponents/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED)
+def create_SoftwareComponents(software_component: schemas.SoftwareComponentsSchema, db: Session = Depends(get_session)):
+    # Проверка на дубликат terminal_id
+    if CRUDs.get_software_components_by_terminal(db, software_component.id):
+        raise HTTPException(status_code=400, detail="Software_components with this id already exists")
+    return    CRUDs.create_software_components(db, software_component)
+
+@router.delete("/softwareComponents/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_SoftwareComponents(id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_software_components(db, id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Software_components not found")
 
 # #Routes БОЛЬШОЙ ПОИСК
-# @router.post("/tractors/software", response_model=List[TractorSoftwareResponse])
-# def get_tractor_software(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
-#     try:
-#         return CRUDs.get_tractor_software(db, filters)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
+@router.post("/Search", response_model=List[schemas.TractorSoftwareResponse])
+def get_Search(
+    filters: schemas.TractorFilter,
+    db: Session = Depends(get_session)
+):
+    try:
+        return CRUDs.get_tractor_software(db, filters)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
