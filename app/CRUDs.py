@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 from . import models, schemas  
 from sqlalchemy import or_, cast, String, select
+from fastapi import HTTPException
+from datetime import datetime
 
 #Cruds for Tractor
 def smart_search_tractors(db: Session, query: str):
@@ -110,15 +112,15 @@ def delete_telemetry_component(db: Session, id: int):
     return True
 
 #CRUDs for Software
-# def download_software(db: Session, firmware_id: int):
-#     """
-#     Получить информацию о прошивке для скачивания
-#     """
-#     fw = db.query(models.Software).filter(models.Firmwares.id_Firmwares == firmware_id).first()
-#     if not fw:
-#         return None
-#     return fw
-# для скачки НАДО СДЕЛАТЬ
+def download_software(db: Session, id: int):
+    """
+    Получить информацию о прошивке для скачивания
+    """
+    fw = db.query(models.Software).filter(models.Software.id == id).first()
+    if not fw:
+        return None
+    return fw
+
 
 def get_software(db: Session):
     stmt = select(models.Software)
@@ -161,6 +163,9 @@ def get_relations_by_terminal(db: Session, id: str):
     return db.query(models.Relations).filter(models.Relations.id == id).first()
 
 def create_relations(db: Session, relations: schemas.RelationSchema):
+        if relations.software1 == relations.software2:
+            raise HTTPException(status_code=400, detail="Software1 cant be equal to Software2")
+
         db_relations = models.Relations(
             id = relations.id,
             software1 = relations.software1,
@@ -180,85 +185,105 @@ def delete_relations(db: Session, id: int):
     return True
 
 #CRUDs for SoftwareComponents
-    # id: int
-    # software: int
-    # tractor: int
-    # component: int
-    # time_record: datetime
-    # serial_number: str
+def get_software_components(db: Session):
+    stmt = select(models.SoftwareComponent)
+    result = db.execute(stmt).scalars().all()
+    return result
 
-# def get_software_components(db: Session):
-#     stmt = select(models.SoftwareComponents)
-#     result = db.execute(stmt).scalars().all()
-#     return result
-# def get_software_components_by_terminal(db: Session, id: str):
-#     return db.query(models.SoftwareComponents).filter(models.SoftwareComponents.id == id).first()
+def get_software_components_by_terminal(db: Session, id: str):
+    return db.query(models.SoftwareComponent).filter(models.SoftwareComponent.id == id).first()
+
+def create_software_components(db: Session, software_components: schemas.SoftwareComponentsSchema):
+
+    db_software_components = models.SoftwareComponent(
+        id = software_components.id,
+        component_id = software_components.component_id,
+        software_id = software_components.software_id,
+        is_major = software_components.is_major,
+        status = software_components.status,
+        date_change = software_components.date_change)
+    db.add(db_software_components)
+    db.commit()
+    db.refresh(db_software_components)
+    return db_software_components
+
+def delete_software_components(db: Session, id: int):
+    db.delete(db.query(models.SoftwareComponent).filter(models.SoftwareComponent.id == id).first())
+    db.commit()
+
 
 # #Большой поиск по фильтрам(надо сделать)
-# def get_tractor_software(db: Session, filters: schemas.TractorFilter):
-#     query = (
-#         db.query(models.Tractors)
-#         .join(models.TractorComponent)
-#         .join(models.TelemetryComponents)
-#         .join(models.Firmwares)
-#         .join(models.TrueComponents, models.TelemetryComponents.true_comp == models.TrueComponents.id)
-#     )
+def get_tractor_software(db: Session, filters: schemas.TractorFilter):
+    # Начинаем с Tractors и джойним всё нужное
+    query = (
+        db.query(models.Tractors)
+        .join(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
+        .join(models.Component, models.TelemetryComponents.component == models.Component.id)
+        .join(models.SoftwareComponent, models.SoftwareComponent.component_id == models.Component.id)
+        .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+    )
 
-#     # 1. Фильтр по моделям трактора
-#     if filters.models:
-#         query = query.filter(models.Tractors.model.in_(filters.models))
+    # 1. Фильтр по моделям трактора
+    if filters.models:
+        query = query.filter(models.Tractors.model.in_(filters.models))
 
-#     # 2. Фильтр по дате выпуска (assembly_date)
-#     if filters.release_date_from:
-#         date_from = datetime.fromisoformat(filters.release_date_from)
-#         query = query.filter(models.Tractors.assembly_date >= date_from)
-#     if filters.release_date_to:
-#         date_to = datetime.fromisoformat(filters.release_date_to)
-#         query = query.filter(models.Tractors.assembly_date <= date_to)
+    # 2. Фильтр по дате сборки
+    if filters.release_date_from:
+        dt_from = datetime.fromisoformat(filters.release_date_from)
+        query = query.filter(models.Tractors.assembly_date >= dt_from)
+    if filters.release_date_to:
+        dt_to = datetime.fromisoformat(filters.release_date_to)
+        query = query.filter(models.Tractors.assembly_date <= dt_to)
 
-#     # 3. Фильтр по MAJ/MIN
-#     if filters.requires_maj:
-#         query = query.filter(models.TelemetryComponents.is_maj == True)
-#     if filters.requires_min:
-#         query = query.filter(models.TelemetryComponents.is_maj == False)
+    # 3. Фильтр по is_major (MAJ/MIN)
+    if filters.requires_maj and filters.requires_min:
+        # Оба True — логически странно, но можно игнорировать или вернуть пусто
+        return []
+    elif filters.requires_maj:
+        query = query.filter(models.SoftwareComponent.is_major == True)
+    elif filters.requires_min:
+        query = query.filter(models.SoftwareComponent.is_major == False)
 
-#     tractors = query.all()
+    tractors = query.all()
 
-#     # Формируем ответ
-#     result = []
-#     for tractor in tractors:
-#         components = []
-#         for tc in tractor.comp_list:
-#             fw = tc.comp_rel.firmware_rel
-#             true_comp = tc.comp_rel.true_rel
+    result = []
+    for tractor in tractors:
+        components = []
 
-#             components.append({
-#                 "type_component": true_comp.Type_component,
-#                 "model_component": true_comp.Model_component,
-#                 "year_component": true_comp.Year_component.isoformat() if true_comp.Year_component else None,
-#                 "current_version": tc.comp_rel.current_version,
-#                 "is_maj": tc.comp_rel.is_maj,
-#                 "firmware": {
-#                     "inner_version": fw.inner_version,
-#                     "producer_version": fw.producer_version,
-#                     "download_link": fw.download_link,
-#                     "release_date": fw.release_date.isoformat() if fw.release_date else None,
-#                     "maj_to": fw.maj_to,
-#                     "min_to": fw.min_to,
-#                 }
-#             })
+        # Проходим по telemetry → component → software_component → software
+        for tel in tractor.tel_trac:
+            comp = tel.components  # ← relationship, не foreign key!
+            if comp is None:
+                continue  
+            
+        for sc in comp.software_links:
+            software = sc.software
+                # Собираем данные прошивки
+            fw_info = schemas.FirmwareInfo(
+                inner_version=software.inner_name or "",
+                producer_version=software.name,
+                download_link=software.path,
+                release_date=software.release_date.isoformat() if software.release_date else None,
+                maj_to=None,  # у вас нет этих полей — можно убрать или добавить в модель
+                min_to=None,
+            )
 
-#         result.append({
-#             "vin": str(tractor.terminal_id),
-#             "model": tractor.model,
-#             "assembly_date": tractor.assembly_date.isoformat() if tractor.assembly_date else None,
-#             "region": tractor.region,
-#             "dvс": "Н/Д",
-#             "kpp": "Н/Д",
-#             "pk": "Н/Д",
-#             "bk": "Н/Д",
-#             "components": components
-#         })
+            comp_info = schemas.ComponentInfo(
+                type_component=comp.type,
+                model_component=comp.model,
+                year_component=comp.date_create.isoformat() if comp.date_create else None,
+                current_version_id=software.id,
+                is_maj=sc.is_major,
+                firmware=fw_info,
+            )
+            components.append(comp_info)
 
-#     return result
+        resp = schemas.TractorSoftwareResponse(
+            vin=tractor.vin,
+            model=tractor.model,
+            assembly_date=tractor.assembly_date.isoformat() if tractor.assembly_date else None,
+            components=components,
+        )
+        result.append(resp)
 
+    return result

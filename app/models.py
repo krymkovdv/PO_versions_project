@@ -32,14 +32,19 @@ class TelemetryComponents(Base):
     tractors = relationship('Tractors', back_populates='tel_trac')
     softwares = relationship('Software', back_populates='telemetry')
 
-SoftwareComponents = Table('SoftwareComponents',
-    Base.metadata,
-    Column('id', Integer, primary_key=True),
-    Column('ComponentId', Integer, ForeignKey('Component.id'), nullable = False),
-    Column('SoftwareId', Integer, ForeignKey('Software.id'), nullable = False),
-    Column('Is_major', Boolean),
-    Column('Status', CHAR, nullable=False, default='S'),
-    Column('Date_change', Date))  
+class SoftwareComponent(Base):
+    __tablename__ = 'SoftwareComponents'
+
+    id = Column(Integer, primary_key=True)
+    component_id = Column(Integer, ForeignKey('Component.id'), nullable=False)
+    software_id = Column(Integer, ForeignKey('Software.id'), nullable=False)
+    is_major = Column(Boolean, default=False)
+    status = Column(CHAR, nullable=False, default='S')
+    date_change = Column(Date)
+
+    component = relationship("Component", back_populates="software_links")
+    software = relationship("Software", back_populates="component_links")
+
 
 class Component(Base):
     __tablename__='Component'
@@ -49,8 +54,9 @@ class Component(Base):
     model = Column(Text, unique = True, nullable=False)
     date_create = Column(Date, nullable=False)
 
+    
+    software_links = relationship("SoftwareComponent", back_populates="component")
     tel_comp= relationship('TelemetryComponents', back_populates='components')
-    comp_soft = relationship('Software', secondary = SoftwareComponents, back_populates='soft_comp')
                  
 class Software(Base):
     __tablename__ = 'Software'
@@ -63,7 +69,7 @@ class Software(Base):
     next_version = Column(Integer, ForeignKey('Software.id'))
     release_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    soft_comp = relationship('Component', secondary = SoftwareComponents, back_populates='comp_soft')
+    component_links = relationship("SoftwareComponent", back_populates="software")
     telemetry = relationship('TelemetryComponents', back_populates='softwares')
     # Связи, где этот Software — software1
     as_software1 = relationship(
