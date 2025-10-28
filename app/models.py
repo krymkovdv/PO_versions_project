@@ -9,7 +9,8 @@ from sqlalchemy.orm import relationship
 
 
 class Base(DeclarativeBase): pass
- 
+
+
 class Tractors(Base):
     __tablename__ = 'Tractors'
 

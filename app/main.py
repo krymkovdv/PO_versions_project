@@ -5,8 +5,19 @@ import app.config as config
 from app.models import Base, Tractors,TractorComponent
 from sqlalchemy.orm import sessionmaker, Session
 from app.routes import *
+from fastapi.middleware.cors import CORSMiddleware
 
 
+
+url_db = config.settings.get_url()
+engine = create_engine(url_db)
+
+
+SessionLocal = sessionmaker(bind=engine)
+
+def get_session():
+    with SessionLocal() as session:
+        yield session
 
 
 
@@ -19,9 +30,17 @@ from app.routes import *
 
 
 
-# Base.metadata.create_all(engine)
+Base.metadata.create_all(engine)
 #создание экземпляра приложения
 app = FastAPI(title="Сервис контроля версий")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Адрес вашего React dev сервера
+    allow_credentials=True,
+    allow_methods=["*"],  # Разрешить все методы (GET, POST, etc.)
+    allow_headers=["*"],  # Разрешить все заголовки
+)
 
 app.include_router(router)
 

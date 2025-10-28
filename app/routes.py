@@ -4,25 +4,25 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError  # ← для перехвата ошибок БД
 from app.schemas import *
 from app.models import *
-import app.config as config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from . import CRUDs, schemas
 from typing import List
-
+from app.config import settings
 
 router = APIRouter()
 
-# Настройка подключения к БД (лучше вынести в отдельный файл, но оставим пока здесь)
-url_db = config.settings.get_url()
-engine = create_engine(url_db)
+engine = create_engine(settings.get_url())
 SessionLocal = sessionmaker(bind=engine)
 
 def get_session():
-    with SessionLocal() as session:
-        yield session
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 #Routes трактора
@@ -216,3 +216,18 @@ def get_tractor_software(filters: schemas.TractorFilter, db: Session = Depends(g
         return CRUDs.get_tractor_software(db, filters)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/component-version/{id}")
+def get_component_version(id: int, db: Session = Depends(get_session)):
+    """
+    Получить информацию о прошивке по типу компонента
+    """
+    try:
+        component_info = CRUDs.get_component_version(db, id)
+        if not component_info:
+            raise HTTPException(status_code=404, detail=f"Компонент типа '{id}' не найден")
+        
+        return component_info
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
