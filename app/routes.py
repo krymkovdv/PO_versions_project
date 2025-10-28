@@ -225,9 +225,9 @@ def get_Search(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
     
-# @router.get("/Tractors/Components", response_model=schemas.TractorSoftwareResponse)
-# def tractor_component_by_vin(vin: str, db: Session = Depends(get_session)):
-#     try:
-#         return CRUDs.get_tractor_component_by_vin(vin, db)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
+@router.get("/Tractors/Components", response_model=schemas.TractorSoftwareResponse)
+def tractor_component_by_vin(vin: str, db: Session = Depends(get_session)):
+    try:
+        return CRUDs.get_tractor_component_by_vin(vin, db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
