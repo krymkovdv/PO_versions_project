@@ -36,7 +36,7 @@ app = FastAPI(title="Сервис контроля версий")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Адрес вашего React dev сервера
+    allow_origins=["http://localhost:5500", "http://127.0.0.1:5500"],  # Адрес вашего React dev сервера
     allow_credentials=True,
     allow_methods=["*"],  # Разрешить все методы (GET, POST, etc.)
     allow_headers=["*"],  # Разрешить все заголовки
