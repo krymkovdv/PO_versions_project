@@ -21,4 +21,4 @@ app = FastAPI(title="Сервис контроля версий")
 app.include_router(router)
 
 # uvicorn app.main:app --reload
-# python -m app.main
+# python -m app.main``
