@@ -342,3 +342,42 @@ def get_model_version_by_type(db: Session, model_comp: str):
     else:
         return None
     
+
+
+def get_comp__by_type_model(db: Session, model_comp: str, type_comp: str):
+    results = (db.query(
+                models.Firmwares.download_link,
+                models.Firmwares.release_date,
+                models.Firmwares.inner_version,
+                models.Firmwares.producer_version,
+                models.Firmwares.id_Firmwares,
+                models.TrueComponents.Type_component,  
+                models.TrueComponents.Model_component,
+                models.TelemetryComponents.is_maj
+            )
+            .select_from(models.Firmwares)
+            .join(models.TelemetryComponents, models.TelemetryComponents.current_version == models.Firmwares.id_Firmwares)
+            .join(models.TrueComponents, models.TrueComponents.id == models.TelemetryComponents.true_comp)
+            .filter(
+                and_(
+                    models.TrueComponents.Model_component == model_comp,
+                    models.TrueComponents.Type_component == type_comp))
+            .order_by(models.Firmwares.release_date.desc())
+            .all()) 
+    
+    if results:
+        return [
+            {
+                "download_link": result.download_link,
+                "type_component": result.Type_component, 
+                "release_date": result.release_date,
+                "inner_version": result.inner_version,
+                "producer_version": result.producer_version,
+                "is_maj": result.is_maj,
+                "model_component": result.Model_component,
+                "id_Firmwares": result.id_Firmwares
+            }
+            for result in results  
+        ]
+    else:
+        return []

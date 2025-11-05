@@ -254,13 +254,27 @@ def get_all_components_endpoint(db: Session = Depends(get_session)):
     
 
     
-@router.get("/model-version/{model_comp}")
+@router.get("/model-version/")
 def get_component_version(model_comp: str, db: Session = Depends(get_session)):
     """
     Получить информацию о прошивке по типу компонента
     """
     try:
         component_info = CRUDs.get_model_version_by_type(db, model_comp)
+        if not component_info:
+            raise HTTPException(status_code=404, detail=f"Компонент типа '{model_comp}' не найден")
+        
+        return component_info
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+    
+
+@router.get("/model_type_comp/")
+def get_component_by_type_model(model_comp: str, type_comp: str, db: Session = Depends(get_session)):
+
+    try:
+        component_info = CRUDs.get_comp__by_type_model(db, model_comp, type_comp)
         if not component_info:
             raise HTTPException(status_code=404, detail=f"Компонент типа '{model_comp}' не найден")
         
