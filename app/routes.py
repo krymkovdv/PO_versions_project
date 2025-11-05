@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError  # ← для перехвата ошибок БД
@@ -217,17 +217,55 @@ def get_tractor_software(filters: schemas.TractorFilter, db: Session = Depends(g
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/component-version/{id}")
-def get_component_version(id: int, db: Session = Depends(get_session)):
-    """
-    Получить информацию о прошивке по типу компонента
-    """
+
+
+@router.get("/component-version/")
+def get_component_version(types: str, db: Session = Depends(get_session)):
+
     try:
-        component_info = CRUDs.get_component_version(db, id)
+        # Разделяем строку на массив типов
+        type_comps = [t.strip() for t in types.split(',')]
+        
+        component_info = CRUDs.get_component_version_by_types(db, type_comps)
         if not component_info:
-            raise HTTPException(status_code=404, detail=f"Компонент типа '{id}' не найден")
+            raise HTTPException(status_code=404, detail=f"Компоненты типов '{types}' не найдены")
         
         return component_info
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+
+
+
+@router.get("/component-version/all/")
+def get_all_components_endpoint(db: Session = Depends(get_session)):
+    """
+    Получить информацию о всех компонентах
+    """
+    try:
+        components_info = CRUDs.get_all_components(db)
+        if not components_info:
+            raise HTTPException(status_code=404, detail="Компоненты не найдены")
+        
+        return components_info
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+    
+
+    
+@router.get("/model-version/{model_comp}")
+def get_component_version(model_comp: str, db: Session = Depends(get_session)):
+    """
+    Получить информацию о прошивке по типу компонента
+    """
+    try:
+        component_info = CRUDs.get_model_version_by_type(db, model_comp)
+        if not component_info:
+            raise HTTPException(status_code=404, detail=f"Компонент типа '{model_comp}' не найден")
+        
+        return component_info
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+    
