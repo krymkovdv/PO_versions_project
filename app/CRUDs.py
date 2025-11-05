@@ -3,6 +3,7 @@ from . import models, schemas
 from sqlalchemy import or_, cast, String, select
 from fastapi import HTTPException
 from datetime import datetime
+from typing import List
 
 #Cruds for Tractor
 def smart_search_tractors(db: Session, query: str):
@@ -212,7 +213,7 @@ def delete_software_components(db: Session, id: int):
     db.commit()
 
 
-# #Большой поиск по фильтрам(надо сделать)
+# #Большой поиск по фильтрам
 def get_tractor_software(db: Session, filters: schemas.TractorFilter):
     # Начинаем с Tractors и джойним всё нужное
     query = (
@@ -288,7 +289,8 @@ def get_tractor_software(db: Session, filters: schemas.TractorFilter):
 
     return result
 
-#Дописать
+
+# Дополнительные CRUD
 def get_tractor_component_by_vin(vin: str,db: Session):
     if not vin:
         raise HTTPException(status_code=400, detail="vin is required")
@@ -354,3 +356,147 @@ def get_tractor_component_by_vin(vin: str,db: Session):
         components=info
     )
     return response
+
+
+def get_component_version_by_types(db: Session, type_comps: List[str]):
+    results = (
+        db.query(
+            models.Software.path,
+            models.Software.release_date,
+            models.Software.inner_name,
+            models.Software.name,
+            models.Software.id,
+            models.Component.type,
+            models.Component.model,
+            models.SoftwareComponent.is_major
+        )
+        .select_from(models.SoftwareComponent)
+        .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
+        .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+        .filter(models.Component.type.in_(type_comps))
+        .order_by(models.Software.release_date.desc())
+        .all()
+    )
+
+    if results:
+        return [
+            {
+                "download_link": r.path,
+                "type_component": r.type,
+                "release_date": r.release_date,
+                "inner_version": r.inner_name,
+                "producer_version": r.name,
+                "is_maj": r.is_major,
+                "model_component": r.model,
+                "id_Firmwares": r.id
+            }
+            for r in results
+        ]
+    else:
+        return []
+
+def get_all_components(db: Session):
+    results = (db.query(
+                models.Software.path,
+                models.Software.release_date,
+                models.Software.inner_name,
+                models.Software.name,
+                models.Software.id,
+                models.Component.type,
+                models.Component.model,
+                models.SoftwareComponent.is_major
+            )
+            .select_from(models.SoftwareComponent)
+            .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
+            .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+            .order_by(models.Software.release_date.desc())
+            .all()) 
+    
+    if results:
+        return [
+            {
+                "download_link": result.path,
+                "type_component": result.type,
+                "release_date": result.release_date,
+                "inner_name": result.inner_name,
+                "name": result.name,
+                "is_major": result.is_major,
+                "model": result.model,
+                "id": result.id
+            }
+            for result in results  
+        ]
+    else:
+        return None
+
+
+def get_component_version_by_models(db: Session, model_comp: str):
+    results = (db.query(
+                models.Software.path,
+                models.Software.release_date,
+                models.Software.inner_name,
+                models.Software.name,
+                models.Software.id,
+                models.Component.type,
+                models.Component.model,
+                models.SoftwareComponent.is_major
+            )
+            .select_from(models.SoftwareComponent)
+            .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
+            .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+            .filter(models.Component.model == model_comp)
+            .order_by(models.Software.release_date.desc())
+            .all()) 
+    
+    if results:
+        return [
+            {
+                "download_link": result.path,
+                "type_component": result.type, 
+                "release_date": result.release_date,
+                "inner_version": result.inner_name,
+                "producer_version": result.name,
+                "is_maj": result.is_major,
+                "model_component": result.model,
+                "id_Firmwares": result.id
+            }
+            for result in results  
+        ]
+    else:
+        return None
+    
+def get_component_version_by_type_models(db: Session, model_comp: str, type_comp: str):
+    results = (db.query(
+                models.Software.path,
+                models.Software.release_date,
+                models.Software.inner_name,
+                models.Software.name,
+                models.Software.id,
+                models.Component.type,
+                models.Component.model,
+                models.SoftwareComponent.is_major
+            )
+            .select_from(models.SoftwareComponent)
+            .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
+            .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+            .filter(models.Component.model == model_comp,
+                    models.Component.type == type_comp)
+            .order_by(models.Software.release_date.desc())
+            .all()) 
+    
+    if results:
+        return [
+            {
+                "download_link": result.path,
+                "type_component": result.type, 
+                "release_date": result.release_date,
+                "inner_version": result.inner_name,
+                "producer_version": result.name,
+                "is_maj": result.is_major,
+                "model_component": result.model,
+                "id_Firmwares": result.id
+            }
+            for result in results  
+        ]
+    else:
+        return None    
