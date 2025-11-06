@@ -69,34 +69,7 @@ class SoftwareComponentsSchema(BaseModel):
         return v
 
 # # Для фильтра СХЕМА
-class FirmwareInfo(BaseModel):
-    inner_version: str
-    producer_version: str
-    download_link: str
-    release_date: Optional[str] = None
-    maj_to: Optional[str] = None
-    min_to: Optional[str] = None
-
-class ComponentInfo(BaseModel):
-    type_component: str
-    model_component: str
-    year_component: Optional[str]  # или date, но вы используете str в ответе
-    current_version_id: int  # ID софта из Software
-    is_maj: bool
-    firmware: FirmwareInfo
-
-class TractorSoftwareResponse(BaseModel):
-    vin: str
-    model: str
-    assembly_date: Optional[str]
-    components: List[ComponentInfo]
-
-    class Config:
-        from_attributes = True  # позволяет использовать ORM-объекты напрямую
-
-class TractorFilter(BaseModel):
-    models: List[str] = []
-    release_date_from: Optional[str] = None  # "YYYY-MM-DD"
-    release_date_to: Optional[str] = None
-    requires_maj: bool = False  # True → только is_major=True
-    requires_min: bool = False  # True → только is_major=False
+class ComponentInfoRequest(BaseModel):
+    trac_model: List[str] = []
+    type_comp: List[str] = []
+    model_comp: str = ''
