@@ -42,7 +42,7 @@ class SoftwareSchema(BaseModel):
 
 class ComponentPartSchema(BaseModel):
     id: int
-    component_id: int
+    component: int
     part_number: str
     part_type: str
     current_sw_version: int
@@ -53,13 +53,13 @@ class ComponentPartSchema(BaseModel):
 
 class SoftwareComponentsSchema(BaseModel):
     id: int
-    component_id: int
+    component_part_id: int
     software_id: int
     is_major: bool
     status: str
     date_change: datetime
     not_recom: str
-    data_change_record: datetime
+    date_change_record: datetime
 
     @field_validator('status')
     @classmethod
@@ -74,24 +74,29 @@ class FirmwareInfo(BaseModel):
     producer_version: str
     download_link: str
     release_date: Optional[str] = None
-    description: Optional[str] = None
+    maj_to: Optional[str] = None
+    min_to: Optional[str] = None
 
 class ComponentInfo(BaseModel):
     type_component: str
     model_component: str
-    serial_number: str
-    mounting_date: str
-    current_version: FirmwareInfo
-    recommended_version: FirmwareInfo
-    is_major: bool
+    year_component: Optional[str]  # или date, но вы используете str в ответе
+    current_version_id: int  # ID софта из Software
+    is_maj: bool
+    firmware: FirmwareInfo
 
 class TractorSoftwareResponse(BaseModel):
     vin: str
     model: str
     assembly_date: Optional[str]
-    region: str
-    consumer: str
     components: List[ComponentInfo]
 
     class Config:
-        from_attributes = True
+        from_attributes = True  # позволяет использовать ORM-объекты напрямую
+
+class TractorFilter(BaseModel):
+    models: List[str] = []
+    release_date_from: Optional[str] = None  # "YYYY-MM-DD"
+    release_date_to: Optional[str] = None
+    requires_maj: bool = False  # True → только is_major=True
+    requires_min: bool = False  # True → только is_major=False

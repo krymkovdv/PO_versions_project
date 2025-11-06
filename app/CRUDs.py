@@ -6,22 +6,6 @@ from datetime import datetime
 from typing import List
 
 #Cruds for Tractor
-def smart_search_tractors(db: Session, query: str):
-    """
-    Умный поиск по VIN, модели, серийному номеру, последней активности
-    """
-    search = f"%{query}%"
-    tractors = db.query(models.Tractors).filter(
-        or_(
-            cast(models.Tractors.id, String).like(search),
-            models.Tractors.model.like(search),
-            models.Tractors.vin.like(search),
-            cast(models.Tractors.last_activity, String).like(search),      
-            cast(models.Tractors.assembly_date, String).like(search)  
-        )
-    ).all()
-    return tractors
-
 def get_tractors(db: Session):
     stmt = select(models.Tractors)
     result = db.execute(stmt).scalars().all()
@@ -34,7 +18,10 @@ def create_tractor(db: Session, tractor: schemas.TractorsSchema):
         vin =tractor.vin,
         oh_hour = tractor.oh_hour,
         last_activity=tractor.last_activity,
-        assembly_date=tractor.assembly_date
+        assembly_date=tractor.assembly_date,
+        region = tractor.region,
+        consumer = tractor.consumer,
+        serv_center = tractor.serv_center
     )
     db.add(db_tractor)
     db.commit()
@@ -66,7 +53,11 @@ def create_component(db: Session, component: schemas.ComponentSchema):
         id = component.id,
         type = component.type,
         model = component.model,
-        date_create = component.date_create
+        mounting_date = component.mounting_date,
+        comp_ser_num = component.comp_ser_num,
+        tractor_id = component.tractor_id,
+        number_of_parts = component.number_of_parts,
+        producer_comp = component.producer_comp
     )
     db.add(db_component)
     db.commit()
@@ -96,8 +87,8 @@ def create_telemetry_component(db: Session, telemetry_component: schemas.Telemet
         software = telemetry_component.software,
         tractor = telemetry_component.tractor,
         component = telemetry_component.component,
-        time_rec = telemetry_component.time_rec,
-        serial_number = telemetry_component.serial_number
+        component_part_id = telemetry_component.component_part_id,
+        time_rec = telemetry_component.time_rec
     )
     db.add(db_telemetry_component)
     db.commit()
@@ -137,9 +128,8 @@ def create_software(db: Session, software: schemas.SoftwareSchema):
         path = software.path,
         name = software.name,
         inner_name = software.inner_name,
-        prev_version = software.prev_version,
-        next_version = software.next_version,
-        release_date = software.release_date
+        release_date = software.release_date,
+        description = software.description
     )
     db.add(db_software)
     db.commit()
@@ -154,62 +144,68 @@ def delete_software(db: Session, id: int):
     db.commit()
     return True
 
-# #CRUDs for Relations
-def get_relations(db: Session):
-    stmt = select(models.Relations)
+# #CRUDs for ComponentsPart
+def get_componentPart(db: Session):
+    stmt = select(models.ComponentParts)
     result = db.execute(stmt).scalars().all()
     return result
 
-def get_relations_by_terminal(db: Session, id: str):
-    return db.query(models.Relations).filter(models.Relations.id == id).first()
+def get_componentPart_by_terminal(db: Session, id: str):
+    return db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
 
-def create_relations(db: Session, relations: schemas.RelationSchema):
-        if relations.software1 == relations.software2:
-            raise HTTPException(status_code=400, detail="Software1 cant be equal to Software2")
-
-        db_relations = models.Relations(
-            id = relations.id,
-            software1 = relations.software1,
-            software2 = relations.software2
+def create_componentPart(db: Session, part: schemas.ComponentPartSchema):
+        db_part = models.ComponentParts(
+            id = part.id,
+            component = part.component,
+            part_number = part.part_number,
+            part_type = part.part_type,
+            current_sw_version = part.current_sw_version,
+            recommend_sw_version = part.recommend_sw_version,
+            is_major = part.is_major,
+            not_recom_sw = part.not_recom_sw,
+            next_ver = part.next_ver
         )        
-        db.add(db_relations)
+        db.add(db_part)
         db.commit()
-        db.refresh(db_relations)
-        return db_relations
+        db.refresh(db_part)
+        return db_part
 
-def delete_relations(db: Session, id: int):
-    relations = db.query(models.Relations).filter(models.Relations.id == id).first()
-    if relations is None:
+def delete_componentPart(db: Session, id: int):
+    component = db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
+    if component is None:
         return False
-    db.delete(relations)
+    db.delete(component)
     db.commit()
     return True
 
-#CRUDs for SoftwareComponents
-def get_software_components(db: Session):
-    stmt = select(models.SoftwareComponent)
+#CRUDs for Software2ComponentParts
+def get_software_componentParts(db: Session):
+    stmt = select(models.Software2ComponentPart)
     result = db.execute(stmt).scalars().all()
     return result
 
-def get_software_components_by_terminal(db: Session, id: str):
-    return db.query(models.SoftwareComponent).filter(models.SoftwareComponent.id == id).first()
+def get_software_componentsParts_by_terminal(db: Session, id: str):
+    return db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == id).first()
 
-def create_software_components(db: Session, software_components: schemas.SoftwareComponentsSchema):
+def create_software_componentsParts(db: Session, software_components: schemas.SoftwareComponentsSchema):
 
-    db_software_components = models.SoftwareComponent(
+    db_software_components = models.Software2ComponentPart(
         id = software_components.id,
-        component_id = software_components.component_id,
+        component_part_id = software_components.component_part_id,
         software_id = software_components.software_id,
         is_major = software_components.is_major,
         status = software_components.status,
-        date_change = software_components.date_change)
+        date_change = software_components.date_change,
+        not_recom = software_components.not_recom,
+        date_change_record = software_components.date_change_record
+        )
     db.add(db_software_components)
     db.commit()
     db.refresh(db_software_components)
     return db_software_components
 
 def delete_software_components(db: Session, id: int):
-    db.delete(db.query(models.SoftwareComponent).filter(models.SoftwareComponent.id == id).first())
+    db.delete(db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == id).first())
     db.commit()
 
 
@@ -290,213 +286,213 @@ def get_tractor_software(db: Session, filters: schemas.TractorFilter):
     return result
 
 
-# Дополнительные CRUD
-def get_tractor_component_by_vin(vin: str,db: Session):
-    if not vin:
-        raise HTTPException(status_code=400, detail="vin is required")
+# # Дополнительные CRUD
+# def get_tractor_component_by_vin(vin: str,db: Session):
+#     if not vin:
+#         raise HTTPException(status_code=400, detail="vin is required")
 
-    # Находим трактор по VIN
-    tractor = db.query(models.Tractors).filter(models.Tractors.vin == vin).first()
-    if not tractor:
-        raise HTTPException(status_code=404, detail="Tractor not found")
+#     # Находим трактор по VIN
+#     tractor = db.query(models.Tractors).filter(models.Tractors.vin == vin).first()
+#     if not tractor:
+#         raise HTTPException(status_code=404, detail="Tractor not found")
 
-    # Находим все телеметрические записи для этого трактора
-    tel_components = db.query(models.TelemetryComponents).filter(
-        models.TelemetryComponents.tractor == tractor.id
-    ).all()
+#     # Находим все телеметрические записи для этого трактора
+#     tel_components = db.query(models.TelemetryComponents).filter(
+#         models.TelemetryComponents.tractor == tractor.id
+#     ).all()
 
-    info = []
-    for tel in tel_components:
-        # Получаем компонент (один, так как tel.component — FK)
-        comp = db.query(models.Component).filter(models.Component.id == tel.component).first()
-        if not comp:
-            continue  # или raise, если компонент обязан существовать
+#     info = []
+#     for tel in tel_components:
+#         # Получаем компонент (один, так как tel.component — FK)
+#         comp = db.query(models.Component).filter(models.Component.id == tel.component).first()
+#         if not comp:
+#             continue  # или raise, если компонент обязан существовать
 
-        # Получаем связь "компонент-софт" (предполагаем одну активную запись)
-        soft_link = db.query(models.SoftwareComponent).filter(
-            models.SoftwareComponent.component_id == comp.id,
-            models.SoftwareComponent.status == 's'  # только стабильные версии
-        ).first()
+#         # Получаем связь "компонент-софт" (предполагаем одну активную запись)
+#         soft_link = db.query(models.SoftwareComponent).filter(
+#             models.SoftwareComponent.component_id == comp.id,
+#             models.SoftwareComponent.status == 's'  # только стабильные версии
+#         ).first()
 
-        if not soft_link:
-            # Можно пропустить или использовать заглушку
-            continue
+#         if not soft_link:
+#             # Можно пропустить или использовать заглушку
+#             continue
 
-        # Получаем саму прошивку
-        software = db.query(models.Software).filter(
-            models.Software.id == soft_link.software_id
-        ).first()
-        if not software:
-            continue
+#         # Получаем саму прошивку
+#         software = db.query(models.Software).filter(
+#             models.Software.id == soft_link.software_id
+#         ).first()
+#         if not software:
+#             continue
 
-        # Собираем данные прошивки
-        firmware_info = schemas.FirmwareInfo(
-            inner_version=software.inner_name or "",
-            producer_version=software.name,
-            download_link=software.path,
-            release_date=software.release_date.isoformat() if software.release_date else None
-        )
+#         # Собираем данные прошивки
+#         firmware_info = schemas.FirmwareInfo(
+#             inner_version=software.inner_name or "",
+#             producer_version=software.name,
+#             download_link=software.path,
+#             release_date=software.release_date.isoformat() if software.release_date else None
+#         )
 
-        # Собираем информацию о компоненте
-        comp_info = schemas.ComponentInfo(
-            type_component=comp.type,
-            model_component=comp.model,
-            year_component=comp.date_create.isoformat() if comp.date_create else None,
-            current_version_id=soft_link.software_id,
-            is_maj=soft_link.is_major,
-            firmware=firmware_info,
-        )
-        info.append(comp_info)
+#         # Собираем информацию о компоненте
+#         comp_info = schemas.ComponentInfo(
+#             type_component=comp.type,
+#             model_component=comp.model,
+#             year_component=comp.date_create.isoformat() if comp.date_create else None,
+#             current_version_id=soft_link.software_id,
+#             is_maj=soft_link.is_major,
+#             firmware=firmware_info,
+#         )
+#         info.append(comp_info)
 
-    # Возвращаем ответ в формате TractorSoftwareResponse
-    response = schemas.TractorSoftwareResponse(
-        vin=tractor.vin,
-        model=tractor.model,
-        assembly_date=tractor.assembly_date.isoformat() if tractor.assembly_date else None,
-        components=info
-    )
-    return response
+#     # Возвращаем ответ в формате TractorSoftwareResponse
+#     response = schemas.TractorSoftwareResponse(
+#         vin=tractor.vin,
+#         model=tractor.model,
+#         assembly_date=tractor.assembly_date.isoformat() if tractor.assembly_date else None,
+#         components=info
+#     )
+#     return response
 
 
-def get_component_version_by_types(db: Session, type_comps: List[str]):
-    results = (
-        db.query(
-            models.Software.path,
-            models.Software.release_date,
-            models.Software.inner_name,
-            models.Software.name,
-            models.Software.id,
-            models.Component.type,
-            models.Component.model,
-            models.SoftwareComponent.is_major
-        )
-        .select_from(models.SoftwareComponent)
-        .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
-        .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
-        .filter(models.Component.type.in_(type_comps))
-        .order_by(models.Software.release_date.desc())
-        .all()
-    )
+# def get_component_version_by_types(db: Session, type_comps: List[str]):
+#     results = (
+#         db.query(
+#             models.Software.path,
+#             models.Software.release_date,
+#             models.Software.inner_name,
+#             models.Software.name,
+#             models.Software.id,
+#             models.Component.type,
+#             models.Component.model,
+#             models.SoftwareComponent.is_major
+#         )
+#         .select_from(models.SoftwareComponent)
+#         .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
+#         .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+#         .filter(models.Component.type.in_(type_comps))
+#         .order_by(models.Software.release_date.desc())
+#         .all()
+#     )
 
-    if results:
-        return [
-            {
-                "download_link": r.path,
-                "type_component": r.type,
-                "release_date": r.release_date,
-                "inner_version": r.inner_name,
-                "producer_version": r.name,
-                "is_maj": r.is_major,
-                "model_component": r.model,
-                "id_Firmwares": r.id
-            }
-            for r in results
-        ]
-    else:
-        return []
+#     if results:
+#         return [
+#             {
+#                 "download_link": r.path,
+#                 "type_component": r.type,
+#                 "release_date": r.release_date,
+#                 "inner_version": r.inner_name,
+#                 "producer_version": r.name,
+#                 "is_maj": r.is_major,
+#                 "model_component": r.model,
+#                 "id_Firmwares": r.id
+#             }
+#             for r in results
+#         ]
+#     else:
+#         return []
 
-def get_all_components(db: Session):
-    results = (db.query(
-                models.Software.path,
-                models.Software.release_date,
-                models.Software.inner_name,
-                models.Software.name,
-                models.Software.id,
-                models.Component.type,
-                models.Component.model,
-                models.SoftwareComponent.is_major
-            )
-            .select_from(models.SoftwareComponent)
-            .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
-            .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
-            .order_by(models.Software.release_date.desc())
-            .all()) 
+# def get_all_components(db: Session):
+#     results = (db.query(
+#                 models.Software.path,
+#                 models.Software.release_date,
+#                 models.Software.inner_name,
+#                 models.Software.name,
+#                 models.Software.id,
+#                 models.Component.type,
+#                 models.Component.model,
+#                 models.SoftwareComponent.is_major
+#             )
+#             .select_from(models.SoftwareComponent)
+#             .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
+#             .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+#             .order_by(models.Software.release_date.desc())
+#             .all()) 
     
-    if results:
-        return [
-            {
-                "download_link": result.path,
-                "type_component": result.type,
-                "release_date": result.release_date,
-                "inner_name": result.inner_name,
-                "name": result.name,
-                "is_major": result.is_major,
-                "model": result.model,
-                "id": result.id
-            }
-            for result in results  
-        ]
-    else:
-        return None
+#     if results:
+#         return [
+#             {
+#                 "download_link": result.path,
+#                 "type_component": result.type,
+#                 "release_date": result.release_date,
+#                 "inner_name": result.inner_name,
+#                 "name": result.name,
+#                 "is_major": result.is_major,
+#                 "model": result.model,
+#                 "id": result.id
+#             }
+#             for result in results  
+#         ]
+#     else:
+#         return None
 
 
-def get_component_version_by_models(db: Session, model_comp: str):
-    results = (db.query(
-                models.Software.path,
-                models.Software.release_date,
-                models.Software.inner_name,
-                models.Software.name,
-                models.Software.id,
-                models.Component.type,
-                models.Component.model,
-                models.SoftwareComponent.is_major
-            )
-            .select_from(models.SoftwareComponent)
-            .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
-            .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
-            .filter(models.Component.model == model_comp)
-            .order_by(models.Software.release_date.desc())
-            .all()) 
+# def get_component_version_by_models(db: Session, model_comp: str):
+#     results = (db.query(
+#                 models.Software.path,
+#                 models.Software.release_date,
+#                 models.Software.inner_name,
+#                 models.Software.name,
+#                 models.Software.id,
+#                 models.Component.type,
+#                 models.Component.model,
+#                 models.SoftwareComponent.is_major
+#             )
+#             .select_from(models.SoftwareComponent)
+#             .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
+#             .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+#             .filter(models.Component.model == model_comp)
+#             .order_by(models.Software.release_date.desc())
+#             .all()) 
     
-    if results:
-        return [
-            {
-                "download_link": result.path,
-                "type_component": result.type, 
-                "release_date": result.release_date,
-                "inner_version": result.inner_name,
-                "producer_version": result.name,
-                "is_maj": result.is_major,
-                "model_component": result.model,
-                "id_Firmwares": result.id
-            }
-            for result in results  
-        ]
-    else:
-        return None
+#     if results:
+#         return [
+#             {
+#                 "download_link": result.path,
+#                 "type_component": result.type, 
+#                 "release_date": result.release_date,
+#                 "inner_version": result.inner_name,
+#                 "producer_version": result.name,
+#                 "is_maj": result.is_major,
+#                 "model_component": result.model,
+#                 "id_Firmwares": result.id
+#             }
+#             for result in results  
+#         ]
+#     else:
+#         return None
     
-def get_component_version_by_type_models(db: Session, model_comp: str, type_comp: str):
-    results = (db.query(
-                models.Software.path,
-                models.Software.release_date,
-                models.Software.inner_name,
-                models.Software.name,
-                models.Software.id,
-                models.Component.type,
-                models.Component.model,
-                models.SoftwareComponent.is_major
-            )
-            .select_from(models.SoftwareComponent)
-            .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
-            .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
-            .filter(models.Component.model == model_comp,
-                    models.Component.type == type_comp)
-            .order_by(models.Software.release_date.desc())
-            .all()) 
+# def get_component_version_by_type_models(db: Session, model_comp: str, type_comp: str):
+#     results = (db.query(
+#                 models.Software.path,
+#                 models.Software.release_date,
+#                 models.Software.inner_name,
+#                 models.Software.name,
+#                 models.Software.id,
+#                 models.Component.type,
+#                 models.Component.model,
+#                 models.SoftwareComponent.is_major
+#             )
+#             .select_from(models.SoftwareComponent)
+#             .join(models.Component, models.SoftwareComponent.component_id == models.Component.id)
+#             .join(models.Software, models.SoftwareComponent.software_id == models.Software.id)
+#             .filter(models.Component.model == model_comp,
+#                     models.Component.type == type_comp)
+#             .order_by(models.Software.release_date.desc())
+#             .all()) 
     
-    if results:
-        return [
-            {
-                "download_link": result.path,
-                "type_component": result.type, 
-                "release_date": result.release_date,
-                "inner_version": result.inner_name,
-                "producer_version": result.name,
-                "is_maj": result.is_major,
-                "model_component": result.model,
-                "id_Firmwares": result.id
-            }
-            for result in results  
-        ]
-    else:
-        return None    
+#     if results:
+#         return [
+#             {
+#                 "download_link": result.path,
+#                 "type_component": result.type, 
+#                 "release_date": result.release_date,
+#                 "inner_version": result.inner_name,
+#                 "producer_version": result.name,
+#                 "is_maj": result.is_major,
+#                 "model_component": result.model,
+#                 "id_Firmwares": result.id
+#             }
+#             for result in results  
+#         ]
+#     else:
+#         return None    
