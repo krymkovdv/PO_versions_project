@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from . import CRUDs, schemas, config, models 
 from .config import settings 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Query
 from typing import List
 
 
@@ -205,6 +205,16 @@ def delete_Software2Components(id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_software_components(db, id)
     if not success:
         raise HTTPException(status_code=404, detail="Software_components not found")
+    
+# @router.post("/component-info")
+# def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session)):
+#     data = CRUDs.get_component_by_filters(
+#         db,
+#         trac_model=filters.trac_model,
+#         type_comp=filters.type_comp,
+#         model_comp=filters.model_comp
+#     )
+#     return data
 
 # # #Routes БОЛЬШОЙ ПОИСК
 # @router.post("/Search", response_model=List[schemas.TractorSoftwareResponse])
