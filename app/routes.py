@@ -48,14 +48,6 @@ def delete_tractor(tractor_id: int, db: Session = Depends(get_session)):
     if not success:
         raise HTTPException(status_code=404, detail="Tractor not found")
 
-
-# Эндпоинт 3: Умный поиск
-@router.post("/tractors/search")
-def smart_search_tractors(query: str, db: Session = Depends(get_session)):
-    tractors = CRUDs.smart_search_tractors(db, query)
-    return [{"terminal_id": t.id, "model": t.model, "vin": t.vin, "assemble": t.assembly_date, "last activity": t.last_activity} for t in tractors]
-
-
 #Routes компонентов трактора
 @router.get("/component/", response_model=list[schemas.ComponentSchema])
 def get_component(session: Session = Depends(get_session)):
@@ -154,11 +146,11 @@ def delete_software(id: int, db: Session = Depends(get_session)):
     if not success:
         raise HTTPException(status_code=404, detail="Firmware not found")
     
-#routes for Relations
-@router.get("/relations/", response_model=list[schemas.RelationSchema])
-def get_relations(session: Session = Depends(get_session)): 
+#routes for ComponentParts
+@router.get("/componentParts/", response_model=list[schemas.ComponentPartSchema])
+def get_components_parts(session: Session = Depends(get_session)): 
     try:
-        return CRUDs.get_relations(session)
+        return CRUDs.get_componentPart(session)
     except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -170,26 +162,26 @@ def get_relations(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/relations/", response_model=schemas.RelationSchema, status_code=status.HTTP_201_CREATED)
-def create_relations(relation: schemas.RelationSchema, db: Session = Depends(get_session)):
+@router.post("/componentParts/", response_model=schemas.ComponentPartSchema, status_code=status.HTTP_201_CREATED)
+def create_components_parts(component: schemas.ComponentPartSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат terminal_id
-    if CRUDs.get_relations_by_terminal(db, relation.id):
+    if CRUDs.get_componentPart_by_terminal(db, component.id):
         raise HTTPException(status_code=400, detail="Relations with this id already exists")
-    return    CRUDs.create_relations(db, relation)
+    return    CRUDs.create_componentPart(db, component)
 
 
-@router.delete("/relations/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_relations(id: int, db: Session = Depends(get_session)):
-    success = CRUDs.delete_relations(db, id)
+@router.delete("/componentParts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_componentPart(id: int, db: Session = Depends(get_session)):
+    success = CRUDs.delete_componentPart(db, id)
     if not success:
         raise HTTPException(status_code=404, detail="Relations not found")
 
 
 #routes for ComponentsSoftware
-@router.get("/softwareComponents/", response_model=list[schemas.SoftwareComponentsSchema])
-def get_SoftwareComponents(session: Session = Depends(get_session)): 
+@router.get("/software2components/", response_model=list[schemas.SoftwareComponentsSchema])
+def get_Software2Components(session: Session = Depends(get_session)): 
     try:
-        return CRUDs.get_software_components(session)
+        return CRUDs.get_software_componentParts(session)
     except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -201,101 +193,101 @@ def get_SoftwareComponents(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/softwareComponents/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED)
-def create_SoftwareComponents(software_component: schemas.SoftwareComponentsSchema, db: Session = Depends(get_session)):
+@router.post("/software2components/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED)
+def create_Software2Components(software_component: schemas.SoftwareComponentsSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат terminal_id
-    if CRUDs.get_software_components_by_terminal(db, software_component.id):
+    if CRUDs.get_software_componentsParts_by_terminal(db, software_component.id):
         raise HTTPException(status_code=400, detail="Software_components with this id already exists")
-    return    CRUDs.create_software_components(db, software_component)
+    return    CRUDs.create_software_componentsParts(db, software_component)
 
 @router.delete("/softwareComponents/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_SoftwareComponents(id: int, db: Session = Depends(get_session)):
+def delete_Software2Components(id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_software_components(db, id)
     if not success:
         raise HTTPException(status_code=404, detail="Software_components not found")
 
-# #Routes БОЛЬШОЙ ПОИСК
-@router.post("/Search", response_model=List[schemas.TractorSoftwareResponse])
-def get_Search(
-    filters: schemas.TractorFilter,
-    db: Session = Depends(get_session)
-):
-    try:
-        return CRUDs.get_tractor_software(db, filters)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
+# # #Routes БОЛЬШОЙ ПОИСК
+# @router.post("/Search", response_model=List[schemas.TractorSoftwareResponse])
+# def get_Search(
+#     filters: schemas.TractorFilter,
+#     db: Session = Depends(get_session)
+# ):
+#     try:
+#         return CRUDs.get_tractor_software(db, filters)
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
     
-@router.get("/Tractors/Components", response_model=schemas.TractorSoftwareResponse)
-def tractor_component_by_vin(vin: str, db: Session = Depends(get_session)):
-    try:
-        return CRUDs.get_tractor_component_by_vin(vin, db)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
+# @router.get("/Tractors/Components", response_model=schemas.TractorSoftwareResponse)
+# def tractor_component_by_vin(vin: str, db: Session = Depends(get_session)):
+#     try:
+#         return CRUDs.get_tractor_component_by_vin(vin, db)
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
     
-@router.get("/component-version/type")
-def get_component_version_by_types(types: str, db: Session = Depends(get_session)):
-    if not types.strip():
-        raise HTTPException(status_code=400, detail="Параметр 'types' не может быть пустым")
+# @router.get("/component-version/type")
+# def get_component_version_by_types(types: str, db: Session = Depends(get_session)):
+#     if not types.strip():
+#         raise HTTPException(status_code=400, detail="Параметр 'types' не может быть пустым")
     
-    type_comps = [t.strip() for t in types.split(',') if t.strip()]
-    if not type_comps:
-        raise HTTPException(status_code=400, detail="Не указаны типы компонентов")
+#     type_comps = [t.strip() for t in types.split(',') if t.strip()]
+#     if not type_comps:
+#         raise HTTPException(status_code=400, detail="Не указаны типы компонентов")
 
-    component_info = CRUDs.get_component_version_by_types(db, type_comps)
-    if not component_info:
-        raise HTTPException(status_code=404, detail=f"Компоненты типов '{types}' не найдены")
+#     component_info = CRUDs.get_component_version_by_types(db, type_comps)
+#     if not component_info:
+#         raise HTTPException(status_code=404, detail=f"Компоненты типов '{types}' не найдены")
     
-    return component_info
+#     return component_info
     
-@router.get("/component-version/models")
-def get_component_version_by_models(model: str, db: Session = Depends(get_session)):
-    if not model.strip():
-        raise HTTPException(status_code=400, detail="Параметр 'models' не может быть пустым")
+# @router.get("/component-version/models")
+# def get_component_version_by_models(model: str, db: Session = Depends(get_session)):
+#     if not model.strip():
+#         raise HTTPException(status_code=400, detail="Параметр 'models' не может быть пустым")
     
-    model_comps = [t.strip() for t in model.split(',') if t.strip()]
-    if not model_comps:
-        raise HTTPException(status_code=400, detail="Не указана модель компонентов")
+#     model_comps = [t.strip() for t in model.split(',') if t.strip()]
+#     if not model_comps:
+#         raise HTTPException(status_code=400, detail="Не указана модель компонентов")
 
-    component_info = CRUDs.get_component_version_by_models(db, model)
-    if not component_info:
-        raise HTTPException(status_code=404, detail=f"Модель '{model}' не найдены")
+#     component_info = CRUDs.get_component_version_by_models(db, model)
+#     if not component_info:
+#         raise HTTPException(status_code=404, detail=f"Модель '{model}' не найдены")
     
-    return component_info
+#     return component_info
 
-@router.get("/component-version/models&types")
-def get_component_version_by_types_and_models(model: str, type:str, db: Session = Depends(get_session)):
-    if not model.strip():
-        raise HTTPException(status_code=400, detail="Параметр 'models' не может быть пустым")
+# @router.get("/component-version/models&types")
+# def get_component_version_by_types_and_models(model: str, type:str, db: Session = Depends(get_session)):
+#     if not model.strip():
+#         raise HTTPException(status_code=400, detail="Параметр 'models' не может быть пустым")
     
-    if not type.strip():
-        raise HTTPException(status_code=400, detail="Параметр 'types' не может быть пустым")
+#     if not type.strip():
+#         raise HTTPException(status_code=400, detail="Параметр 'types' не может быть пустым")
     
-    model_comps = [t.strip() for t in model.split(',') if t.strip()]
-    if not model_comps:
-        raise HTTPException(status_code=400, detail="Не указана модель компонентов")
+#     model_comps = [t.strip() for t in model.split(',') if t.strip()]
+#     if not model_comps:
+#         raise HTTPException(status_code=400, detail="Не указана модель компонентов")
     
-    type_comps = [t.strip() for t in type.split(',') if t.strip()]
-    if not type_comps:
-        raise HTTPException(status_code=400, detail="Не указаны типы компонентов")
+#     type_comps = [t.strip() for t in type.split(',') if t.strip()]
+#     if not type_comps:
+#         raise HTTPException(status_code=400, detail="Не указаны типы компонентов")
 
-    component_info = CRUDs.get_component_version_by_type_models(db, model, type)
-    if not component_info:
-        raise HTTPException(status_code=404, detail=f"Модель '{model}' не найдены")
+#     component_info = CRUDs.get_component_version_by_type_models(db, model, type)
+#     if not component_info:
+#         raise HTTPException(status_code=404, detail=f"Модель '{model}' не найдены")
     
-    return component_info
+#     return component_info
 
-@router.get("/component-version/all/")
-def get_all_components_endpoint(db: Session = Depends(get_session)):
-    """
-    Получить информацию о всех компонентах
-    """
-    try:
-        components_info = CRUDs.get_all_components(db)
-        if not components_info:
-            raise HTTPException(status_code=404, detail="Компоненты не найдены")
+# @router.get("/component-version/all/")
+# def get_all_components_endpoint(db: Session = Depends(get_session)):
+#     """
+#     Получить информацию о всех компонентах
+#     """
+#     try:
+#         components_info = CRUDs.get_all_components(db)
+#         if not components_info:
+#             raise HTTPException(status_code=404, detail="Компоненты не найдены")
         
-        return components_info
+#         return components_info
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")    
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")    
         
