@@ -10,29 +10,46 @@ class TractorsSchema(BaseModel):
     oh_hour: int
     last_activity: Optional[datetime] = None
     assembly_date: Optional[datetime] = None
-
+    region: str
+    consumer: str
+    serv_center: str
+    
 class ComponentSchema(BaseModel):
     id: int
     type: str
     model: int
-    date_create: date
+    mounting_date: date
+    comp_ser_num: str
+    tractor_id: int
+    number_of_parts: int
+    producer_comp: str
 
 class TelemetryComponentSchema(BaseModel):
     id: int
     software: int
     tractor: int
     component: int
+    component_part_id: int
     time_rec: datetime
-    serial_number: str
 
 class SoftwareSchema(BaseModel):
     id: int
     path: str
     name: str
     inner_name: str
-    prev_version: Optional[int] = None
-    next_version: Optional[int] = None
     release_date: datetime
+    description: str
+
+class ComponentPartSchema(BaseModel):
+    id: int
+    component_id: int
+    part_number: str
+    part_type: str
+    current_sw_version: int
+    recommend_sw_version: int
+    is_major: bool
+    not_recom_sw: str
+    next_ver: str
 
 class SoftwareComponentsSchema(BaseModel):
     id: int
@@ -41,6 +58,8 @@ class SoftwareComponentsSchema(BaseModel):
     is_major: bool
     status: str
     date_change: datetime
+    not_recom: str
+    data_change_record: datetime
 
     @field_validator('status')
     @classmethod
@@ -49,40 +68,30 @@ class SoftwareComponentsSchema(BaseModel):
             raise ValueError("Status must be one of: 's', 't', 'b', 'o'")
         return v
 
-class RelationSchema(BaseModel):
-    id: int
-    software1: int
-    software2: int
-
 # # Для фильтра СХЕМА
 class FirmwareInfo(BaseModel):
     inner_version: str
     producer_version: str
     download_link: str
     release_date: Optional[str] = None
-    maj_to: Optional[str] = None
-    min_to: Optional[str] = None
+    description: Optional[str] = None
 
 class ComponentInfo(BaseModel):
     type_component: str
     model_component: str
-    year_component: Optional[str]  # или date, но вы используете str в ответе
-    current_version_id: int  # ID софта из Software
-    is_maj: bool
-    firmware: FirmwareInfo
+    serial_number: str
+    mounting_date: str
+    current_version: FirmwareInfo
+    recommended_version: FirmwareInfo
+    is_major: bool
 
 class TractorSoftwareResponse(BaseModel):
     vin: str
     model: str
     assembly_date: Optional[str]
+    region: str
+    consumer: str
     components: List[ComponentInfo]
 
     class Config:
-        from_attributes = True  # позволяет использовать ORM-объекты напрямую
-
-class TractorFilter(BaseModel):
-    models: List[str] = []
-    release_date_from: Optional[str] = None  # "YYYY-MM-DD"
-    release_date_to: Optional[str] = None
-    requires_maj: bool = False  # True → только is_major=True
-    requires_min: bool = False  # True → только is_major=False
+        from_attributes = True
