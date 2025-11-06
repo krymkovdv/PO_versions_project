@@ -12,7 +12,7 @@ from .models import Base
 
 #Создание БД
 # engine = create_engine(config.settings.get_url())
-# Base.metadata.drop_all(engine)
+# # Base.metadata.drop_all(engine)
 # Base.metadata.create_all(engine)
 
 #создание экземпляра приложения
@@ -21,4 +21,4 @@ app = FastAPI(title="Сервис контроля версий")
 app.include_router(router)
 
 # uvicorn app.main:app --reload
-# python -m app.main``
+# python -m app.main

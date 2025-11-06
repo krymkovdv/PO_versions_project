@@ -54,7 +54,7 @@ class Component(Base):
     tractors = relationship('Tractors', back_populates='components')
                  
 class Software2ComponentPart(Base):
-    __tablename__ = 'SoftwareComponents'
+    __tablename__ = 'Software2ComponentPart'
 
     id = Column(Integer, primary_key=True)
     component_part_id = Column(Integer, ForeignKey('ComponentParts.id'), nullable=False)
