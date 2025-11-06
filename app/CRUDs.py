@@ -214,47 +214,46 @@ def delete_software_components(db: Session, id: int):
 #CRUD'ы для страницы 3
 
 #ПО фильтрам Компоненты
-# def get_component_by_filters (db: Session, trac_model: List[str], type_comp: List[str], model_comp: str):
-#     query = db.query(models.Software.id, 
-#                         models.Software.name, 
-#                         models.Software.release_date, 
-#                         models.Software.path, 
-#                         models.Software.inner_name,
-#                         models.Component.type,
-#                         models.Component.model,
-#                         models.Software2ComponentPart.is_major, 
-#                         models.Component.type, 
-#                         models.Component.model
-#                         ).select_from(models.Component)
-#     query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
-#     query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-#     query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-#     query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id) 
+def get_component_by_filters (db: Session, trac_model: List[str], type_comp: List[str], model_comp: str):
+    query = db.query(models.Software.id, 
+                    models.Software.path.label("download_link"),
+                    models.Software.name.label("producer_version"),
+                    models.Software.inner_name.label("inner_version"),
+                    models.Software.release_date,
+                    models.Software.id.label("id_Firmwares"),
+                    models.Component.type.label("type_component"),
+                    models.Component.model.label("model_component"),
+                    models.Software2ComponentPart.is_major.label("is_maj")
+                        ).select_from(models.Component)
+    query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
+    query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+    query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id) 
     
-#     if trac_model:
-#         query = query.filter(models.Tractors.model.in_(trac_model))
-#     if type_comp:
-#         query = query.filter(models.Component.type.in_(type_comp))
-#     if model_comp:
-#         query = query.filter(models.Component.model == model_comp)
+    if trac_model:
+        query = query.filter(models.Tractors.model.in_(trac_model))
+    if type_comp:
+        query = query.filter(models.Component.type.in_(type_comp))
+    if model_comp:
+        query = query.filter(models.Component.model == model_comp)
 
-#     query = query.order_by(models.Software.release_date.desc())
+    query = query.order_by(models.Software.release_date.desc())
 
-#     results = query.all()
+    results = query.all()
 
-#     return [
-#         {
-#             "download_link": r.path,
-#             "type_component": r.type_component,
-#             "release_date": r.release_date.isoformat() if r.release_date else None,
-#             "inner_version": r.inner_version,
-#             "producer_version": r.producer_version,
-#             "is_maj": r.is_maj,
-#             "model_component": r.model_component,
-#             "id_Firmwares": r.id_Firmwares,
-#         }
-#         for r in results
-#     ]
+    return [
+        {
+            "download_link": r.download_link,
+            "type_component": r.type_component,
+            "release_date": r.release_date.isoformat() if r.release_date else None,
+            "inner_version": r.inner_version,
+            "producer_version": r.producer_version,
+            "is_maj": r.is_maj,
+            "model_component": r.model_component,
+            "id_Firmwares": r.id_Firmwares,
+        }
+        for r in results
+    ]
 
 #Глобальный поиск компонентов
 
