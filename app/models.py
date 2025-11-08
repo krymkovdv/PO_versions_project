@@ -1,10 +1,20 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import  Column, Integer, Text, DateTime, ForeignKey, Boolean, Date, CHAR, Table
+from sqlalchemy import  Column, Integer, Text, DateTime, ForeignKey, Boolean, Date, CHAR, Table, String
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 
 
 class Base(DeclarativeBase): pass
+
+
+
+class UserDB(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    password_hash = Column(String)
+    role = Column(String, default="user")
  
 class Tractors(Base):
     __tablename__ = 'Tractors'
