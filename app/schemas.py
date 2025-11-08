@@ -73,3 +73,8 @@ class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
     model_comp: str = ''
+
+class TractorInfoRequest(BaseModel):
+    trac_model: List[str] = []
+    status: List[str] = []
+    dealer: str

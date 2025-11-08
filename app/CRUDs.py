@@ -263,7 +263,49 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
 #CRUD'ы для страницы 4
 
 #ПО фильтрам Трактора
+def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str], dealer: str):
+    query = db.query(models.Tractors.vin,
+                     models.Tractors.model,
+                     models.Tractors.consumer,
+                     models.Tractors.assembly_date,
+                     models.Tractors.region,
+                     models.Tractors.oh_hour,
+                     models.Tractors.last_activity,
+                     models.Software.name,
+                     models.ComponentParts.recommend_sw_version
+                     ).select_from(models.Tractors)
+    query = query.join(models.Component, models.Component.tractor_id == models.Tractors.id)
+    query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+    query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    
+    if trac_model:
+        query = query.filter(models.Tractors.model.in_(trac_model))
+    if status:
+        query = query.filter(models.Software2ComponentPart.status.in_(status))
+    if dealer:
+        query = query.filter(models.Tractors.consumer == dealer)
 
+    query = query.order_by(models.Software.release_date.desc())
+
+    results = query.all()
+
+    return [
+        {
+            
+            "vin": r.vin,
+            "model": r.model,
+            "consumer": r.consumer,
+            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+            "region": r.region,
+            "oh_hour": r.oh_hour,
+            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+            "sw_name": r.name,
+            "recommend_sw_version": r.recommend_sw_version,
+        }
+        for r in results
+    ]
+     
 #Глобальный поиск тракторов
 
 #ОСТАЛЬНЫК ХЗ
