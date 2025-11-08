@@ -209,7 +209,12 @@ def delete_Software2Components(id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_software_components(db, id)
     if not success:
         raise HTTPException(status_code=404, detail="Software_components not found")
-    
+
+
+#------------Routes для страниц-----------------
+
+#3-я страница
+#Поиск по фильтрам КОМПОНЕНТОВ
 @router.post("/component-info")
 def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session)):
     data = CRUDs.get_component_by_filters(
@@ -220,88 +225,23 @@ def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session 
     )
     return data
 
-# # #Routes БОЛЬШОЙ ПОИСК
-# @router.post("/Search", response_model=List[schemas.TractorSoftwareResponse])
-# def get_Search(
-#     filters: schemas.TractorFilter,
-#     db: Session = Depends(get_session)
-# ):
-#     try:
-#         return CRUDs.get_tractor_software(db, filters)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
-    
-# @router.get("/Tractors/Components", response_model=schemas.TractorSoftwareResponse)
-# def tractor_component_by_vin(vin: str, db: Session = Depends(get_session)):
-#     try:
-#         return CRUDs.get_tractor_component_by_vin(vin, db)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Ошибка при поиске: {str(e)}")
-    
-# @router.get("/component-version/type")
-# def get_component_version_by_types(types: str, db: Session = Depends(get_session)):
-#     if not types.strip():
-#         raise HTTPException(status_code=400, detail="Параметр 'types' не может быть пустым")
-    
-#     type_comps = [t.strip() for t in types.split(',') if t.strip()]
-#     if not type_comps:
-#         raise HTTPException(status_code=400, detail="Не указаны типы компонентов")
+#4-я страница
+#Поиск по фильтрам ТРАКТОРОВ
+@router.post("/tractor-info")
+def get_tractors_by_filters(filters: schemas.TractorInfoRequest, db: Session = Depends(get_session)):
+    data = CRUDs.get_tractors_by_filters(
+        db,
+        trac_model=filters.trac_model, 
+        status=filters.status,
+        dealer=filters.dealer
+    )
+    return data
 
-#     component_info = CRUDs.get_component_version_by_types(db, type_comps)
-#     if not component_info:
-#         raise HTTPException(status_code=404, detail=f"Компоненты типов '{types}' не найдены")
-    
-#     return component_info
-    
-# @router.get("/component-version/models")
-# def get_component_version_by_models(model: str, db: Session = Depends(get_session)):
-#     if not model.strip():
-#         raise HTTPException(status_code=400, detail="Параметр 'models' не может быть пустым")
-    
-#     model_comps = [t.strip() for t in model.split(',') if t.strip()]
-#     if not model_comps:
-#         raise HTTPException(status_code=400, detail="Не указана модель компонентов")
-
-#     component_info = CRUDs.get_component_version_by_models(db, model)
-#     if not component_info:
-#         raise HTTPException(status_code=404, detail=f"Модель '{model}' не найдены")
-    
-#     return component_info
-
-# @router.get("/component-version/models&types")
-# def get_component_version_by_types_and_models(model: str, type:str, db: Session = Depends(get_session)):
-#     if not model.strip():
-#         raise HTTPException(status_code=400, detail="Параметр 'models' не может быть пустым")
-    
-#     if not type.strip():
-#         raise HTTPException(status_code=400, detail="Параметр 'types' не может быть пустым")
-    
-#     model_comps = [t.strip() for t in model.split(',') if t.strip()]
-#     if not model_comps:
-#         raise HTTPException(status_code=400, detail="Не указана модель компонентов")
-    
-#     type_comps = [t.strip() for t in type.split(',') if t.strip()]
-#     if not type_comps:
-#         raise HTTPException(status_code=400, detail="Не указаны типы компонентов")
-
-#     component_info = CRUDs.get_component_version_by_type_models(db, model, type)
-#     if not component_info:
-#         raise HTTPException(status_code=404, detail=f"Модель '{model}' не найдены")
-    
-#     return component_info
-
-# @router.get("/component-version/all/")
-# def get_all_components_endpoint(db: Session = Depends(get_session)):
-#     """
-#     Получить информацию о всех компонентах
-#     """
-#     try:
-#         components_info = CRUDs.get_all_components(db)
-#         if not components_info:
-#             raise HTTPException(status_code=404, detail="Компоненты не найдены")
-        
-#         return components_info
-        
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")    
-        
+#Глобальный поиск
+@router.post("/search-tractor", response_model=List[schemas.TractorSearchResponse])
+def get_Search_Tractors(
+    filters: schemas.SearchFilterTractors,
+    db: Session = Depends(get_session)
+):
+    data = CRUDs.search_tractors(filters=filters, db=db)
+    return data
