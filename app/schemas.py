@@ -73,3 +73,29 @@ class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
     model_comp: str = ''
+
+class TractorInfoRequest(BaseModel):
+    trac_model: List[str] = []
+    status: List[str] = []
+    dealer: str
+
+class SearchFilterTractors(BaseModel):
+    vin: str = ''
+    model: str = ''
+    date_release: str = ''
+    region: str = ''
+    oh_hour: str = ''
+    last_activity: str = ''
+    type_comp: str = ''
+
+class TractorSearchResponse(BaseModel):
+    vin: str
+    model: str
+    consumer: str
+    assembly_date: Optional[str] = None
+    region: str
+    oh_hour: str
+    last_activity: Optional[str] = None
+    sw_name: str
+    recommend_sw_version: str
+    type: str  
