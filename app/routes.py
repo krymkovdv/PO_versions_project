@@ -205,7 +205,12 @@ def delete_Software2Components(id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_software_components(db, id)
     if not success:
         raise HTTPException(status_code=404, detail="Software_components not found")
-    
+
+
+#------------Routes для страниц-----------------
+
+#3-я страница
+#Поиск по фильтрам КОМПОНЕНТОВ
 @router.post("/component-info")
 def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session)):
     data = CRUDs.get_component_by_filters(
@@ -213,6 +218,18 @@ def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session 
         trac_model=filters.trac_model,
         type_comp=filters.type_comp,
         model_comp=filters.model_comp
+    )
+    return data
+
+#4-я страница
+#Поиск по фильтрам ТРАКТОРОВ
+@router.post("/tractor-info")
+def get_tractors_by_filters(filters: schemas.TractorInfoRequest, db: Session = Depends(get_session)):
+    data = CRUDs.get_tractors_by_filters(
+        db,
+        trac_model=filters.trac_model, 
+        status=filters.status,
+        dealer=filters.dealer
     )
     return data
 
