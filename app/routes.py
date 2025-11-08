@@ -6,6 +6,7 @@ from .config import settings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Query
 from typing import List
+from .authorization import *
 
 
 router = APIRouter()
@@ -17,6 +18,9 @@ SessionLocal = sessionmaker(bind=engine)
 def get_session():
     with SessionLocal() as session:
         yield session
+
+
+# Авторизация
 
 
 #Routes трактора
