@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
 from . import models, schemas  
-from sqlalchemy import or_, cast, String, select
+from sqlalchemy import or_, cast, String, select, text
 from fastapi import HTTPException
 from datetime import datetime
 from typing import List
+import re
 
 #----------БАЗОВЫЕ CRUDS----------
 #Cruds for Tractor
@@ -256,6 +257,71 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
     ]
 
 #Глобальный поиск компонентов
+def search_components (db: Session, filter: schemas.ComponentSearchResponse):
+    query = db.query(models.Software.id, 
+                    models.Software.path.label("download_link"),
+                    models.Software.name.label("producer_version"),
+                    models.Software.inner_name.label("inner_version"),
+                    models.Software.release_date,
+                    models.Software.id.label("id_Firmwares"),
+                    models.Component.type.label("type_component"),
+                    models.Component.model.label("model_component"),
+                    models.Software2ComponentPart.is_major.label("is_maj")
+                        ).select_from(models.Component)
+    query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
+    query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+    query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id) 
+    
+    #   Tractor Model
+    if filter.trac_model:
+        if filter.trac_regex:
+            if len(filter.trac_model) > 100:
+                raise ValueError("Regex too long")
+            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filter.trac_model):
+                raise ValueError("Potentially catastrophic regex")
+            query = query.filter(models.Tractors.model.op('~*')(filter.trac_model))
+        else:
+            query = query.filter(models.Tractors.model == filter.trac_model)
+
+    #   Type
+    elif filter.type_comp:
+        if filter.type_regex:
+            if len(filter.type_comp) > 100:
+                raise ValueError("Regex too long")
+            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filter.type_comp):
+                raise ValueError("Potentially catastrophic regex")
+            query = query.filter(models.Component.type.op('~*')(filter.type_comp))
+        else:
+            query = query.filter(models.Component.type == filter.type_comp)
+
+    #   Model Component
+    elif filter.model_comp:
+        if filter.model_regex:
+            if len(filter.model_comp) > 100:
+                raise ValueError("Regex too long")
+            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filter.model_comp):
+                raise ValueError("Potentially catastrophic regex")
+            query = query.filter(models.Component.model.op('~*')(filter.model_comp))
+        else:
+            query = query.filter(models.Component.model == filter.model_comp)
+
+    results = query.all()
+
+    return [
+        {
+            "download_link": r.download_link,
+            "type_component": r.type_component,
+            "release_date": r.release_date.isoformat() if r.release_date else None,
+            "inner_version": r.inner_version,
+            "producer_version": r.producer_version,
+            "is_maj": r.is_maj,
+            "model_component": r.model_component,
+            "id_Firmwares": r.id_Firmwares
+        }   
+        for r in results
+    ]
+
 #CRUD'ы для страницы 4
 
 #ПО фильтрам Трактора
@@ -321,32 +387,62 @@ def search_tractors(db: Session, filters: schemas.SearchFilterTractors):
     query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
     query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
     
+    #   Vin
     if filters.vin:
-        query = query.filter(models.Tractors.vin == filters.vin)
+        if filters.vin_regex:
+            if len(filters.vin) > 100:
+                raise ValueError("Regex too long")
+            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filters.vin):
+                raise ValueError("Potentially catastrophic regex")
+            query = query.filter(models.Tractors.vin.op('~*')(filters.vin))
+        else:
+            query = query.filter(models.Tractors.vin == filters.vin)
+
+    #   Model
     elif filters.model:
-        query =query.filter(models.Tractors.model == filters.model)
+        if filters.model_regex:
+            if len(filters.model) > 100:
+                raise ValueError("Regex too long")
+            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filters.model):
+                raise ValueError("Potentially catastrophic regex")
+            query = query.filter(models.Tractors.model.op('~*')(filters.model))
+        else:
+            query = query.filter(models.Tractors.model == filters.model)
+
+    #   Region
+    elif filters.region:
+        if filters.region_regex:
+            if len(filters.region) > 100:
+                raise ValueError("Regex too long")
+            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filters.region):
+                raise ValueError("Potentially catastrophic regex")
+            query = query.filter(models.Tractors.region.op('~*')(filters.region))
+        else:
+            query = query.filter(models.Tractors.region == filters.region)
+
+    #   Date release
     elif filters.date_release:
-        query =query.filter(models.Software.release_date == filters.date_release)
         try:
             date_val = datetime.strptime(filters.date_release, "%Y-%m-%d").date()
             query = query.filter(models.Software.release_date == date_val)
         except ValueError:
-            pass
-    elif filters.region:
-        query =query.filter(models.Tractors.region == filters.region)
+            pass  # или логгировать/игнорировать
+
+    #   oh_hour
     elif filters.oh_hour:
         try:
             oh_val = int(filters.oh_hour)
             query = query.filter(models.Tractors.oh_hour == oh_val)
         except ValueError:
             pass
+
+    #   last_activity
     elif filters.last_activity:
         try:
             dt = datetime.fromisoformat(filters.last_activity)
             query = query.filter(models.Tractors.last_activity == dt)
         except ValueError:
             pass
-    
 
     results = query.all()
 
