@@ -11,9 +11,9 @@ from .models import Base
 # SessionLocal = sessionmaker(bind=engine)
 
 #Создание БД
-# engine = create_engine(config.settings.get_url())
-# # Base.metadata.drop_all(engine)
-# Base.metadata.create_all(engine)
+engine = create_engine(config.settings.get_url())
+# Base.metadata.drop_all(engine)
+# Base.metadata.create_all(engine, checkfirst=True)
 
 #создание экземпляра приложения
 app = FastAPI(title="Сервис контроля версий")
