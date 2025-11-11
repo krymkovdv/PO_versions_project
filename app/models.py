@@ -17,7 +17,7 @@ class UserDB(Base):
     role = Column(String, default="user")
  
 class Tractors(Base):
-    __tablename__ = 'Tractors'
+    __tablename__ = "Tractors"
 
     id = Column(Integer, primary_key=True, index = True)
     model = Column(Text, nullable= False)
