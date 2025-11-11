@@ -86,7 +86,10 @@ class SearchFilterTractors(BaseModel):
     region: str = ''
     oh_hour: str = ''
     last_activity: str = ''
-    type_comp: str = ''
+
+    vin_regex: bool = False 
+    model_regex: bool = False
+    region_regex: bool = False
 
 class TractorSearchResponse(BaseModel):
     vin: str
@@ -99,3 +102,22 @@ class TractorSearchResponse(BaseModel):
     sw_name: str
     recommend_sw_version: str
     type: str  
+
+class ComponentSearchResponse(BaseModel):
+    trac_model: str 
+    type_comp: str
+    model_comp: str
+
+    trac_regex: bool = False 
+    type_regex: bool = False
+    model_regex: bool = False
+
+class ComponentSearchResponseItem(BaseModel):
+    download_link: str
+    type_component: str
+    release_date: Optional[str] = None
+    inner_version: str
+    producer_version: str
+    is_maj: bool
+    model_component: str
+    id_Firmwares: int
