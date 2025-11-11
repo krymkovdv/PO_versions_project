@@ -62,7 +62,7 @@ class Component(Base):
     parts = relationship("ComponentParts", back_populates="components")
     tel_comp= relationship('TelemetryComponents', back_populates='components')
     tractors = relationship('Tractors', back_populates='components')
-                 
+
 class Software2ComponentPart(Base):
     __tablename__ = 'Software2ComponentPart'
 
