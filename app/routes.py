@@ -283,3 +283,38 @@ def get_component_by_type_model(model_comp: str, type_comp: str, db: Session = D
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
     
+
+@router.get("/get_comp_by_trac_id/")
+def get_comp_by_trac(trac_model: str, db: Session = Depends(get_session)):
+
+    try:
+        type_comps = [t.strip() for t in trac_model.split(',')]
+        component_info = CRUDs.get_comp__by_trac_id(db, type_comps)
+        if not component_info:
+            raise HTTPException(status_code=404, detail=f"Компонент типа '{trac_model}' не найден")
+        return component_info
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+    
+@router.post("/get_info_about_comp")
+def get_info_about_comp(request: ComponentInfoRequest, db: Session = Depends(get_session)):
+    
+    try:
+        component_info = CRUDs.get_component_info(
+            db,
+            request.trac_model, 
+            request.type_comp, 
+            request.model_comp)
+        if not component_info:
+            return HTTPException(status_code=404, detail=f"Компонент не найден")
+        return component_info
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
+    
+
+@router.get('/none') 
+def nothing(db: Session = Depends(get_session)):
+    try:
+        return []  # Возвращаем пустой список
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")

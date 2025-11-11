@@ -89,3 +89,12 @@ class TractorSoftwareResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+
+# New
+
+class ComponentInfoRequest(BaseModel):
+    trac_model: List[str] = []
+    type_comp: List[str] = []
+    model_comp: str = ''
