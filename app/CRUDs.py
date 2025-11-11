@@ -1,10 +1,9 @@
 from sqlalchemy.orm import Session
 from . import models, schemas  
-from sqlalchemy import or_, cast, String, select, text
+from sqlalchemy import or_, cast, String, select
 from fastapi import HTTPException
 from datetime import datetime
 from typing import List
-import re
 
 #----------БАЗОВЫЕ CRUDS----------
 #Cruds for Tractor
