@@ -395,6 +395,8 @@ def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str
                      models.Tractors.oh_hour,
                      models.Tractors.last_activity,
                      models.Software.name,
+                     models.ComponentParts.id.label("ComponentPart"),
+                     models.Component.id.label("Component"),
                      models.ComponentParts.recommend_sw_version,
                      models.Component.type
                      ).select_from(models.Tractors)
@@ -424,8 +426,10 @@ def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str
             "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
             "last_activity": r.last_activity.isoformat() if r.last_activity else None,
             "sw_name": r.name,
+            "ComponentParts_id": r.ComponentPart,
+            "Component_id": r.Component,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "type": r.type
+            "Component_type": r.type
         }
         for r in results
     ]
@@ -433,15 +437,17 @@ def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str
 #Глобальный поиск ТРАКТОРОВ
 def search_tractors(db: Session, filters: schemas.SearchFilterTractors):
     query = db.query(models.Tractors.vin,
-                    models.Tractors.model,
-                    models.Tractors.consumer,
-                    models.Tractors.assembly_date,
-                    models.Tractors.region,
-                    models.Tractors.oh_hour,
-                    models.Tractors.last_activity,
-                    models.Software.name,
-                    models.ComponentParts.recommend_sw_version,
-                    models.Component.type
+                     models.Tractors.model,
+                     models.Tractors.consumer,
+                     models.Tractors.assembly_date,
+                     models.Tractors.region,
+                     models.Tractors.oh_hour,
+                     models.Tractors.last_activity,
+                     models.Software.name,
+                     models.ComponentParts.id.label("ComponentPart"),
+                     models.Component.id.label("Component"),
+                     models.ComponentParts.recommend_sw_version,
+                     models.Component.type
                     ).select_from(models.Tractors) 
     query = query.join(models.Component, models.Component.tractor_id == models.Tractors.id)
     query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
@@ -517,8 +523,10 @@ def search_tractors(db: Session, filters: schemas.SearchFilterTractors):
             "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
             "last_activity": r.last_activity.isoformat() if r.last_activity else None,
             "sw_name": r.name,
+            "ComponentParts_id": r.ComponentPart,
+            "Component_id": r.Component,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "type": r.type
+            "Component_type": r.type
         }
         for r in results
     ]
