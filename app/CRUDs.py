@@ -3,6 +3,7 @@ from datetime import datetime
 from . import models, schemas
 from sqlalchemy import and_, or_, func
 from sqlalchemy import cast, String
+from typing import List
 
 
 #Cruds for Tractor
@@ -234,21 +235,21 @@ def get_tractor_software(db: Session, filters: schemas.TractorFilter):
 
 # Дополнительные CRUD
 
-def get_component_version(db: Session, id: int):
+def get_component_version_by_types(db: Session, type_comps: List[str]):
     results = (db.query(
                 models.Firmwares.download_link,
                 models.Firmwares.release_date,
                 models.Firmwares.inner_version,
                 models.Firmwares.producer_version,
                 models.Firmwares.id_Firmwares,
-                models.TrueComponents.Type_component,
+                models.TrueComponents.Type_component,  
                 models.TrueComponents.Model_component,
                 models.TelemetryComponents.is_maj
             )
             .select_from(models.Firmwares)
             .join(models.TelemetryComponents, models.TelemetryComponents.current_version == models.Firmwares.id_Firmwares)
             .join(models.TrueComponents, models.TrueComponents.id == models.TelemetryComponents.true_comp)
-            .filter(models.TrueComponents.id == id)
+            .filter(models.TrueComponents.Type_component.in_(type_comps))  # Используем in_ для фильтрации по массиву
             .order_by(models.Firmwares.release_date.desc())
             .all()) 
     
@@ -267,4 +268,210 @@ def get_component_version(db: Session, id: int):
             for result in results  
         ]
     else:
+        return []
+    
+
+
+def get_all_components(db: Session):
+    results = (db.query(
+        models.Firmwares.download_link,
+        models.Firmwares.release_date,
+        models.Firmwares.inner_version,
+        models.Firmwares.producer_version,
+        models.Firmwares.id_Firmwares,
+        models.TrueComponents.Type_component,  
+        models.TrueComponents.Model_component,
+        models.TelemetryComponents.is_maj
+    )
+    .select_from(models.TractorComponent)
+    .join(models.Tractors, models.Tractors.terminal_id == models.TractorComponent.tractor)
+    .join(models.TelemetryComponents, models.TelemetryComponents.id_telemetry == models.TractorComponent.comp_id)
+    .join(models.TrueComponents, models.TrueComponents.id == models.TelemetryComponents.true_comp)
+    .join(models.Firmwares, models.Firmwares.id_Firmwares == models.TelemetryComponents.current_version)
+    .order_by(models.Firmwares.release_date.desc())
+    .all())
+    
+    if results:
+        return [
+            {
+                "download_link": result.download_link,
+                "type_component": result.Type_component,
+                "release_date": result.release_date.isoformat() if result.release_date else None,
+                "inner_version": result.inner_version,
+                "producer_version": result.producer_version,
+                "is_maj": result.is_maj,
+                "model_component": result.Model_component,
+                "id_Firmwares": result.id_Firmwares
+            }
+            for result in results  
+        ]
+    else:
+        return []
+
+
+def get_model_version_by_type(db: Session, model_comp: str):
+    results = (db.query(
+                models.Firmwares.download_link,
+                models.Firmwares.release_date,
+                models.Firmwares.inner_version,
+                models.Firmwares.producer_version,
+                models.Firmwares.id_Firmwares,
+                models.TrueComponents.Type_component,  
+                models.TrueComponents.Model_component,
+                models.TelemetryComponents.is_maj
+            )
+            .select_from(models.Firmwares)
+            .join(models.TelemetryComponents, models.TelemetryComponents.current_version == models.Firmwares.id_Firmwares)
+            .join(models.TrueComponents, models.TrueComponents.id == models.TelemetryComponents.true_comp)
+            .filter(models.TrueComponents.Model_component == model_comp)
+            .order_by(models.Firmwares.release_date.desc())
+            .all()) 
+    
+    if results:
+        return [
+            {
+                "download_link": result.download_link,
+                "type_component": result.Type_component, 
+                "release_date": result.release_date,
+                "inner_version": result.inner_version,
+                "producer_version": result.producer_version,
+                "is_maj": result.is_maj,
+                "model_component": result.Model_component,
+                "id_Firmwares": result.id_Firmwares
+            }
+            for result in results  
+        ]
+    else:
         return None
+    
+
+
+def get_comp__by_type_model(db: Session, model_comp: str, type_comp: str):
+    results = (db.query(
+                models.Firmwares.download_link,
+                models.Firmwares.release_date,
+                models.Firmwares.inner_version,
+                models.Firmwares.producer_version,
+                models.Firmwares.id_Firmwares,
+                models.TrueComponents.Type_component,  
+                models.TrueComponents.Model_component,
+                models.TelemetryComponents.is_maj
+            )
+            .select_from(models.Firmwares)
+            .join(models.TelemetryComponents, models.TelemetryComponents.current_version == models.Firmwares.id_Firmwares)
+            .join(models.TrueComponents, models.TrueComponents.id == models.TelemetryComponents.true_comp)
+            .filter(
+                and_(
+                    models.TrueComponents.Model_component == model_comp,
+                    models.TrueComponents.Type_component == type_comp))
+            .order_by(models.Firmwares.release_date.desc())
+            .all()) 
+    
+    if results:
+        return [
+            {
+                "download_link": result.download_link,
+                "type_component": result.Type_component, 
+                "release_date": result.release_date,
+                "inner_version": result.inner_version,
+                "producer_version": result.producer_version,
+                "is_maj": result.is_maj,
+                "model_component": result.Model_component,
+                "id_Firmwares": result.id_Firmwares
+            }
+            for result in results  
+        ]
+    else:
+        return []
+    
+
+def get_comp__by_trac_id(db: Session, trac_model: List[str]):
+    results = (db.query(
+                models.Firmwares.download_link,
+                models.Firmwares.release_date,
+                models.Firmwares.inner_version,
+                models.Firmwares.producer_version,
+                models.Firmwares.id_Firmwares,
+                models.TrueComponents.Type_component,  
+                models.TrueComponents.Model_component,
+                models.TelemetryComponents.is_maj
+            )
+            .select_from(models.TractorComponent)
+            .join(models.Tractors, models.Tractors.terminal_id == models.TractorComponent.tractor)
+            .join(models.TelemetryComponents, models.TelemetryComponents.id_telemetry == models.TractorComponent.comp_id)
+            .join(models.TrueComponents, models.TrueComponents.id == models.TelemetryComponents.true_comp)
+            .join(models.Firmwares, models.Firmwares.id_Firmwares == models.TelemetryComponents.current_version)
+            .filter(models.Tractors.model.in_(trac_model))
+            .all()) 
+    
+    if results:
+        return [
+            {
+                "download_link": result.download_link,
+                "type_component": result.Type_component, 
+                "release_date": result.release_date,
+                "inner_version": result.inner_version,
+                "producer_version": result.producer_version,
+                "is_maj": result.is_maj,
+                "model_component": result.Model_component,
+                "id_Firmwares": result.id_Firmwares
+            }
+            for result in results  
+        ]
+    else:
+        return []
+    
+
+
+def get_component_info(db: Session, trac_model: List[str], type_comp: List[str], model_comp: str):
+
+    query = db.query(
+        models.Firmwares.download_link,
+        models.Firmwares.release_date,
+        models.Firmwares.inner_version,
+        models.Firmwares.producer_version,
+        models.Firmwares.id_Firmwares,
+        models.TrueComponents.Type_component,  
+        models.TrueComponents.Model_component,
+        models.TelemetryComponents.is_maj
+    ).select_from(models.TractorComponent)
+    
+
+    query = query.join(models.Tractors, models.Tractors.terminal_id == models.TractorComponent.tractor)
+    query = query.join(models.TelemetryComponents, models.TelemetryComponents.id_telemetry == models.TractorComponent.comp_id)
+    query = query.join(models.TrueComponents, models.TrueComponents.id == models.TelemetryComponents.true_comp)
+    query = query.join(models.Firmwares, models.Firmwares.id_Firmwares == models.TelemetryComponents.current_version)
+    
+
+    if trac_model: 
+        query = query.filter(models.Tractors.model.in_(trac_model))
+    
+    if model_comp: 
+        query = query.filter(models.TrueComponents.Model_component == model_comp)
+    
+    if type_comp:   
+        query = query.filter(models.TrueComponents.Type_component.in_(type_comp))
+    
+
+    results = query.order_by(models.Firmwares.release_date.desc()).all()
+    
+    if results:
+        return [
+            {
+                "download_link": result.download_link,
+                "type_component": result.Type_component, 
+                "release_date": result.release_date.isoformat() if result.release_date else None,
+                "inner_version": result.inner_version,
+                "producer_version": result.producer_version,
+                "is_maj": result.is_maj,
+                "model_component": result.Model_component,
+                "id_Firmwares": result.id_Firmwares
+            }
+            for result in results  
+        ]
+    else:
+        return None
+    
+
+def return_none(db: Session):
+    return None
