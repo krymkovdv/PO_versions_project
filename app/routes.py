@@ -236,7 +236,7 @@ def get_Search_Component(
 
 #4-я страница
 #Поиск по фильтрам ТРАКТОРОВ
-@router.post("/tractor-info")
+@router.post("/tractor-info", response_model=List[schemas.TractorSearchResponse] )
 def get_tractors_by_filters(filters: schemas.TractorInfoRequest, db: Session = Depends(get_session)):
     data = CRUDs.get_tractors_by_filters(
         db,
