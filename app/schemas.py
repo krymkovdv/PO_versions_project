@@ -1,6 +1,7 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from datetime import datetime, date
 from typing import Optional, List
+from enum import Enum
 
 
 class TractorsSchema(BaseModel):
@@ -121,3 +122,26 @@ class ComponentSearchResponseItem(BaseModel):
     is_maj: bool
     model_component: str
     id_Firmwares: int
+
+#для авторизации
+class UserRole(str, Enum):
+    ENGINEER = "engineer"
+    DILLER = "diller"
+    MODERATOR = "moderator"
+
+class UserCreate(BaseModel):
+    login: str = Field(max_length=32, min_length=5) 
+    password: str = Field(max_length=32, min_length=5)
+    role: UserRole = UserRole.ENGINEER
+
+class Token(BaseModel):
+    access_token: str  
+    token_type: str = "bearer"  
+
+class UserResponse(BaseModel):
+    login: str
+    role: UserRole
+
+    class Config:
+        from_attributes = True 
+

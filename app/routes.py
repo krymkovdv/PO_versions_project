@@ -1,13 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from . import CRUDs, schemas, config, models 
+from . import CRUDs, schemas, config, models, authorization
 from .config import settings 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Query
 from typing import List
 from .authorization import *
-
+from sqlalchemy.ext.asyncio import AsyncSession
+from .authorization import (
+    get_current_user,
+    require_role,
+    create_access_token,
+    authenticate_user,
+    get_password_hash
+)
 
 router = APIRouter()
 
@@ -254,3 +261,70 @@ def get_Search_Tractors(
 ):
     data = CRUDs.search_tractors(filters=filters, db=db)
     return data
+
+
+#авторизация
+# ✅ 1. Получение токена (OAuth2 стандарт)
+@router.post("/token", response_model=schemas.Token)
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_session)
+):
+    user = await authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(
+        data={"sub": user.login},
+        expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# ✅ 2. Регистрация (если нужно)
+@router.post("/register", response_model=schemas.UserResponse, status_code=201)
+async def register_user(
+    user: schemas.UserCreate,
+    db: AsyncSession = Depends(get_session)
+):
+    existing = await auth.get_user(db, user.login)
+    if existing:
+        raise HTTPException(400, "User already exists")
+    hashed = get_password_hash(user.password)
+    db_user = models.UserDB(
+        login=user.login,
+        password_hash=hashed,
+        role=user.role
+    )
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    return schemas.UserResponse(login=db_user.login, role=db_user.role)
+
+# ✅ 3. Текущий пользователь
+@router.get("/users/me", response_model=schemas.UserResponse)
+async def read_users_me(current_user: schemas.UserResponse = Depends(get_current_user)):
+    return current_user
+
+# ✅ 4. Только инженер
+@router.get("/engineer-data")
+async def engineer_only(
+    current_user: schemas.UserResponse = Depends(require_role(UserRole.ENGINEER))
+):
+    return {"message": "Hello, Engineer!", "user": current_user}
+
+# ✅ 5. Только дилер
+@router.get("/dealer-data")
+async def dealer_only(
+    current_user: schemas.UserResponse = Depends(require_role(UserRole.DILLER))
+):
+    return {"message": "Hello, Dealer!", "user": current_user}
+
+# ✅ 6. Только модератор
+@router.get("/moderator-data")
+async def moderator_only(
+    current_user: schemas.UserResponse = Depends(require_role(UserRole.MODERATOR))
+):
+    return {"message": "Hello, Moderator!", "user": current_user}
