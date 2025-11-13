@@ -123,32 +123,7 @@ class ComponentSearchResponseItem(BaseModel):
     model_component: str
     id_Firmwares: int
 
-<<<<<<< Updated upstream
-#для авторизации
-class UserRole(str, Enum):
-    ENGINEER = "engineer"
-    DILLER = "diller"
-    MODERATOR = "moderator"
-
 class UserCreate(BaseModel):
-    login: str = Field(max_length=32, min_length=5) 
-    password: str = Field(max_length=32, min_length=5)
-    role: UserRole = UserRole.ENGINEER
-
-class Token(BaseModel):
-    access_token: str  
-    token_type: str = "bearer"  
-
-class UserResponse(BaseModel):
-    login: str
-    role: UserRole
-
-    class Config:
-        from_attributes = True 
-
-=======
-
-# class SUserRegister(BaseModel):
-#     login: str = Field(..., description="Логин")
-#     password: str = Field(..., min_length=5, max_length=50, description="Пароль, от 5 до 50 знаков")
->>>>>>> Stashed changes
+    username: str
+    password: str = Field(..., min_length=5, max_length=50)
+    role: str = "user" 

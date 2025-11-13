@@ -6,36 +6,35 @@ from .config import settings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Query
 from typing import List
-<<<<<<< Updated upstream
-from .authorization import *
-from sqlalchemy.ext.asyncio import AsyncSession
-from .authorization import (
-    get_current_user,
-    require_role,
-    create_access_token,
-    authenticate_user,
-    get_password_hash
-)
-=======
-# from .authorization import get_password_hash
+from .authorization import authenticate_user, create_access_token, require_role, get_password_hash
 from .database import get_session
->>>>>>> Stashed changes
+from fastapi.security import OAuth2PasswordRequestForm
 
 router = APIRouter()
 
 # Авторизация
-# @router.post("/register/")
-# async def register_user(user_data: SUserRegister) -> dict:
-#     user = await UsersDAO.find_one_or_none(email=user_data.email)
-#     if user:
-#         raise HTTPException(
-#             status_code=status.HTTP_409_CONFLICT,
-#             detail='Пользователь уже существует'
-#         )
-#     user_dict = user_data.dict()
-#     user_dict['password'] = get_password_hash(user_data.password)
-#     await UsersDAO.add(**user_dict)
-#     return {'message': 'Вы успешно зарегистрированы!'}
+@router.post("/token")
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_session)):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    access_token = create_access_token(data={"sub": user.username, "role": user.role})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/register", status_code=201)
+def register_user(user: schemas.UserCreate, db: Session = Depends(get_session)):
+    existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="User already exists")
+    user_in = models.UserDB(
+        username=user.username,
+        password_hash=get_password_hash(user.password),
+        role=user.role
+    )
+    db.add(user_in)
+    db.commit()
+    db.refresh(user_in)
+    return {"username": user_in.username, "role": user_in.role}
 
 #Routes трактора
 @router.get("/tractors/", response_model=list[schemas.TractorsSchema])
@@ -53,7 +52,7 @@ def get_tractors(db: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/tractors/", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/tractors/", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("admin"))])
 def create_tractor(tractor: schemas.TractorsSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат terminal_id
     if CRUDs.get_tractor_by_terminal(db, tractor.id):
@@ -268,70 +267,3 @@ def get_Search_Tractors(
 ):
     data = CRUDs.search_tractors(filters=filters, db=db)
     return data
-
-
-#авторизация
-# ✅ 1. Получение токена (OAuth2 стандарт)
-@router.post("/token", response_model=schemas.Token)
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_session)
-):
-    user = await authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token = create_access_token(
-        data={"sub": user.login},
-        expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-# ✅ 2. Регистрация (если нужно)
-@router.post("/register", response_model=schemas.UserResponse, status_code=201)
-async def register_user(
-    user: schemas.UserCreate,
-    db: AsyncSession = Depends(get_session)
-):
-    existing = await auth.get_user(db, user.login)
-    if existing:
-        raise HTTPException(400, "User already exists")
-    hashed = get_password_hash(user.password)
-    db_user = models.UserDB(
-        login=user.login,
-        password_hash=hashed,
-        role=user.role
-    )
-    db.add(db_user)
-    await db.commit()
-    await db.refresh(db_user)
-    return schemas.UserResponse(login=db_user.login, role=db_user.role)
-
-# ✅ 3. Текущий пользователь
-@router.get("/users/me", response_model=schemas.UserResponse)
-async def read_users_me(current_user: schemas.UserResponse = Depends(get_current_user)):
-    return current_user
-
-# ✅ 4. Только инженер
-@router.get("/engineer-data")
-async def engineer_only(
-    current_user: schemas.UserResponse = Depends(require_role(UserRole.ENGINEER))
-):
-    return {"message": "Hello, Engineer!", "user": current_user}
-
-# ✅ 5. Только дилер
-@router.get("/dealer-data")
-async def dealer_only(
-    current_user: schemas.UserResponse = Depends(require_role(UserRole.DILLER))
-):
-    return {"message": "Hello, Dealer!", "user": current_user}
-
-# ✅ 6. Только модератор
-@router.get("/moderator-data")
-async def moderator_only(
-    current_user: schemas.UserResponse = Depends(require_role(UserRole.MODERATOR))
-):
-    return {"message": "Hello, Moderator!", "user": current_user}

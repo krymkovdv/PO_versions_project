@@ -1,115 +1,64 @@
-<<<<<<< Updated upstream
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import jwt, JWTError
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from jose import JWTError, jwt
+from datetime import datetime, timedelta, timezone
+from .config import settings
+from .database import get_session
+from .models import UserDB
+from sqlalchemy.orm import Session
+from fastapi import Depends, HTTPException, status
 
-from . import models  # ← модель UserDB должна быть здесь
-from .schemas import UserRole, UserResponse
-from .database import get_session  # ← ваша функция получения сессии
-=======
-# from .models import Base
-# from pydantic import Field
-# from enum import Enum
-# from passlib.context import CryptContext
-# from fastapi.security import OAuth2PasswordBearer
-# from jose import JWTError, jwt
-# from datetime import datetime, timedelta, timezone
-# from config import settings
-
-# # Хэширование пароля    
-# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
->>>>>>> Stashed changes
-
-SECRET_KEY = "b1a09b4adc807b8200624aa212acbc9b28ebb60a13540ea1f74185be52205af8"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-<<<<<<< Updated upstream
+# Хэширование пароля    
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+
+def get_password_hash(password: str) -> str:
+    max_len = 72
+    if len(password.encode('utf-8')) > max_len:
+        password = password[:max_len]
+    return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-=======
-# def get_password_hash(password: str) -> str:
-#     return pwd_context.hash(password)
-
-# def verify_password(plain_password: str, hashed_password: str) -> bool:
-#     return pwd_context.verify(plain_password, hashed_password)
-
-# def create_access_token(data: dict) -> str:
-#     to_encode = data.copy()
-#     expire = datetime.now(timezone.utc) + timedelta(days=30)
-#     to_encode.update({"exp": expire})
-#     auth_data = settings.get_auth_data()
-#     encode_jwt = jwt.encode(to_encode, auth_data['secret_key'], algorithm=auth_data['algorithm'])
-#     return encode_jwt
->>>>>>> Stashed changes
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    expire = datetime.now(timezone.utc) + timedelta(days=30)
+    to_encode.update({
+        "exp": expire,
+        "role": data.get("role")  # передавать роль сюда
+    })
+    auth_data = settings.get_auth_data()
+    return jwt.encode(to_encode, auth_data['secret_key'], algorithm=auth_data['algorithm'])
 
-async def get_user(db: AsyncSession, username: str):
-    result = await db.execute(select(models.UserDB).where(models.UserDB.login == username))
-    return result.scalar_one_or_none()
-
-async def authenticate_user(db: AsyncSession, username: str, password: str):
-    user = await get_user(db, username)
+def authenticate_user(db: Session, username: str, password: str):
+    user = db.query(UserDB).filter(UserDB.username == username).first()
     if not user or not verify_password(password, user.password_hash):
         return False
     return user
 
-<<<<<<< Updated upstream
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_session)
-) -> UserResponse:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_session)):
+    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        username = payload.get("sub")
+        role = payload.get("role")
+        if username is None or role is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    user = await get_user(db, username)
+    user = db.query(UserDB).filter(UserDB.username == username).first()
     if user is None:
         raise credentials_exception
-    return UserResponse(login=user.login, role=user.role)
-=======
-# class UserCreate(Base):
-#     login: str = Field(max_lenght=32, min_lenght=5)
-#     password: str = Field(max_lenght=32, min_lenght=5)
-#     role: UserRole = UserRole.ENGINEER
+    user.role = role  # можно передать роль внутрь объекта пользователя
+    return user
 
-# class Token(Base):
-#     acess_token: str
-#     token_type: str = 'engineer'
-
-
-# class User(Base):
-#     login: str
-#     role: UserRole
-
-
->>>>>>> Stashed changes
-
-def require_role(required_role: UserRole):
+def require_role(required_role: str):
+    def role_checker(user: UserDB = Depends(get_current_user)):
+        if user.role != required_role:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        return user
     return role_checker
