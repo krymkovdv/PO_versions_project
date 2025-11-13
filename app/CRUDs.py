@@ -16,6 +16,14 @@ def get_users(db: Session):
     result = db.execute(stmt).scalars().all()
     return result
 
+def delete_users(db: Session, id: int):
+    user = db.query(models.UserDB).filter(models.UserDB.id == id).first()
+    if user is None:
+        return False
+    db.delete(user)
+    db.commit()
+    return True
+
 #----------БАЗОВЫЕ CRUDS----------
 #Cruds for Tractor
 def get_tractors(db: Session):

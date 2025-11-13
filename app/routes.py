@@ -13,7 +13,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 router = APIRouter()
 
 # Авторизация
-router.get("/users/", response_model=list[schemas.UserSchema], dependencies=[Depends(require_role("moderator"))])
+@router.get("/users/", response_model=list[schemas.UserSchema], dependencies=[Depends(require_role("moderator"))])
 def get_users(db: Session = Depends(get_session)):
     try: 
         return CRUDs.get_users(db)
@@ -28,7 +28,7 @@ def get_users(db: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/token")
+@router.post("/token/")
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_session)):
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -36,8 +36,8 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/register", status_code=201)
-def register_user(user: schemas.UserCreate, db: Session = Depends(get_session)):
+@router.post("/users/", status_code=201, dependencies=[Depends(require_role("moderator"))])
+def post_user(user: schemas.UserCreate, db: Session = Depends(get_session)):
     existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
     if existing:
         raise HTTPException(status_code=409, detail="User already exists")
@@ -51,6 +51,13 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_session)):
     db.refresh(user_in)
     return {"username": user_in.username, "role": user_in.role}
 
+@router.delete("/users/", dependencies=[Depends(require_role("moderator"))])
+def delete_user(id: int, db: Session = Depends(get_session)):
+    if CRUDs.delete_users(db, id):
+        return {"message": f"User {id} deleted successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
+    
 #Routes трактора
 @router.get("/tractors/", response_model=list[schemas.TractorsSchema])
 def get_tractors(db: Session = Depends(get_session)):
