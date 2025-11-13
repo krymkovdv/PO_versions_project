@@ -13,17 +13,14 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-
-
 def get_password_hash(password: str) -> str:
-    max_len = 72
-    if len(password.encode('utf-8')) > max_len:
-        password = password[:max_len]
+    print(f"[HASH] Input password: {repr(password)} ({len(password.encode('utf-8'))} bytes)")
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    print(f"[VERIFY] Plain: {repr(plain_password)} ({len(plain_password.encode())}b)")
+    print(f"[VERIFY] Hashed: {repr(hashed_password)} ({len(hashed_password)} chars)")
     return pwd_context.verify(plain_password, hashed_password)
-
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=30)

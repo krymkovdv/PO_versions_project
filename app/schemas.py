@@ -126,4 +126,18 @@ class ComponentSearchResponseItem(BaseModel):
 class UserCreate(BaseModel):
     username: str
     password: str = Field(..., min_length=5, max_length=50)
-    role: str = "user" 
+    role: str = "user"
+
+    @field_validator('role', mode='before')
+    @classmethod
+    def validate_role(cls, v):
+        if v not in {'admin', 'user', 'engineer'}:
+            raise ValueError("Role must be one of: 'admin', 'user', 'engineer'")
+        return v
+
+    @field_validator('password', mode='before')
+    @classmethod
+    def validate_password_length(cls, v: str) -> str:
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError("Password too long (max 72 bytes in UTF-8)")
+        return v
