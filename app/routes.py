@@ -6,6 +6,7 @@ from .config import settings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Query
 from typing import List
+<<<<<<< Updated upstream
 from .authorization import *
 from sqlalchemy.ext.asyncio import AsyncSession
 from .authorization import (
@@ -15,20 +16,26 @@ from .authorization import (
     authenticate_user,
     get_password_hash
 )
+=======
+# from .authorization import get_password_hash
+from .database import get_session
+>>>>>>> Stashed changes
 
 router = APIRouter()
 
-url_db = config.settings.get_url()
-engine = create_engine(url_db)
-SessionLocal = sessionmaker(bind=engine)
-
-def get_session():
-    with SessionLocal() as session:
-        yield session
-
-
 # Авторизация
-
+# @router.post("/register/")
+# async def register_user(user_data: SUserRegister) -> dict:
+#     user = await UsersDAO.find_one_or_none(email=user_data.email)
+#     if user:
+#         raise HTTPException(
+#             status_code=status.HTTP_409_CONFLICT,
+#             detail='Пользователь уже существует'
+#         )
+#     user_dict = user_data.dict()
+#     user_dict['password'] = get_password_hash(user_data.password)
+#     await UsersDAO.add(**user_dict)
+#     return {'message': 'Вы успешно зарегистрированы!'}
 
 #Routes трактора
 @router.get("/tractors/", response_model=list[schemas.TractorsSchema])

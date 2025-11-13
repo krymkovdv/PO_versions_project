@@ -7,6 +7,7 @@ from typing import List
 from .authorization import *
 from .models import *
 from datetime import timedelta
+<<<<<<< Updated upstream
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
@@ -67,6 +68,11 @@ def require_role(required_role: str):
     return role_checker
 
 
+=======
+from sqlalchemy.ext.asyncio import AsyncSession
+import re
+
+>>>>>>> Stashed changes
 #----------БАЗОВЫЕ CRUDS----------
 #Cruds for Tractor
 def get_tractors(db: Session):
