@@ -3,6 +3,11 @@ from datetime import datetime, date
 from typing import Optional, List
 from enum import Enum
 
+class UserSchema(BaseModel):
+    id: int
+    username: str
+    password_hash: str
+    role: str
 
 class TractorsSchema(BaseModel):
     id: int
@@ -126,12 +131,12 @@ class ComponentSearchResponseItem(BaseModel):
 class UserCreate(BaseModel):
     username: str
     password: str = Field(..., min_length=5, max_length=50)
-    role: str = "user"
+    role: str
 
     @field_validator('role', mode='before')
     @classmethod
     def validate_role(cls, v):
-        if v not in {'admin', 'user', 'engineer'}:
+        if v not in {'moderator', 'dealer', 'engineer'}:
             raise ValueError("Role must be one of: 'admin', 'user', 'engineer'")
         return v
 

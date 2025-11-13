@@ -3,10 +3,7 @@ from sqlalchemy import  Column, Integer, Text, DateTime, ForeignKey, Boolean, Da
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 
-
 class Base(DeclarativeBase): pass
-
-
 
 class UserDB(Base):
     __tablename__ = "users"
