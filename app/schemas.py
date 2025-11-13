@@ -109,9 +109,9 @@ class ComponentSearchResponse(BaseModel):
     type_comp: str
     model_comp: str
 
-    trac_regex: bool = False 
-    type_regex: bool = False
-    model_regex: bool = False
+    trac_regex: bool = True 
+    type_regex: bool = True
+    model_regex: bool = True
 
 class ComponentSearchResponseItem(BaseModel):
     download_link: str
