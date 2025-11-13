@@ -123,6 +123,7 @@ class ComponentSearchResponseItem(BaseModel):
     model_component: str
     id_Firmwares: int
 
+<<<<<<< Updated upstream
 #для авторизации
 class UserRole(str, Enum):
     ENGINEER = "engineer"
@@ -145,3 +146,9 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True 
 
+=======
+
+# class SUserRegister(BaseModel):
+#     login: str = Field(..., description="Логин")
+#     password: str = Field(..., min_length=5, max_length=50, description="Пароль, от 5 до 50 знаков")
+>>>>>>> Stashed changes

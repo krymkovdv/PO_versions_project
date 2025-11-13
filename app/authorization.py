@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import jwt, JWTError
@@ -10,11 +11,27 @@ from sqlalchemy import select
 from . import models  # ← модель UserDB должна быть здесь
 from .schemas import UserRole, UserResponse
 from .database import get_session  # ← ваша функция получения сессии
+=======
+# from .models import Base
+# from pydantic import Field
+# from enum import Enum
+# from passlib.context import CryptContext
+# from fastapi.security import OAuth2PasswordBearer
+# from jose import JWTError, jwt
+# from datetime import datetime, timedelta, timezone
+# from config import settings
+
+# # Хэширование пароля    
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+>>>>>>> Stashed changes
 
 SECRET_KEY = "b1a09b4adc807b8200624aa212acbc9b28ebb60a13540ea1f74185be52205af8"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+<<<<<<< Updated upstream
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -23,6 +40,21 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+=======
+# def get_password_hash(password: str) -> str:
+#     return pwd_context.hash(password)
+
+# def verify_password(plain_password: str, hashed_password: str) -> bool:
+#     return pwd_context.verify(plain_password, hashed_password)
+
+# def create_access_token(data: dict) -> str:
+#     to_encode = data.copy()
+#     expire = datetime.now(timezone.utc) + timedelta(days=30)
+#     to_encode.update({"exp": expire})
+#     auth_data = settings.get_auth_data()
+#     encode_jwt = jwt.encode(to_encode, auth_data['secret_key'], algorithm=auth_data['algorithm'])
+#     return encode_jwt
+>>>>>>> Stashed changes
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -40,6 +72,7 @@ async def authenticate_user(db: AsyncSession, username: str, password: str):
         return False
     return user
 
+<<<<<<< Updated upstream
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_session)
@@ -60,6 +93,23 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return UserResponse(login=user.login, role=user.role)
+=======
+# class UserCreate(Base):
+#     login: str = Field(max_lenght=32, min_lenght=5)
+#     password: str = Field(max_lenght=32, min_lenght=5)
+#     role: UserRole = UserRole.ENGINEER
+
+# class Token(Base):
+#     acess_token: str
+#     token_type: str = 'engineer'
+
+
+# class User(Base):
+#     login: str
+#     role: UserRole
+
+
+>>>>>>> Stashed changes
 
 def require_role(required_role: UserRole):
     return role_checker
