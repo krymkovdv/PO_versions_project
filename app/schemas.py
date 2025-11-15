@@ -100,8 +100,10 @@ class TractorSearchResponse(BaseModel):
     oh_hour: str
     last_activity: Optional[str] = None
     sw_name: str
+    componentParts_id: int
+    component_id: int
     recommend_sw_version: str
-    type: str  
+    component_type: str  
 
 class ComponentSearchResponse(BaseModel):
     trac_model: str 
