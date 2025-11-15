@@ -274,7 +274,6 @@ def delete_software_components(db: Session, id: int):
 
 
 #CRUD'ы для страницы 3
-
 #ПО фильтрам Компоненты
 def get_component_by_filters (db: Session, trac_model: List[str], type_comp: List[str], model_comp: str):
     query = db.query(models.Software.id, 
@@ -318,54 +317,43 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
     ]
 
 #Глобальный поиск компонентов
-def search_components (db: Session, filter: schemas.ComponentSearchResponse):
-    query = db.query(models.Software.id, 
-                    models.Software.path.label("download_link"),
-                    models.Software.name.label("producer_version"),
-                    models.Software.inner_name.label("inner_version"),
-                    models.Software.release_date,
-                    models.Software.id.label("id_Firmwares"),
-                    models.Component.type.label("type_component"),
-                    models.Component.model.label("model_component"),
-                    models.Software2ComponentPart.is_major.label("is_maj")
-                        ).select_from(models.Component)
+def search_components(db: Session, model_comp: str):
+    query = db.query(
+        models.Software.id,
+        models.Software.path.label("download_link"),
+        models.Software.name.label("producer_version"),
+        models.Software.inner_name.label("inner_version"),
+        models.Software.release_date,
+        models.Software.id.label("id_Firmwares"),
+        models.Component.type.label("type_component"),
+        models.Component.model.label("model_component"),
+        models.Software2ComponentPart.is_major.label("is_maj")
+    ).select_from(models.Component)
+
     query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
     query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
     query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id) 
-    
-    #   Tractor Model
-    if filter.trac_model:
-        if filter.trac_regex:
-            if len(filter.trac_model) > 100:
-                raise ValueError("Regex too long")
-            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filter.trac_model):
-                raise ValueError("Potentially catastrophic regex")
-            query = query.filter(models.Tractors.model.op('~*')(filter.trac_model))
-        else:
-            query = query.filter(models.Tractors.model == filter.trac_model)
+    query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
 
-    #   Type
-    elif filter.type_comp:
-        if filter.type_regex:
-            if len(filter.type_comp) > 100:
-                raise ValueError("Regex too long")
-            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filter.type_comp):
-                raise ValueError("Potentially catastrophic regex")
-            query = query.filter(models.Component.type.op('~*')(filter.type_comp))
-        else:
-            query = query.filter(models.Component.type == filter.type_comp)
-
-    #   Model Component
-    elif filter.model_comp:
-        if filter.model_regex:
-            if len(filter.model_comp) > 100:
-                raise ValueError("Regex too long")
-            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filter.model_comp):
-                raise ValueError("Potentially catastrophic regex")
-            query = query.filter(models.Component.model.op('~*')(filter.model_comp))
-        else:
-            query = query.filter(models.Component.model == filter.model_comp)
+    # 🔍 Глобальный поиск по model_component с поддержкой расширенных wildcards
+    if model_comp:
+        user_input = model_comp.strip()
+        if user_input:
+            try:
+                # 🔁 Переводим wildcard → regex
+                regex_pattern = schemas.wildcard_to_psql_regex(user_input)
+                
+                # 🔐 Проверяем безопасность
+                if not schemas.is_safe_regex(regex_pattern):
+                    raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
+                
+                # 🚀 Выполняем case-insensitive regex-поиск в PostgreSQL
+                query = query.filter(models.Component.model.op('~*')(regex_pattern))
+                
+            except re.error as e:
+                raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
+            except Exception as e:
+                raise ValueError(f"Ошибка при поиске: {str(e)}")
 
     results = query.all()
 
@@ -382,9 +370,7 @@ def search_components (db: Session, filter: schemas.ComponentSearchResponse):
         }   
         for r in results
     ]
-
 #CRUD'ы для страницы 4
-
 #ПО фильтрам Трактора
 def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str], dealer: str):
     query = db.query(models.Tractors.vin,
@@ -397,6 +383,7 @@ def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str
                      models.Software.name,
                      models.ComponentParts.id.label("componentParts_id"),
                      models.Component.id.label("component_id"),
+                     models.Component.model.label("comp_model"),
                      models.ComponentParts.recommend_sw_version,
                      models.Component.type.label("component_type")
                      ).select_from(models.Tractors)
@@ -428,6 +415,7 @@ def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str
             "sw_name": r.name,
             "componentParts_id": r.componentParts_id,
             "component_id": r.component_id,
+            "comp_model": r.comp_model,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
             "component_type": r.component_type
         }
@@ -436,79 +424,49 @@ def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str
      
 #Глобальный поиск ТРАКТОРОВ
 def search_tractors(db: Session, filters: schemas.SearchFilterTractors):
-    query = db.query(models.Tractors.vin,
-                     models.Tractors.model,
-                     models.Tractors.consumer,
-                     models.Tractors.assembly_date,
-                     models.Tractors.region,
-                     models.Tractors.oh_hour,
-                     models.Tractors.last_activity,
-                     models.Software.name,
-                     models.ComponentParts.id.label("componentPart_id"),
-                     models.Component.id.label("component_id"),
-                     models.ComponentParts.recommend_sw_version,
-                     models.Component.type
-                    ).select_from(models.Tractors) 
+    query = db.query(
+        models.Tractors.vin,
+        models.Tractors.model,
+        models.Tractors.consumer,
+        models.Tractors.assembly_date,
+        models.Tractors.region,
+        models.Tractors.oh_hour,
+        models.Tractors.last_activity,
+        models.Software.name,
+        models.ComponentParts.id.label("componentPart_id"),
+        models.Component.id.label("component_id"),
+        models.Component.model.label("comp_model"),
+        models.ComponentParts.recommend_sw_version,
+        models.Component.type
+    ).select_from(models.Tractors)
+
     query = query.join(models.Component, models.Component.tractor_id == models.Tractors.id)
     query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
     query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    
-    #   Vin
-    if filters.vin:
-        if filters.vin_regex:
-            if len(filters.vin) > 100:
-                raise ValueError("Regex too long")
-            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filters.vin):
-                raise ValueError("Potentially catastrophic regex")
-            query = query.filter(models.Tractors.vin.op('~*')(filters.vin))
-        else:
-            query = query.filter(models.Tractors.vin == filters.vin)
 
-    #   Model
-    elif filters.model:
-        if filters.model_regex:
-            if len(filters.model) > 100:
-                raise ValueError("Regex too long")
-            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filters.model):
-                raise ValueError("Potentially catastrophic regex")
-            query = query.filter(models.Tractors.model.op('~*')(filters.model))
-        else:
-            query = query.filter(models.Tractors.model == filters.model)
-
-    #   Region
-    elif filters.region:
-        if filters.region_regex:
-            if len(filters.region) > 100:
-                raise ValueError("Regex too long")
-            if re.search(r'(\.\*|\+\?|\{\d+,\d+\})\1{5,}', filters.region):
-                raise ValueError("Potentially catastrophic regex")
-            query = query.filter(models.Tractors.region.op('~*')(filters.region))
-        else:
-            query = query.filter(models.Tractors.region == filters.region)
-
-    #   Date release
-    elif filters.date_release:
-        try:
-            date_val = datetime.strptime(filters.date_release, "%Y-%m-%d").date()
-            query = query.filter(models.Software.release_date == date_val)
-        except ValueError:
-            pass  # или логгировать/игнорировать
-
-    #   oh_hour
-    elif filters.oh_hour:
-        try:
-            oh_val = int(filters.oh_hour)
-            query = query.filter(models.Tractors.oh_hour == oh_val)
-        except ValueError:
-            pass
-
-    #   last_activity
-    elif filters.last_activity:
-        try:
-            dt = datetime.fromisoformat(filters.last_activity)
-            query = query.filter(models.Tractors.last_activity == dt)
-        except ValueError:
-            pass
+    if filters.query:
+        q = filters.query.strip()
+        if q:
+            try:
+                # 🔁 Wildcard → regex
+                regex_pattern = schemas.wildcard_to_psql_regex(q)
+                
+                # 🔐 Безопасность
+                if not schemas.is_safe_regex(regex_pattern):
+                    raise ValueError("Слишком сложный поисковый запрос")
+                
+                # 🚀 Используем ~* (case-insensitive regex в PostgreSQL)
+                or_conditions = [
+                    models.Tractors.vin.op('~*')(regex_pattern),
+                    models.Tractors.model.op('~*')(regex_pattern),
+                    models.Software.name.op('~*')(regex_pattern),
+                    models.Component.model.op('~*')(regex_pattern),
+                ]
+                query = query.filter(or_(*or_conditions))
+                
+            except Exception as e:
+                # Логируем, но не падаем — можно вернуть пустой результат или ошибку
+                raise ValueError(f"Ошибка поиска: {str(e)}")
 
     results = query.all()
 
@@ -524,6 +482,7 @@ def search_tractors(db: Session, filters: schemas.SearchFilterTractors):
             "sw_name": r.name,
             "componentParts_id": r.componentPart_id,
             "component_id": r.component_id,
+            "comp_model": r.comp_model,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
             "component_type": r.type
         }
