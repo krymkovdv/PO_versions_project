@@ -50,7 +50,7 @@ class TractorsSchema(BaseModel):
 class ComponentSchema(BaseModel):
     id: int
     type: str
-    model: int
+    model: str
     mounting_date: date
     comp_ser_num: str
     tractor_id: int

@@ -165,7 +165,7 @@ def get_software(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.get("/software/download/{id}", dependencies=[Depends(require_role("admin", "engineer"))])
+@router.get("/software/download/{id}", dependencies=[Depends(require_role("moderator", "engineer"))])
 def download_software(id: int, db: Session = Depends(get_session)):
     fw = CRUDs.download_software(db, id)
     if not fw:
@@ -266,19 +266,14 @@ def get_Search_Component(
     filters: str,
     db: Session = Depends(get_session)
 ):
-    data = CRUDs.search_components(filter=filters, db=db)
+    data = CRUDs.search_components(model_comp=filters, db=db)
     return data
 
 #4-я страница
 #Поиск по фильтрам ТРАКТОРОВ
 @router.post("/tractor-info", response_model=List[schemas.TractorSearchResponse] )
-def get_tractors_by_filters(filters: schemas.TractorInfoRequest, db: Session = Depends(get_session)):
-    data = CRUDs.get_tractors_by_filters(
-        db,
-        trac_model=filters.trac_model, 
-        status=filters.status,
-        dealer=filters.dealer
-    )
+def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
+    data = CRUDs.get_tractors_by_filters(db,filters)
     return data
 
 #Глобальный поиск тракторов
