@@ -1,7 +1,35 @@
 from pydantic import BaseModel, field_validator
 from datetime import datetime, date
 from typing import Optional, List
+import re
+from sqlalchemy import or_
 
+
+
+def wildcard_to_psql_regex(pattern: str) -> str:
+    if not pattern:
+        return ".*"
+    escaped = re.escape(pattern)
+    # Заменяем wildcards
+    regex = (
+        escaped
+        .replace(r'\*', '.*')
+        .replace(r'\?', '.')
+        .replace(r'\[', '[')
+        .replace(r'\]', ']')
+    )
+    # Обрабатываем [!...] → [^...]
+    regex = re.sub(r'\[\\!', '[^', regex)
+    return regex
+
+def is_safe_regex(regex: str) -> bool:
+    # Простая защита
+    if len(regex) > 200:
+        return False
+    # Запрещаем (a+)*, .{100,}, и повторяющиеся .*.*
+    if re.search(r'\([^)]*\)[+*{]|[{]\d+,\d+[}]|\.\*\.\*', regex):
+        return False
+    return True
 
 class TractorsSchema(BaseModel):
     id: int
@@ -80,16 +108,7 @@ class TractorInfoRequest(BaseModel):
     dealer: str
 
 class SearchFilterTractors(BaseModel):
-    vin: str = ''
-    model: str = ''
-    date_release: str = ''
-    region: str = ''
-    oh_hour: str = ''
-    last_activity: str = ''
-
-    vin_regex: bool = True
-    model_regex: bool = True
-    region_regex: bool = True
+    query: Optional[str] = None
 
 class TractorSearchResponse(BaseModel):
     vin: str
@@ -102,17 +121,9 @@ class TractorSearchResponse(BaseModel):
     sw_name: str
     componentParts_id: int
     component_id: int
+    comp_model: str
     recommend_sw_version: str
     component_type: str  
-
-class ComponentSearchResponse(BaseModel):
-    trac_model: str 
-    type_comp: str
-    model_comp: str
-
-    trac_regex: bool = True
-    type_regex: bool = True
-    model_regex: bool = True
 
 class ComponentSearchResponseItem(BaseModel):
     download_link: str

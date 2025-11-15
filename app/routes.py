@@ -228,7 +228,7 @@ def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session 
 #Глобальный поиск Компонентов
 @router.post("/search-component", response_model=List[schemas.ComponentSearchResponseItem])
 def get_Search_Component(
-    filters: schemas.ComponentSearchResponse,
+    filters: str,
     db: Session = Depends(get_session)
 ):
     data = CRUDs.search_components(filter=filters, db=db)
