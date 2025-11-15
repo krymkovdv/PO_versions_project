@@ -372,7 +372,7 @@ def search_components(db: Session, model_comp: str):
     ]
 #CRUD'ы для страницы 4
 #ПО фильтрам Трактора
-def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str], dealer: str):
+def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
     query = db.query(models.Tractors.vin,
                      models.Tractors.model,
                      models.Tractors.consumer,
@@ -392,12 +392,19 @@ def get_tractors_by_filters(db: Session, trac_model: List[str], status: List[str
     query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
 
     
-    if trac_model:
-        query = query.filter(models.Tractors.model.in_(trac_model))
+    if filter.trac_model:
+        query = query.filter(models.Tractors.model.in_(filter.trac_model))
     if status:
         query = query.filter(models.Software2ComponentPart.status.in_(status))
-    if dealer:
-        query = query.filter(models.Tractors.consumer == dealer)
+    if filter.dealer:
+        query = query.filter(models.Tractors.consumer == filter.dealer)
+    if filter.date_assemle:
+        query = query.filter(models.Tractors.assembly_date == filter.date_assemle)
+    if filter.is_major:
+        query = query.filter(models.Software2ComponentPart.is_major == True)
+    if filter.is_minor:
+        query = query.filter(models.Software2ComponentPart.is_major == False)
+
 
     query = query.order_by(models.Software.release_date.desc())
 
