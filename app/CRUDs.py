@@ -351,8 +351,8 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
     
     if filter.trac_model:
         query = query.filter(models.Tractors.model.in_(filter.trac_model))
-    if status:
-        query = query.filter(models.Software2ComponentPart.status.in_(status))
+    if filter.status:
+        query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
     if filter.date_assemle:
