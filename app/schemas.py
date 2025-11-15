@@ -1,9 +1,14 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from datetime import datetime, date
 from typing import Optional, List
 import re
 from sqlalchemy import or_
 
+class UserSchema(BaseModel):
+    id: int
+    username: str
+    password_hash: str
+    role: str
 
 
 def wildcard_to_psql_regex(pattern: str) -> str:
@@ -142,3 +147,22 @@ class ComponentSearchResponseItem(BaseModel):
     is_maj: bool
     model_component: str
     id_Firmwares: int
+
+class UserCreate(BaseModel):
+    username: str
+    password: str = Field(..., min_length=5, max_length=50)
+    role: str
+
+    @field_validator('role', mode='before')
+    @classmethod
+    def validate_role(cls, v):
+        if v not in {'moderator', 'dealer', 'engineer'}:
+            raise ValueError("Role must be one of: 'admin', 'user', 'engineer'")
+        return v
+
+    @field_validator('password', mode='before')
+    @classmethod
+    def validate_password_length(cls, v: str) -> str:
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError("Password too long (max 72 bytes in UTF-8)")
+        return v

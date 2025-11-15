@@ -1,40 +1,79 @@
-# from .models import Base
-# from pydantic import Field
-# from enum import Enum
-# from passlib.context import CryptContext
-# from fastapi.security import OAuth2PasswordBearer
+from passlib.context import CryptContext
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from datetime import datetime, timedelta, timezone
+from .config import settings
+from .database import get_session
+from .models import UserDB
+from sqlalchemy.orm import Session
+from fastapi import Depends, HTTPException, status
 
-# SECRET_KEY = "b1a09b4adc807b8200624aa212acbc9b28ebb60a13540ea1f74185be52205af8"
-# ALGORITHM = "HS256"
-# ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Хэширование пароля    
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+def get_password_hash(password: str) -> str:
+    print(f"[HASH] Input password: {repr(password)} ({len(password.encode('utf-8'))} bytes)")
+    return pwd_context.hash(password)
 
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    print(f"[VERIFY] Plain: {repr(plain_password)} ({len(plain_password.encode())}b)")
+    print(f"[VERIFY] Hashed: {repr(hashed_password)} ({len(hashed_password)} chars)")
+    return pwd_context.verify(plain_password, hashed_password)
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(days=30)
+    to_encode.update({
+        "exp": expire,
+        "role": data.get("role")  # передавать роль сюда
+    })
+    auth_data = settings.get_auth_data()
+    return jwt.encode(to_encode, auth_data['secret_key'], algorithm=auth_data['algorithm'])
 
+def authenticate_user(db: Session, username: str, password: str):
+    user = db.query(UserDB).filter(UserDB.username == username).first()
+    if not user or not verify_password(password, user.password_hash):
+        return False
+    return user
 
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_session)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials"
+    )
+    try:
+        payload = jwt.decode(
+            token, 
+            settings.get_auth_data()['secret_key'],  # ← лучше брать из auth_data, как в create_access_token
+            algorithms=[settings.get_auth_data()['algorithm']]
+        )
+        username = payload.get("sub")
+        token_role = payload.get("role")  # роль из токена
+        if username is None or token_role is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
 
+    user = db.query(UserDB).filter(UserDB.username == username).first()
+    if user is None:
+        raise credentials_exception
 
-# class UserRole(str, Enum):
-#     ENGINEER = "engineer"
-#     DILLER = "diller"
-#     MODERATOR = "moderator"
+    # 🔑 КРИТИЧЕСКИЙ ФИКС: сверить роль из токена с ролью в БД!
+    if user.role != token_role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Role mismatch — token tampered"
+        )
 
-# class UserCreate(Base):
-#     login: str = Field(max_lenght=32, min_lenght=5)
-#     password: str = Field(max_lenght=32, min_lenght=5)
-#     role: UserRole = UserRole.ENGINEER
+    return user  # не нужно user.role = role — она и так правильная из БД
 
-# class Token(Base):
-#     acess_token: str
-#     token_type: str = 'engineer'
-
-
-# class User(Base):
-#     login: str
-#     role: UserRole
-
-# # Хэширование пароля    
-# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
+def require_role(*allowed_roles: str):
+    def role_checker(user: UserDB = Depends(get_current_user)):
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required role: one of {list(allowed_roles)}. Got: '{user.role}'"
+            )
+        return user
+    return role_checker
