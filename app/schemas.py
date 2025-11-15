@@ -102,6 +102,14 @@ class ComponentInfoRequest(BaseModel):
     type_comp: List[str] = []
     model_comp: str = ''
 
+class TractorFilter(BaseModel):
+    trac_model: List[str] = [] 
+    status: List[str] = [] 
+    dealer: str = ''
+    date_assemle: Optional[date] = None
+    is_major: bool = False
+    is_minor: bool = False
+
 class TractorInfoRequest(BaseModel):
     trac_model: List[str] = []
     status: List[str] = []
