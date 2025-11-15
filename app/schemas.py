@@ -120,8 +120,6 @@ class TractorInfoRequest(BaseModel):
     status: List[str] = []
     dealer: str
 
-class SearchFilterTractors(BaseModel):
-    query: Optional[str] = None
 
 class TractorSearchResponse(BaseModel):
     vin: str
