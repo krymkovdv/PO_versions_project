@@ -387,7 +387,7 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
     ]
      
 #Глобальный поиск ТРАКТОРОВ
-def search_tractors(db: Session, filters: schemas.SearchFilterTractors):
+def search_tractors(db: Session, filters: schemas.TractorFilter):
     query = db.query(
         models.Tractors.vin,
         models.Tractors.model,

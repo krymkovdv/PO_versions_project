@@ -261,12 +261,12 @@ def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session 
     return data
 
 #Глобальный поиск Компонентов
-@router.post("/search-component", response_model=List[schemas.ComponentSearchResponseItem])
+@router.get("/search-component", response_model=List[schemas.ComponentSearchResponseItem])
 def get_Search_Component(
-    filters: str,
+    query: str,
     db: Session = Depends(get_session)
 ):
-    data = CRUDs.search_components(model_comp=filters, db=db)
+    data = CRUDs.search_components(model_comp=query, db=db)
     return data
 
 #4-я страница
@@ -279,7 +279,7 @@ def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depend
 #Глобальный поиск тракторов
 @router.post("/search-tractor", response_model=List[schemas.TractorSearchResponse])
 def get_Search_Tractors(
-    filters: schemas.SearchFilterTractors,
+    filters: schemas.TractorFilter,
     db: Session = Depends(get_session)
 ):
     data = CRUDs.search_tractors(filters=filters, db=db)
