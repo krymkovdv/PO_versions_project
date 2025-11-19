@@ -52,18 +52,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-
     user = db.query(UserDB).filter(UserDB.username == username).first()
     if user is None:
         raise credentials_exception
-
-    # 🔑 КРИТИЧЕСКИЙ ФИКС: сверить роль из токена с ролью в БД!
-    if user.role != token_role:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Role mismatch — token tampered"
-        )
-
+    if token_role != user.role:
+        logger.warning(f"Role mismatch for user {username}: token={token_role}, db={user.role}")
+        raise credentials_exception  # или HTTP 401
     return user  # не нужно user.role = role — она и так правильная из БД
 
 def require_role(*allowed_roles: str):

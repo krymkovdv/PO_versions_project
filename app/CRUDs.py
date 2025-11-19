@@ -9,7 +9,9 @@ from .models import *
 from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
+import logging
 
+logger = logging.getLogger(__name__)
 #---------АВТОРИЗАЦИЯ-------------
 def get_users(db: Session):
     stmt = select(models.UserDB)

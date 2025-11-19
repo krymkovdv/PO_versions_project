@@ -9,7 +9,10 @@ from typing import List
 from .authorization import authenticate_user, create_access_token, require_role, get_password_hash
 from .database import get_session
 from fastapi.security import OAuth2PasswordRequestForm
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 # Авторизация
@@ -251,20 +254,23 @@ def delete_Software2Components(id: int, db: Session = Depends(get_session)):
 #3-я страница
 #Поиск по фильтрам КОМПОНЕНТОВ
 @router.post("/component-info")
-def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session)):
-    data = CRUDs.get_component_by_filters(
+def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session), pagination: schemas.Pagination = Depends()):
+    query = CRUDs.get_component_by_filters(
         db,
         trac_model=filters.trac_model,
         type_comp=filters.type_comp,
         model_comp=filters.model_comp
     )
-    return data
+    total = query.count()
+    items = query.offset((pagination.page - 1) * pagination.size).limit(pagination.size).all()
+    return {"items": items, "total": total, "page": pagination.page}
 
 #Глобальный поиск Компонентов
 @router.get("/search-component", response_model=List[schemas.ComponentSearchResponseItem])
 def get_Search_Component(
     query: str,
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    pagination: schemas.Pagination = Depends()
 ):
     data = CRUDs.search_components(model_comp=query, db=db)
     return data
@@ -272,7 +278,7 @@ def get_Search_Component(
 #4-я страница
 #Поиск по фильтрам ТРАКТОРОВ
 @router.post("/tractor-info", response_model=List[schemas.TractorSearchResponse] )
-def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
+def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depends(get_session),  pagination: schemas.Pagination = Depends()):
     data = CRUDs.get_tractors_by_filters(db,filters)
     return data
 
@@ -280,7 +286,8 @@ def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depend
 @router.post("/search-tractor", response_model=List[schemas.TractorSearchResponse])
 def get_Search_Tractors(
     filters: schemas.TractorFilter,
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    pagination: schemas.Pagination = Depends()
 ):
     data = CRUDs.search_tractors(filters=filters, db=db)
     return data
