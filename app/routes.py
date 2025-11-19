@@ -254,23 +254,20 @@ def delete_Software2Components(id: int, db: Session = Depends(get_session)):
 #3-я страница
 #Поиск по фильтрам КОМПОНЕНТОВ
 @router.post("/component-info")
-def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session), pagination: schemas.Pagination = Depends()):
+def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session), response_model=List[schemas.ComponentSearchResponseItem]):
     query = CRUDs.get_component_by_filters(
         db,
         trac_model=filters.trac_model,
         type_comp=filters.type_comp,
         model_comp=filters.model_comp
     )
-    total = query.count()
-    items = query.offset((pagination.page - 1) * pagination.size).limit(pagination.size).all()
-    return {"items": items, "total": total, "page": pagination.page}
+    return query
 
 #Глобальный поиск Компонентов
 @router.get("/search-component", response_model=List[schemas.ComponentSearchResponseItem])
 def get_Search_Component(
     query: str,
     db: Session = Depends(get_session),
-    pagination: schemas.Pagination = Depends()
 ):
     data = CRUDs.search_components(model_comp=query, db=db)
     return data
@@ -278,16 +275,15 @@ def get_Search_Component(
 #4-я страница
 #Поиск по фильтрам ТРАКТОРОВ
 @router.post("/tractor-info", response_model=List[schemas.TractorSearchResponse] )
-def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depends(get_session),  pagination: schemas.Pagination = Depends()):
+def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
     data = CRUDs.get_tractors_by_filters(db,filters)
     return data
 
 #Глобальный поиск тракторов
 @router.post("/search-tractor", response_model=List[schemas.TractorSearchResponse])
 def get_Search_Tractors(
-    filters: schemas.TractorFilter,
+    request: str,
     db: Session = Depends(get_session),
-    pagination: schemas.Pagination = Depends()
 ):
-    data = CRUDs.search_tractors(filters=filters, db=db)
+    data = CRUDs.search_tractors(request=request, db=db)
     return data
