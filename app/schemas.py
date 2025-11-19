@@ -4,6 +4,12 @@ from typing import Optional, List
 import re
 from sqlalchemy import or_
 
+
+
+class Pagination(BaseModel):
+    page: int = 1
+    size: int = 50
+
 class UserSchema(BaseModel):
     id: int
     username: str
