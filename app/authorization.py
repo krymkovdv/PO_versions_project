@@ -7,7 +7,9 @@ from .database import get_session
 from .models import UserDB
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
+import logging
 
+logger = logging.getLogger(__name__)
 # Хэширование пароля    
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

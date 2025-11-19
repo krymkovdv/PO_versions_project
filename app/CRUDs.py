@@ -245,10 +245,10 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
                     models.Component.model.label("model_component"),
                     models.Software2ComponentPart.is_major.label("is_maj")
                         ).select_from(models.Component)
-    query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
-    query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id) 
+    query = query.outerjoin(models.Tractors, models.Component.tractor_id == models.Tractors.id)
+    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id) 
     
     if trac_model:
         query = query.filter(models.Tractors.model.in_(trac_model))
@@ -289,10 +289,10 @@ def search_components(db: Session, model_comp: str):
         models.Software2ComponentPart.is_major.label("is_maj")
     ).select_from(models.Component)
 
-    query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
-    query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.join(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    query = query.outerjoin(models.Tractors, models.Component.tractor_id == models.Tractors.id)
+    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
 
     # 🔍 Глобальный поиск по model_component с поддержкой расширенных wildcards
     if model_comp:
@@ -346,9 +346,10 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
                      models.ComponentParts.recommend_sw_version,
                      models.Component.type.label("component_type")
                      ).select_from(models.Tractors)
-    query = query.join(models.Component, models.Component.tractor_id == models.Tractors.id)
-    query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
+    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
 
     
     if filter.trac_model:
@@ -359,10 +360,6 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
         query = query.filter(models.Tractors.consumer == filter.dealer)
     if filter.date_assemle:
         query = query.filter(models.Tractors.assembly_date == filter.date_assemle)
-    if filter.is_major:
-        query = query.filter(models.Software2ComponentPart.is_major == True)
-    if filter.is_minor:
-        query = query.filter(models.Software2ComponentPart.is_major == False)
 
 
     query = query.order_by(models.Software.release_date.desc())
@@ -389,7 +386,7 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
     ]
      
 #Глобальный поиск ТРАКТОРОВ
-def search_tractors(db: Session, filters: schemas.TractorFilter):
+def search_tractors(db: Session, request: str):
     query = db.query(
         models.Tractors.vin,
         models.Tractors.model,
@@ -406,12 +403,13 @@ def search_tractors(db: Session, filters: schemas.TractorFilter):
         models.Component.type
     ).select_from(models.Tractors)
 
-    query = query.join(models.Component, models.Component.tractor_id == models.Tractors.id)
-    query = query.join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.join(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
+    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
 
-    if filters.query:
-        q = filters.query.strip()
+    if request:
+        q = request.strip()
         if q:
             try:
                 # 🔁 Wildcard → regex

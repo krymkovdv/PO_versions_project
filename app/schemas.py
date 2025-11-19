@@ -6,9 +6,9 @@ from sqlalchemy import or_
 
 
 
-class Pagination(BaseModel):
-    page: int = 1
-    size: int = 50
+# class Pagination(BaseModel):
+#     page: int = 1
+#     size: int = 50
 
 class UserSchema(BaseModel):
     id: int
@@ -118,8 +118,7 @@ class TractorFilter(BaseModel):
     status: List[str] = [] 
     dealer: str = ''
     date_assemle: Optional[date] = None
-    is_major: bool = False
-    is_minor: bool = False
+
 
 class TractorInfoRequest(BaseModel):
     trac_model: List[str] = []
@@ -131,26 +130,32 @@ class TractorSearchResponse(BaseModel):
     vin: str
     model: str
     consumer: str
-    assembly_date: Optional[str] = None
+    assembly_date: Optional[datetime] = None
     region: str
-    oh_hour: str
-    last_activity: Optional[str] = None
-    sw_name: str
-    componentParts_id: int
-    component_id: int
-    comp_model: str
-    recommend_sw_version: str
-    component_type: str  
+    oh_hour: Optional[str] = None              
+    last_activity: Optional[datetime] = None
+    sw_name: Optional[str] = None               
+    componentParts_id: Optional[int] = None   
+    component_id: Optional[int] = None         
+    comp_model: Optional[str] = None           
+    recommend_sw_version: Optional[str] = None
+    component_type: Optional[str] = None
+
+    class Config:
+        orm_mode = True 
 
 class ComponentSearchResponseItem(BaseModel):
-    download_link: str
+    download_link: Optional[str] = None
     type_component: str
-    release_date: Optional[str] = None
-    inner_version: str
-    producer_version: str
-    is_maj: bool
+    release_date: Optional[datetime] = None
+    inner_version: Optional[str] = None
+    producer_version: Optional[str] = None
+    is_maj: Optional[bool] = None       
     model_component: str
-    id_Firmwares: int
+    id_Firmwares: Optional[int] = None  
+
+    class Config:
+        orm_mode = True  
 
 class UserCreate(BaseModel):
     username: str
