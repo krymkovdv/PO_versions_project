@@ -258,7 +258,7 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
         query = query.filter(models.Component.model == model_comp)
 
     query = query.order_by(models.Software.release_date.desc())
-
+    query = query.distinct()
     results = query.all()
 
     return [
@@ -313,7 +313,8 @@ def search_components(db: Session, model_comp: str):
                 raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
             except Exception as e:
                 raise ValueError(f"Ошибка при поиске: {str(e)}")
-
+    
+    query = query.distinct()
     results = query.all()
 
     return [
@@ -363,9 +364,8 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
 
 
     query = query.order_by(models.Software.release_date.desc())
-
+    query = query.distinct()
     results = query.all()
-
     return [
         {
             "vin": r.vin,
@@ -431,7 +431,8 @@ def search_tractors(db: Session, request: str):
             except Exception as e:
                 # Логируем, но не падаем — можно вернуть пустой результат или ошибку
                 raise ValueError(f"Ошибка поиска: {str(e)}")
-
+   
+    query = query.distinct()
     results = query.all()
 
     return [
