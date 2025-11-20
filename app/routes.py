@@ -12,6 +12,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from datetime import date
+from fastapi.responses import FileResponse
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
@@ -168,14 +169,7 @@ def get_software(session: Session = Depends(get_session)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Неизвестная ошибка: {str(e)}"
         )
-
-@router.get("/software/download/{id}", dependencies=[Depends(require_role("moderator", "engineer"))])
-def download_software(id: int, db: Session = Depends(get_session)):
-    fw = CRUDs.download_software(db, id)
-    if not fw:
-        return HTTPException(status_code=400, detail="Software with this id doesnt exist")
-    return {"download_url": fw.path, "filename": f"{fw.name}.bin"}
-
+    
 @router.post("/software/", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("moderator"))])
 def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат terminal_id
@@ -339,40 +333,35 @@ def upload_software(
     
     return result
 
-# @router.get("/software/download/{id}", response_class=FileResponse)
-# def download_software_file(id: int, db: Session = Depends(get_session)):
-#     """
-#     Скачивание ПО: возвращает файл через FileResponse.
-#     """
-#     # 1. Получаем метаданные (валидация существования записи)
-#     metadata = CRUDs.get_software_metadata(db, id)
+@router.get("/software/download/{id}", response_class=FileResponse)
+def download_software_file(id: int, db: Session = Depends(get_session)):
+    """
+    Скачивание ПО: возвращает файл через FileResponse.
+    """
+    metadata = CRUDs.get_software_metadata(db, id)
+    file_path = CRUDs.get_software_file_path(db, id)
     
-#     # 2. Получаем путь к файлу (валидация существования файла)
-#     file_path = CRUDs.get_software_file_path(db, id)
-    
-#     # 3. Возвращаем файл
-#     return FileResponse(
-#         path=file_path,
-#         filename=metadata.filename_for_download,
-#         media_type="application/octet-stream",
-#         # Дополнительно: заголовки для браузера
-#         headers={
-#             "Content-Disposition": f'attachment; filename="{metadata.filename_for_download}"',
-#             "X-Software-ID": str(metadata.id),
-#         }
-#     )
+    return FileResponse(
+        path=file_path,
+        filename=metadata.filename_for_download,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{metadata.filename_for_download}"',
+            "X-Software-ID": str(metadata.id),
+        }
+    )
 
-# # Опционально: эндпоинт для получения метаданных (без скачивания)
-# @router.get("/software/{id}/metadata", response_model=schemas.SoftwareMetadata)
-# def get_software_metadata(id: int, db: Session = Depends(get_session)):
-#     return CRUDs.get_software_metadata(db, id)
+# Опционально: эндпоинт для получения метаданных (без скачивания)
+@router.get("/software/{id}/metadata", response_model=schemas.SoftwareMetadata)
+def get_software_metadata(id: int, db: Session = Depends(get_session)):
+    return CRUDs.get_software_metadata(db, id)
 
-# # Опционально: эндпоинт для проверки файла
-# @router.head("/software/download/{id}")
-# def check_software_file(id: int, db: Session = Depends(get_session)):
-#     file_info = CRUDs.get_software_file_info(db, id)
-#     return {
-#         "exists": file_info.exists,
-#         "size": file_info.size_bytes,
-#         "path": file_info.full_path
-#     }
+# Опционально: эндпоинт для проверки файла
+@router.head("/software/download/{id}")
+def check_software_file(id: int, db: Session = Depends(get_session)):
+    file_info = CRUDs.get_software_file_info(db, id)
+    return {
+        "exists": file_info.exists,
+        "size": file_info.size_bytes,
+        "path": file_info.full_path
+    }

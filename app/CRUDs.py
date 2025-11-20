@@ -555,67 +555,47 @@ def upload_software(
         download_url=f"/software/download/{fw.id}"
     )
 
-def get_software_file_path(db: Session, software_id: int) -> str:
-    fw = db.query(models.Software).filter(models.Software.id == software_id).first()
+def get_software_full(db: Session, software_id: int) -> tuple[models.Software, str]:
+    """
+    Возвращает (модель Software, полный путь к файлу).
+    Проверяет существование записи и файла.
+    """
+    fw = db.query(models.Software).filter(
+        models.Software.id == software_id
+    ).first()
+    
     if not fw:
         raise HTTPException(404, "Software not found")
+    
     full_path = os.path.join(config.UPLOAD_DIR, fw.path)
+    
     if not os.path.exists(full_path):
-        raise HTTPException(404, "File not found")
-    return full_path
+        raise HTTPException(404, f"File '{fw.path}' not found on disk")
+    
+    return fw, full_path
 
-# def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMetadata:
-#     """
-#     Получает метаданные ПО по ID.
-#     Выбрасывает HTTPException(404), если не найдено.
-#     """
-#     fw = db.query(models.Software).filter(models.Software.id == software_id).first()
-#     if not fw:
-#         raise HTTPException(status_code=404, detail="Software not found")
+def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMetadata:
+    fw, _ = get_software_full(db, software_id)
     
-#     # Определяем имя для скачивания:
-#     # - если есть name → "name.bin"
-#     # - иначе — оригинальное имя файла
-#     if fw.name:
-#         # Очищаем имя от запрещённых символов для файловой системы
-#         safe_name = re.sub(r'[<>:"/\\|?*]', '_', fw.name)
-#         download_name = f"{safe_name}.bin"
-#     else:
-#         download_name = fw.path  # fallback
+    safe_name = re.sub(r'[<>:"/\\|?*]', '_', fw.name) if fw.name else fw.path
+    download_name = f"{safe_name}.bin" if fw.name else fw.path
     
-#     return schemas.SoftwareMetadata(
-#         id=fw.id,
-#         name=fw.name,
-#         inner_name=fw.inner_name,
-#         filename_original=fw.path,
-#         filename_for_download=download_name
-#     )
+    return schemas.SoftwareMetadata(
+        id=fw.id,
+        name=fw.name,
+        inner_name=fw.inner_name,
+        filename_original=fw.path,
+        filename_for_download=download_name
+    )
 
-# def get_software_file_path(db: Session, software_id: int) -> str:
-#     """
-#     Возвращает полный путь к файлу ПО.
-#     Выбрасывает 404, если файл не найден на диске.
-#     """
-#     # Сначала получаем метаданные (для проверки существования записи)
-#     metadata = get_software_metadata(db, software_id)
-    
-#     full_path = os.path.join(UPLOAD_DIR, metadata.filename_original)
-    
-#     if not os.path.exists(full_path):
-#         raise HTTPException(
-#             status_code=404, 
-#             detail=f"File '{metadata.filename_original}' not found on disk"
-#         )
-    
-#     return full_path
+def get_software_file_path(db: Session, software_id: int) -> str:
+    _, file_path = get_software_full(db, software_id)
+    return file_path
 
-# def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFileLocation:
-#     """
-#     Возвращает информацию о файле (для отладки или API)
-#     """
-#     full_path = get_software_file_path(db, software_id)
-#     return schemas.SoftwareFileLocation(
-#         full_path=full_path,
-#         size_bytes=os.path.getsize(full_path),
-#         exists=True
-#     )
+def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFileLocation:
+    _, file_path = get_software_full(db, software_id)
+    return schemas.SoftwareFileLocation(
+        full_path=file_path,
+        size_bytes=os.path.getsize(file_path),
+        exists=True
+    )
