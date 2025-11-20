@@ -99,7 +99,7 @@ class ComponentParts(Base):
 class Software(Base):
     __tablename__ = 'Software'
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     path= Column(Text, unique = True, nullable=False)
     name = Column(Text, unique = True, nullable=False)
     inner_name = Column(Text, unique = True)
