@@ -257,8 +257,8 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
     if model_comp:
         query = query.filter(models.Component.model == model_comp)
 
-    query = query.order_by(models.Software.release_date.desc())
     query = query.distinct()
+
     results = query.all()
 
     return [
@@ -363,7 +363,6 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
         query = query.filter(models.Tractors.assembly_date == filter.date_assemle)
 
 
-    query = query.order_by(models.Software.release_date.desc())
     query = query.distinct()
     results = query.all()
     return [
