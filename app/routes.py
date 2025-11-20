@@ -280,7 +280,7 @@ def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depend
     return data
 
 #Глобальный поиск тракторов
-@router.post("/search-tractor", response_model=List[schemas.TractorSearchResponse])
+@router.get("/search-tractor", response_model=List[schemas.TractorSearchResponse])
 def get_Search_Tractors(
     request: str,
     db: Session = Depends(get_session),

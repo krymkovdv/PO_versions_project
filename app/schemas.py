@@ -20,17 +20,49 @@ class UserSchema(BaseModel):
 def wildcard_to_psql_regex(pattern: str) -> str:
     if not pattern:
         return ".*"
-    escaped = re.escape(pattern)
-    # Заменяем wildcards
+    
+    # Шаг 1: обработка ~ → - внутри [...], и экранирование \
+    processed = []
+    in_brackets = False
+    i = 0
+    while i < len(pattern):
+        char = pattern[i]
+        if char == '[':
+            in_brackets = True
+            processed.append(char)
+        elif char == ']':
+            in_brackets = False
+            processed.append(char)
+        elif char == '~' and in_brackets:
+            processed.append('-')  # [0~9] → [0-9]
+        elif char == '\\' and i + 1 < len(pattern):
+            # Экранируем \*, \?, \[, \], \!, \~, \\
+            next_char = pattern[i + 1]
+            if next_char in '*?[]!~\\':
+                processed.append(next_char)  # \* → *, но буквально
+                i += 1  # пропускаем следующий символ
+            else:
+                processed.append('\\')
+                processed.append(next_char)
+                i += 1
+        else:
+            processed.append(char)
+        i += 1
+    
+    pattern_clean = ''.join(processed)
+    
+    # Шаг 2: экранируем всё как regex, затем восстанавливаем wildcards
+    escaped = re.escape(pattern_clean)
     regex = (
         escaped
-        .replace(r'\*', '.*')
-        .replace(r'\?', '.')
-        .replace(r'\[', '[')
-        .replace(r'\]', ']')
+        .replace(r'\*', '.*')   # * → .*
+        .replace(r'\?', '.')    # ? → .
+        .replace(r'\[', '[')    # [ → [
+        .replace(r'\]', ']')    # ] → ]
     )
-    # Обрабатываем [!...] → [^...]
+    # [!...] → [^...]
     regex = re.sub(r'\[\\!', '[^', regex)
+    
     return regex
 
 def is_safe_regex(regex: str) -> bool:
