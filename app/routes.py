@@ -325,7 +325,7 @@ def upload_software(
     )
     
 
-    if file.size > CRUDs.MAX_FILE_SIZE:
+    if file.size > config.MAX_FILE_SIZE:
         raise HTTPException(400, "File too large")
     
     file_bytes = file.file.read() 
