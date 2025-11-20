@@ -240,22 +240,21 @@ class UploadSoftwareRequest(BaseModel):
     description: Optional[str] = None
 
     class Config:
-        # Не включаем orm_mode — это входящие данные
         pass
 
-# class SoftwareMetadata(BaseModel):
-#     """Метаданные ПО для скачивания"""
-#     id: int
-#     name: str
-#     inner_name: Optional[str] = None
-#     filename_original: str  # оригинальное имя файла (например, "engine_v2.bin")
-#     filename_for_download: str  # имя при скачивании (например, "Engine_v2.1.bin")
+class SoftwareMetadata(BaseModel):
+    """Метаданные ПО для скачивания"""
+    id: int
+    name: str
+    inner_name: Optional[str] = None
+    filename_original: str  # оригинальное имя файла (например, "engine_v2.bin")
+    filename_for_download: str  # имя при скачивании (например, "Engine_v2.1.bin")
 
-#     class Config:
-#         orm_mode = True
+    class Config:
+        orm_mode = True
 
-# class SoftwareFileLocation(BaseModel):
-#     """Путь к файлу на сервере"""
-#     full_path: str
-#     size_bytes: int
-#     exists: bool
+class SoftwareFileLocation(BaseModel):
+    """Путь к файлу на сервере"""
+    full_path: str
+    size_bytes: int
+    exists: bool
