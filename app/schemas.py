@@ -213,7 +213,7 @@ class UserCreate(BaseModel):
 class SoftwareBase(BaseModel):
     name: str
     inner_name: Optional[str] = None
-    release_date: Optional[date] = None
+    release_date: Optional[datetime] = None
     description: Optional[str] = None
 
     class Config:
@@ -225,7 +225,7 @@ class SoftwareCreate(SoftwareBase):
 
 class SoftwareResponse(SoftwareBase):
     id: int
-    download_url: str  # генерируется в CRUD/routes
+    download_url: str  
 
 # =============== Схемы для загрузки (с файлом) ===============
 
@@ -236,7 +236,7 @@ class UploadSoftwareRequest(BaseModel):
     """
     name: str
     inner_name: Optional[str] = None
-    release_date: Optional[date] = None
+    release_date: Optional[datetime] = None
     description: Optional[str] = None
 
     class Config:
