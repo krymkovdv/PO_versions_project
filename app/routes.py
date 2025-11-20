@@ -1,16 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from . import CRUDs, schemas, config, models, authorization
 from .config import settings 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Query
-from typing import List
+from typing import List, Optional
 from .authorization import authenticate_user, create_access_token, require_role, get_password_hash
 from .database import get_session
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from datetime import date
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
@@ -287,3 +288,91 @@ def get_Search_Tractors(
 ):
     data = CRUDs.search_tractors(request=request, db=db)
     return data
+
+#Поиск по vinу для Трактора
+@router.get("/search-tractor-vin", response_model=List[schemas.TractorSearchResponse])
+def get_Search_Tractors_vin(
+    request: str,
+    db: Session = Depends(get_session),
+):
+    data = CRUDs.get_tractor_by_vin(vin=request, db=db)
+    return data
+
+#Добавление и скачка ПО
+@router.post(
+    "/software/upload", 
+    response_model=schemas.SoftwareResponse,  
+    status_code=201
+)
+def upload_software(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    inner_name: Optional[str] = Form(None),
+    release_date: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    db: Session = Depends(get_session)
+):
+    try:
+        rd = date.fromisoformat(release_date) if release_date else None
+    except ValueError:
+        raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+    
+    software_data = schemas.UploadSoftwareRequest(
+        name=name,
+        inner_name=inner_name,
+        release_date=rd,
+        description=description
+    )
+    
+
+    if file.size > CRUDs.MAX_FILE_SIZE:
+        raise HTTPException(400, "File too large")
+    
+    file_bytes = file.file.read() 
+    
+    result = CRUDs.upload_software(
+        db=db,
+        file_data=file_bytes,
+        file_name=file.filename,
+        software_data=software_data
+    )
+    
+    return result
+
+# @router.get("/software/download/{id}", response_class=FileResponse)
+# def download_software_file(id: int, db: Session = Depends(get_session)):
+#     """
+#     Скачивание ПО: возвращает файл через FileResponse.
+#     """
+#     # 1. Получаем метаданные (валидация существования записи)
+#     metadata = CRUDs.get_software_metadata(db, id)
+    
+#     # 2. Получаем путь к файлу (валидация существования файла)
+#     file_path = CRUDs.get_software_file_path(db, id)
+    
+#     # 3. Возвращаем файл
+#     return FileResponse(
+#         path=file_path,
+#         filename=metadata.filename_for_download,
+#         media_type="application/octet-stream",
+#         # Дополнительно: заголовки для браузера
+#         headers={
+#             "Content-Disposition": f'attachment; filename="{metadata.filename_for_download}"',
+#             "X-Software-ID": str(metadata.id),
+#         }
+#     )
+
+# # Опционально: эндпоинт для получения метаданных (без скачивания)
+# @router.get("/software/{id}/metadata", response_model=schemas.SoftwareMetadata)
+# def get_software_metadata(id: int, db: Session = Depends(get_session)):
+#     return CRUDs.get_software_metadata(db, id)
+
+# # Опционально: эндпоинт для проверки файла
+# @router.head("/software/download/{id}")
+# def check_software_file(id: int, db: Session = Depends(get_session)):
+#     file_info = CRUDs.get_software_file_info(db, id)
+#     return {
+#         "exists": file_info.exists,
+#         "size": file_info.size_bytes,
+#         "path": file_info.full_path
+#     }
