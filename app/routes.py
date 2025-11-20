@@ -296,7 +296,8 @@ def get_Search_Tractors_vin(
 @router.post(
     "/software/upload", 
     response_model=schemas.SoftwareResponse,  
-    status_code=201
+    status_code=201,
+    dependencies=[Depends(require_role("moderator"))]
 )
 def upload_software(
     file: UploadFile = File(...),
@@ -352,12 +353,12 @@ def download_software_file(id: int, db: Session = Depends(get_session)):
     )
 
 # Опционально: эндпоинт для получения метаданных (без скачивания)
-@router.get("/software/{id}/metadata", response_model=schemas.SoftwareMetadata)
+@router.get("/software/{id}/metadata", response_model=schemas.SoftwareMetadata, dependencies=[Depends(require_role("moderator"))])
 def get_software_metadata(id: int, db: Session = Depends(get_session)):
     return CRUDs.get_software_metadata(db, id)
 
 # Опционально: эндпоинт для проверки файла
-@router.head("/software/download/{id}")
+@router.head("/software/download/{id}",  dependencies=[Depends(require_role("moderator"))])
 def check_software_file(id: int, db: Session = Depends(get_session)):
     file_info = CRUDs.get_software_file_info(db, id)
     return {
