@@ -198,7 +198,7 @@ class UserCreate(BaseModel):
     @classmethod
     def validate_role(cls, v):
         if v not in {'moderator', 'dealer', 'engineer'}:
-            raise ValueError("Role must be one of: 'admin', 'user', 'engineer'")
+            raise ValueError("Role must be one of: 'moderator', 'user', 'engineer'")
         return v
 
     @field_validator('password', mode='before')

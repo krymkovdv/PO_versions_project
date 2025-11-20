@@ -353,7 +353,7 @@ def download_software_file(id: int, db: Session = Depends(get_session)):
     )
 
 # Опционально: эндпоинт для получения метаданных (без скачивания)
-@router.get("/software/{id}/metadata", response_model=schemas.SoftwareMetadata, dependencies=[Depends(require_role("moderator"))])
+@router.get("/software/{id}/metadata", response_model=schemas.SoftwareMetadata, dependencies=[Depends(require_role("moderator", "engineer"))])
 def get_software_metadata(id: int, db: Session = Depends(get_session)):
     return CRUDs.get_software_metadata(db, id)
 
