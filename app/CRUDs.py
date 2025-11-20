@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from . import models, schemas
+from . import models, schemas, config
 from sqlalchemy import or_, cast, String, select
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status, Depends, Form, File, UploadFile
 from datetime import datetime
 from typing import List
 from .authorization import *
@@ -10,6 +10,9 @@ from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
 import logging
+import os
+import uuid
+
 
 logger = logging.getLogger(__name__)
 #---------АВТОРИЗАЦИЯ-------------
@@ -452,3 +455,167 @@ def search_tractors(db: Session, request: str):
         }
         for r in results
     ]
+
+
+#для страницы с инфе про трактор
+def get_tractor_by_vin(db: Session, vin: str):
+    query = db.query(
+        models.Tractors.vin,
+        models.Tractors.model,
+        models.Tractors.consumer,
+        models.Tractors.assembly_date,
+        models.Tractors.region,
+        models.Tractors.oh_hour,
+        models.Tractors.last_activity,
+        models.Software.name,
+        models.ComponentParts.id.label("componentPart_id"),
+        models.Component.id.label("component_id"),
+        models.Component.model.label("comp_model"),
+        models.ComponentParts.recommend_sw_version,
+        models.Component.type
+    ).select_from(models.Tractors)
+
+    query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
+    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+
+    query = query.filter(models.Tractors.vin == vin)
+
+    query = query.distinct()
+    results = query.all()
+
+    return[
+        {
+            "vin": r.vin,
+            "model": r.model,
+            "consumer": r.consumer,
+            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+            "region": r.region,
+            "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
+            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+            "sw_name": r.name,
+            "componentParts_id": r.componentPart_id,
+            "component_id": r.component_id,
+            "comp_model": r.comp_model,
+            "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
+            "component_type": r.type
+        }
+        for r in results
+    ]
+
+
+
+def secure_filename(filename: str) -> str:
+    filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
+    return filename.strip("._")
+
+def save_uploaded_file(file, filename: str) -> str:
+    """Сохраняет файл из FastAPI UploadFile или bytes"""
+    os.makedirs(config.UPLOAD_DIR, exist_ok=True)
+    safe_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
+    file_path = os.path.join(config.UPLOAD_DIR, safe_filename)
+    
+    with open(file_path, "wb") as f:
+        if hasattr(file, 'read'):  # UploadFile
+            while chunk := file.file.read(8192):
+                f.write(chunk)
+        else:  # bytes
+            f.write(file)
+    return safe_filename
+
+def upload_software(
+    db: Session,
+    file_data: bytes,         
+    file_name: str,            
+    software_data: schemas.UploadSoftwareRequest
+) -> schemas.SoftwareResponse:
+
+    saved_filename = save_uploaded_file(file_data, file_name)
+    
+
+    fw = models.Software(
+        path=saved_filename,
+        name=software_data.name,
+        inner_name=software_data.inner_name,
+        release_date=software_data.release_date,
+        description=software_data.description
+    )
+    db.add(fw)
+    db.commit()
+    db.refresh(fw)
+    
+
+    return schemas.SoftwareResponse(
+        id=fw.id,
+        name=fw.name,
+        inner_name=fw.inner_name,
+        release_date=fw.release_date,
+        description=fw.description,
+        download_url=f"/software/download/{fw.id}"
+    )
+
+def get_software_file_path(db: Session, software_id: int) -> str:
+    fw = db.query(models.Software).filter(models.Software.id == software_id).first()
+    if not fw:
+        raise HTTPException(404, "Software not found")
+    full_path = os.path.join(config.UPLOAD_DIR, fw.path)
+    if not os.path.exists(full_path):
+        raise HTTPException(404, "File not found")
+    return full_path
+
+# def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMetadata:
+#     """
+#     Получает метаданные ПО по ID.
+#     Выбрасывает HTTPException(404), если не найдено.
+#     """
+#     fw = db.query(models.Software).filter(models.Software.id == software_id).first()
+#     if not fw:
+#         raise HTTPException(status_code=404, detail="Software not found")
+    
+#     # Определяем имя для скачивания:
+#     # - если есть name → "name.bin"
+#     # - иначе — оригинальное имя файла
+#     if fw.name:
+#         # Очищаем имя от запрещённых символов для файловой системы
+#         safe_name = re.sub(r'[<>:"/\\|?*]', '_', fw.name)
+#         download_name = f"{safe_name}.bin"
+#     else:
+#         download_name = fw.path  # fallback
+    
+#     return schemas.SoftwareMetadata(
+#         id=fw.id,
+#         name=fw.name,
+#         inner_name=fw.inner_name,
+#         filename_original=fw.path,
+#         filename_for_download=download_name
+#     )
+
+# def get_software_file_path(db: Session, software_id: int) -> str:
+#     """
+#     Возвращает полный путь к файлу ПО.
+#     Выбрасывает 404, если файл не найден на диске.
+#     """
+#     # Сначала получаем метаданные (для проверки существования записи)
+#     metadata = get_software_metadata(db, software_id)
+    
+#     full_path = os.path.join(UPLOAD_DIR, metadata.filename_original)
+    
+#     if not os.path.exists(full_path):
+#         raise HTTPException(
+#             status_code=404, 
+#             detail=f"File '{metadata.filename_original}' not found on disk"
+#         )
+    
+#     return full_path
+
+# def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFileLocation:
+#     """
+#     Возвращает информацию о файле (для отладки или API)
+#     """
+#     full_path = get_software_file_path(db, software_id)
+#     return schemas.SoftwareFileLocation(
+#         full_path=full_path,
+#         size_bytes=os.path.getsize(full_path),
+#         exists=True
+#     )

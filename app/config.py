@@ -22,3 +22,6 @@ class Settings(BaseSettings):
         return {"secret_key": self.secret_key, "algorithm": self.algorithm}
 
 settings = Settings()
+
+UPLOAD_DIR = "uploads/firmware"
+MAX_FILE_SIZE = 100 * 1024 * 1024

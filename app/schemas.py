@@ -207,3 +207,55 @@ class UserCreate(BaseModel):
         if len(v.encode('utf-8')) > 72:
             raise ValueError("Password too long (max 72 bytes in UTF-8)")
         return v
+
+# =============== Базовые модели (ORM-режим) ===============
+
+class SoftwareBase(BaseModel):
+    name: str
+    inner_name: Optional[str] = None
+    release_date: Optional[date] = None
+    description: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class SoftwareCreate(SoftwareBase):
+    """Данные для создания ПО без файла (файл обрабатывается отдельно)"""
+    pass
+
+class SoftwareResponse(SoftwareBase):
+    id: int
+    download_url: str  # генерируется в CRUD/routes
+
+# =============== Схемы для загрузки (с файлом) ===============
+
+class UploadSoftwareRequest(BaseModel):
+    """
+    Данные для загрузки ПО: всё, кроме файла.
+    Файл передаётся отдельно (UploadFile в routes).
+    """
+    name: str
+    inner_name: Optional[str] = None
+    release_date: Optional[date] = None
+    description: Optional[str] = None
+
+    class Config:
+        # Не включаем orm_mode — это входящие данные
+        pass
+
+# class SoftwareMetadata(BaseModel):
+#     """Метаданные ПО для скачивания"""
+#     id: int
+#     name: str
+#     inner_name: Optional[str] = None
+#     filename_original: str  # оригинальное имя файла (например, "engine_v2.bin")
+#     filename_for_download: str  # имя при скачивании (например, "Engine_v2.1.bin")
+
+#     class Config:
+#         orm_mode = True
+
+# class SoftwareFileLocation(BaseModel):
+#     """Путь к файлу на сервере"""
+#     full_path: str
+#     size_bytes: int
+#     exists: bool
