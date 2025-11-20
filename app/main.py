@@ -7,10 +7,7 @@ from .models import Base
 from fastapi.middleware.cors import CORSMiddleware
 
 
-# Настройка подключения к БД
-url_db = config.settings.get_url()
-engine = create_engine(url_db)
-SessionLocal = sessionmaker(bind=engine)
+
 
 # Создание БД
 # engine = create_engine(config.settings.get_url())
