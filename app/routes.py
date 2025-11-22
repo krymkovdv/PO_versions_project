@@ -294,45 +294,45 @@ def get_Search_Tractors_vin(
 
 #Добавление и скачка ПО
 @router.post(
-    "/software/upload", 
-    response_model=schemas.SoftwareResponse,  
+    "/software/assign",
+    response_model=schemas.SoftwareResponse,
     status_code=201,
     dependencies=[Depends(require_role("moderator"))]
 )
-def upload_software(
+def assign_software_to_components_route(
     file: UploadFile = File(...),
     name: str = Form(...),
+    is_major: bool = Form(...),
     inner_name: Optional[str] = Form(None),
     release_date: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
+    not_recom: Optional[str] = Form(None),
+    component_ids: List[int] = Form(...),  
     db: Session = Depends(get_session)
 ):
-    try:
-        rd = date.fromisoformat(release_date) if release_date else None
-    except ValueError:
-        raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+    # Валидация даты
+    rd = None
+    if release_date:
+        try:
+            rd = date.fromisoformat(release_date)
+        except ValueError:
+            raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
     
-    software_data = schemas.UploadSoftwareRequest(
+    software_data = schemas.AssignSoftwareRequest(
         name=name,
+        is_major= is_major,
         inner_name=inner_name,
         release_date=rd,
-        description=description
+        description=description,
+        not_recom=not_recom,
+        component_ids=component_ids
     )
     
-
-    if file.size > config.MAX_FILE_SIZE:
-        raise HTTPException(400, "File too large")
-    
-    file_bytes = file.file.read() 
-    
-    result = CRUDs.upload_software(
+    return CRUDs.assign_software_to_components(
         db=db,
-        file_data=file_bytes,
-        file_name=file.filename,
+        file=file,
         software_data=software_data
     )
-    
-    return result
 
 @router.get("/software/download/{id}", response_class=FileResponse)
 def download_software_file(id: int, db: Session = Depends(get_session)):
