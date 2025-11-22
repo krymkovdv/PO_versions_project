@@ -173,6 +173,7 @@ class TractorSearchResponse(BaseModel):
     current_sw_version: Optional[int] = None
     recommend_sw_version: Optional[str] = None
     component_type: Optional[str] = None
+    desription: Optional[str] = None
 
     class Config:
         orm_mode = True 

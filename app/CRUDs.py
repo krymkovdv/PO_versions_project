@@ -187,7 +187,7 @@ def create_componentPart(db: Session, part: schemas.ComponentPartSchema):
             current_sw_version = part.current_sw_version,
             recommend_sw_version = part.recommend_sw_version,
             is_major = part.is_major,
-            not_recom_sw = part.not_recom_sw,
+            not_recom_sw = part.not_recom,
             next_ver = part.next_ver
         )        
         db.add(db_part)
@@ -473,7 +473,8 @@ def get_tractor_by_vin(db: Session, vin: str):
         models.Component.model.label("comp_model"),
         models.ComponentParts.current_sw_version,
         models.ComponentParts.recommend_sw_version,
-        models.Component.type
+        models.Component.type,
+        models.Software.description
     ).select_from(models.Tractors)
 
     query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
@@ -501,7 +502,8 @@ def get_tractor_by_vin(db: Session, vin: str):
             "comp_model": r.comp_model,
             "current_sw_version": r.current_sw_version,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.type
+            "component_type": r.type,
+            "description": r.description
         }
         for r in results
     ]
