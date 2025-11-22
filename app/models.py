@@ -63,7 +63,7 @@ class Component(Base):
 class Software2ComponentPart(Base):
     __tablename__ = 'Software2ComponentPart'
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement= True)
     component_part_id = Column(Integer, ForeignKey('ComponentParts.id'), nullable=False)
     software_id = Column(Integer, ForeignKey('Software.id'), nullable=False)
     is_major = Column(Boolean, default=False)
@@ -79,7 +79,7 @@ class Software2ComponentPart(Base):
 class ComponentParts(Base):
     __tablename__='ComponentParts'
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement= True)
     component = Column(Integer, ForeignKey('Component.id'), nullable=False)
     part_number = Column(Text, unique = True, nullable=False)
     part_type = Column(Text, nullable=False)
