@@ -41,7 +41,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/users/", status_code=201, dependencies=[Depends(require_role("moderator"))])
+@router.post("/users/", status_code=201)
 def post_user(user: schemas.UserCreate, db: Session = Depends(get_session)):
     existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
     if existing:
