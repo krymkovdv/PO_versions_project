@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Создание БД
 # engine = create_engine(config.settings.get_url())
-# Base.metadata.drop_all(engine,checkfirst=False)
+# # Base.metadata.drop_all(engine,checkfirst=False)
 # Base.metadata.create_all(engine)
 
 #создание экземпляра приложения
@@ -19,18 +19,10 @@ app = FastAPI(title="Сервис контроля версий")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins="http://localhost:5173",
+    allow_origins=["http://localhost:5173"],  # Адрес вашего фронтенда
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "Accept",
-        "Origin",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers",
-    ],
+    allow_methods=["*"],  # Разрешить все методы (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Разрешить все заголовки
 )
 
 app.include_router(router)
