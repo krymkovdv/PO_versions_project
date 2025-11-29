@@ -258,7 +258,7 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
     if model_comp:
-        query = query.filter(models.Component.model == model_comp)
+        query = query.filter(models.Component.model.in_(model_comp))
 
     query = query.distinct()
 
@@ -562,13 +562,13 @@ def assign_software_to_components(
             # Предположим: у компонента одна часть (part_number = "default")
             part = db.query(models.ComponentParts).filter(
                 models.ComponentParts.component == comp_id,
-                models.ComponentParts.part_number == "default"
+                models.ComponentParts.part_number == '33'
             ).first()
             
             if not part:
                 part = models.ComponentParts(
                     component=comp_id,
-                    part_number="default",
+                    part_number='33',
                     part_type=component.type,
                     current_sw_version=fw.id,  # сразу ставим как текущую
                     recommend_sw_version=fw.id,
