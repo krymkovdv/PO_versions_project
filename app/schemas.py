@@ -143,7 +143,7 @@ class SoftwareComponentsSchema(BaseModel):
 class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
-    model_comp: str = ''
+    model_comp: List[str] = []
 
 class TractorFilter(BaseModel):
     trac_model: List[str] = [] 
