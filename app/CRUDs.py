@@ -187,7 +187,7 @@ def create_componentPart(db: Session, part: schemas.ComponentPartSchema):
             current_sw_version = part.current_sw_version,
             recommend_sw_version = part.recommend_sw_version,
             is_major = part.is_major,
-            not_recom_sw = part.not_recom_sw,
+            not_recom_sw = part.not_recom,
             next_ver = part.next_ver
         )        
         db.add(db_part)
@@ -471,8 +471,10 @@ def get_tractor_by_vin(db: Session, vin: str):
         models.ComponentParts.id.label("componentPart_id"),
         models.Component.id.label("component_id"),
         models.Component.model.label("comp_model"),
+        models.ComponentParts.current_sw_version,
         models.ComponentParts.recommend_sw_version,
-        models.Component.type
+        models.Component.type,
+        models.Software.description
     ).select_from(models.Tractors)
 
     query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
@@ -498,8 +500,10 @@ def get_tractor_by_vin(db: Session, vin: str):
             "componentParts_id": r.componentPart_id,
             "component_id": r.component_id,
             "comp_model": r.comp_model,
+            "current_sw_version": r.current_sw_version,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.type
+            "component_type": r.type,
+            "description": r.description
         }
         for r in results
     ]
@@ -524,36 +528,89 @@ def save_uploaded_file(file, filename: str) -> str:
             f.write(file)
     return safe_filename
 
-def upload_software(
+def assign_software_to_components(
     db: Session,
-    file_data: bytes,         
-    file_name: str,            
-    software_data: schemas.UploadSoftwareRequest
+    file: UploadFile,  # ← будем передавать UploadFile напрямую (потоково)
+    software_data: schemas.AssignSoftwareRequest
 ) -> schemas.SoftwareResponse:
 
-    saved_filename = save_uploaded_file(file_data, file_name)
+    try:
+        # 1. Загружаем файл ПО
+        saved_filename = save_uploaded_file(file, file.filename)
+        
+        # 2. Создаём запись в Software
+        fw = models.Software(
+            path=saved_filename,
+            name=software_data.name,
+            inner_name=software_data.inner_name,
+            release_date=software_data.release_date,
+            description=software_data.description
+        )
+        db.add(fw)
+        db.flush()  # ← получаем fw.id, но не коммитим пока
+        
+        # 3. Для каждого компонента создаём связь
+        for comp_id in software_data.component_ids:
+            # Проверяем, что компонент существует
+            component = db.query(models.Component).filter(
+                models.Component.id == comp_id
+            ).first()
+            if not component:
+                raise HTTPException(404, f"Component {comp_id} not found")
+            
+            # Создаём ComponentParts для компонента (если не существует)
+            # Предположим: у компонента одна часть (part_number = "default")
+            part = db.query(models.ComponentParts).filter(
+                models.ComponentParts.component == comp_id,
+                models.ComponentParts.part_number == "default"
+            ).first()
+            
+            if not part:
+                part = models.ComponentParts(
+                    component=comp_id,
+                    part_number="default",
+                    part_type=component.type,
+                    current_sw_version=fw.id,  # сразу ставим как текущую
+                    recommend_sw_version=fw.id,
+                    is_major=True,
+                    not_recom_sw="",
+                    next_ver=""
+                )
+                db.add(part)
+                db.flush()  
+            
+            link = models.Software2ComponentPart(
+                component_part_id=part.id,
+                software_id=fw.id,
+                is_major=software_data.is_major,
+                status='s',  
+                date_change=datetime.utcnow().date(),
+                not_recom=software_data.not_recom,
+                date_change_record= None
+            )
+            db.add(link)
+        
+        # 4. Коммитим всё вместе
+        db.commit()
+        db.refresh(fw)
+        
+        return schemas.SoftwareResponse(
+            id=fw.id,
+            name=fw.name,
+            inner_name=fw.inner_name,
+            release_date=fw.release_date,
+            description=fw.description,
+            download_url=f"/software/download/{fw.id}"
+        )
     
-
-    fw = models.Software(
-        path=saved_filename,
-        name=software_data.name,
-        inner_name=software_data.inner_name,
-        release_date=software_data.release_date,
-        description=software_data.description
-    )
-    db.add(fw)
-    db.commit()
-    db.refresh(fw)
-    
-
-    return schemas.SoftwareResponse(
-        id=fw.id,
-        name=fw.name,
-        inner_name=fw.inner_name,
-        release_date=fw.release_date,
-        description=fw.description,
-        download_url=f"/software/download/{fw.id}"
-    )
+    except Exception as e:
+        db.rollback()
+        # Удаляем файл при ошибке
+        if 'saved_filename' in locals():
+            path = os.path.join(config.UPLOAD_DIR, saved_filename)
+            if os.path.exists(path):
+                os.remove(path)
+        raise
 
 def get_software_full(db: Session, software_id: int) -> tuple[models.Software, str]:
     """

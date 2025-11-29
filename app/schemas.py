@@ -119,7 +119,7 @@ class ComponentPartSchema(BaseModel):
     current_sw_version: int
     recommend_sw_version: int
     is_major: bool
-    not_recom_sw: str
+    not_recom: Optional[str] = None
     next_ver: str
 
 class SoftwareComponentsSchema(BaseModel):
@@ -169,9 +169,11 @@ class TractorSearchResponse(BaseModel):
     sw_name: Optional[str] = None               
     componentParts_id: Optional[int] = None   
     component_id: Optional[int] = None         
-    comp_model: Optional[str] = None           
+    comp_model: Optional[str] = None   
+    current_sw_version: Optional[int] = None
     recommend_sw_version: Optional[str] = None
     component_type: Optional[str] = None
+    desription: Optional[str] = None
 
     class Config:
         orm_mode = True 
@@ -229,19 +231,15 @@ class SoftwareResponse(SoftwareBase):
 
 # =============== Схемы для загрузки (с файлом) ===============
 
-class UploadSoftwareRequest(BaseModel):
-    """
-    Данные для загрузки ПО: всё, кроме файла.
-    Файл передаётся отдельно (UploadFile в routes).
-    """
+class AssignSoftwareRequest(BaseModel):
     name: str
+    is_major: bool
     inner_name: Optional[str] = None
-    release_date: Optional[datetime] = None
+    release_date: Optional[date] = None
     description: Optional[str] = None
-
-    class Config:
-        pass
-
+    not_recom: Optional[str] = None
+    component_ids: List[int] = Field(..., min_items=1) 
+    
 class SoftwareMetadata(BaseModel):
     """Метаданные ПО для скачивания"""
     id: int
