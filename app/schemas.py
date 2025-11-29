@@ -258,3 +258,8 @@ class SoftwareFileLocation(BaseModel):
     full_path: str
     size_bytes: int
     exists: bool
+
+
+class RequestModel(BaseModel):
+    trac_model: Optional[str] = None
+    type_comp: Optional[str] = None

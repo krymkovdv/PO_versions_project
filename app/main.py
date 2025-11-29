@@ -17,15 +17,24 @@ from fastapi.middleware.cors import CORSMiddleware
 #создание экземпляра приложения
 app = FastAPI(title="Сервис контроля версий")
 
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["http://localhost:5173"],  # Адрес вашего фронтенда
-#     allow_credentials=True,
-#     allow_methods=["*"],  # Разрешить все методы (GET, POST, PUT, DELETE, etc.)
-#     allow_headers=["*"],  # Разрешить все заголовки
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins="http://localhost:5173",
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
+)
 
 app.include_router(router)
 
 # uvicorn app.main:app --reload
 # python -m app.main
+# .\venv\Scripts\Activate.ps1
