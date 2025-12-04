@@ -107,9 +107,9 @@ class SoftwareSchema(BaseModel):
     id: int
     path: str
     name: str
-    inner_name: str
+    inner_name: Optional[str] = None
     release_date: datetime
-    description: str
+    description: Optional[str] = None
 
 class ComponentPartSchema(BaseModel):
     id: int
@@ -237,8 +237,9 @@ class AssignSoftwareRequest(BaseModel):
     inner_name: Optional[str] = None
     release_date: Optional[date] = None
     description: Optional[str] = None
-    not_recom: Optional[str] = None
-    component_ids: List[int] = Field(..., min_items=1) 
+    component_models: List[str] = Field(..., min_items=1)
+    part_number: Optional[int] = 0
+    
     
 class SoftwareMetadata(BaseModel):
     """Метаданные ПО для скачивания"""

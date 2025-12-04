@@ -550,30 +550,29 @@ def assign_software_to_components(
         db.flush()  # ← получаем fw.id, но не коммитим пока
         
         # 3. Для каждого компонента создаём связь
-        for comp_id in software_data.component_ids:
+        for comp_models in software_data.component_models:
             # Проверяем, что компонент существует
             component = db.query(models.Component).filter(
-                models.Component.id == comp_id
+                models.Component.model == comp_models
             ).first()
             if not component:
-                raise HTTPException(404, f"Component {comp_id} not found")
+                raise HTTPException(404, f"Component {comp_models} not found")
             
             # Создаём ComponentParts для компонента (если не существует)
             # Предположим: у компонента одна часть (part_number = "default")
             part = db.query(models.ComponentParts).filter(
-                models.ComponentParts.component == comp_id,
-                models.ComponentParts.part_number == "default"
+                models.ComponentParts.component == component.id,
+                models.ComponentParts.part_number == software_data.part_number
             ).first()
             
             if not part:
                 part = models.ComponentParts(
-                    component=comp_id,
-                    part_number="default",
+                    component=comp_models,
+                    part_number= 0,
                     part_type=component.type,
                     current_sw_version=fw.id,  # сразу ставим как текущую
                     recommend_sw_version=fw.id,
                     is_major=True,
-                    not_recom_sw="",
                     next_ver=""
                 )
                 db.add(part)
@@ -585,7 +584,6 @@ def assign_software_to_components(
                 is_major=software_data.is_major,
                 status='s',  
                 date_change=datetime.utcnow().date(),
-                not_recom=software_data.not_recom,
                 date_change_record= None
             )
             db.add(link)
