@@ -29,3 +29,4 @@ app.include_router(router)
 
 # uvicorn app.main:app --reload
 # python -m app.main
+# .\venv\Scripts\Activate.ps1

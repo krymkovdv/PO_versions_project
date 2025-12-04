@@ -143,7 +143,7 @@ class SoftwareComponentsSchema(BaseModel):
 class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
-    model_comp: str = ''
+    model_comp: List[str] = []
 
 class TractorFilter(BaseModel):
     trac_model: List[str] = [] 
@@ -257,4 +257,8 @@ class SoftwareFileLocation(BaseModel):
     full_path: str
     size_bytes: int
     exists: bool
-    
+
+
+class RequestModel(BaseModel):
+    trac_model: Optional[str] = None
+    type_comp: Optional[str] = None
