@@ -258,7 +258,7 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
     if model_comp:
-        query = query.filter(models.Component.model == model_comp)
+        query = query.filter(models.Component.model.in_(model_comp))
 
     query = query.distinct()
 
@@ -654,3 +654,22 @@ def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFil
         size_bytes=os.path.getsize(file_path),
         exists=True
     )
+
+from sqlalchemy import func
+
+def get_agg_by_trac_and_comp(db: Session, trac_model: str = None, type_comp: str = None):
+    query = (
+        db.query(models.Component.model)
+        .select_from(models.Tractors)
+        .join(models.Component, models.Component.tractor_id == models.Tractors.id)
+        .distinct()
+    )
+    
+    # Условное применение фильтров
+    if trac_model:
+        query = query.filter(models.Tractors.model == trac_model)
+    if type_comp:
+        query = query.filter(models.Component.type == type_comp)
+    
+    results = query.all()
+    return [r.model for r in results if r.model is not None]

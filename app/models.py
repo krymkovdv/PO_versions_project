@@ -81,7 +81,7 @@ class ComponentParts(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement= True)
     component = Column(Integer, ForeignKey('Component.id'), nullable=False)
-    part_number = Column(Text, unique = True, nullable=False)
+    part_number = Column(Text, unique = False, nullable=False)
     part_type = Column(Text, nullable=False)
     current_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False)
     recommend_sw_version = Column(Integer, ForeignKey ('Software.id'), nullable=False)
