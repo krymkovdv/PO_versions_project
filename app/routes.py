@@ -297,7 +297,7 @@ def get_Search_Tractors_vin(
     "/software/assign",
     response_model=schemas.SoftwareResponse,
     status_code=201,
-    dependencies=[Depends(require_role("moderator"))]
+    # dependencies=[Depends(require_role("moderator"))]
 )
 def assign_software_to_components_route(
     file: UploadFile = File(...),
@@ -306,7 +306,6 @@ def assign_software_to_components_route(
     inner_name: Optional[str] = Form(None),
     release_date: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
-    not_recom: Optional[str] = Form(None),
     component_ids: List[int] = Form(...),  
     db: Session = Depends(get_session)
 ):
@@ -324,7 +323,6 @@ def assign_software_to_components_route(
         inner_name=inner_name,
         release_date=rd,
         description=description,
-        not_recom=not_recom,
         component_ids=component_ids
     )
     
