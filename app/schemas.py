@@ -145,6 +145,8 @@ class ComponentInfoRequest(BaseModel):
     type_comp: List[str] = []
     model_comp: List[str] = []
 
+
+
 class TractorFilter(BaseModel):
     trac_model: List[str] = [] 
     status: List[str] = [] 
@@ -187,6 +189,15 @@ class ComponentSearchResponseItem(BaseModel):
     is_maj: Optional[bool] = None       
     model_component: str
     id_Firmwares: Optional[int] = None  
+
+    @field_validator('type_component', mode='before')
+    @classmethod
+    def normalize_component_types(cls, v):
+        if v is None:
+            return "unknown"
+        if isinstance(v, str):
+            return v.lower().strip()
+        return str(v).lower().strip()
 
     class Config:
         orm_mode = True  
@@ -234,7 +245,7 @@ class SoftwareResponse(SoftwareBase):
 class AssignSoftwareRequest(BaseModel):
     name: str
     is_major: bool
-    inner_name: Optional[str] = None
+    inner_name: Optional[List[str]] = None
     release_date: Optional[date] = None
     description: Optional[str] = None
     not_recom: Optional[str] = None
@@ -259,5 +270,5 @@ class SoftwareFileLocation(BaseModel):
 
 
 class RequestModel(BaseModel):
-    trac_model: Optional[str] = None
-    type_comp: Optional[str] = None
+    trac_model: List[str] = []
+    type_comp: List[str] = []

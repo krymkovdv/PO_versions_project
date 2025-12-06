@@ -360,10 +360,24 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
         query = query.filter(models.Tractors.model.in_(filter.trac_model))
     if filter.status:
         query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
-    if filter.dealer:
-        query = query.filter(models.Tractors.consumer == filter.dealer)
     if filter.date_assemle:
         query = query.filter(models.Tractors.assembly_date == filter.date_assemle)
+
+    if filter.dealer:
+        user_input = filter.dealer.strip()
+        if user_input:
+            try:
+                # 🔁 Переводим wildcard → regex
+                regex_pattern = schemas.wildcard_to_psql_regex(user_input)
+                
+                # 🔐 Проверяем безопасность
+                if not schemas.is_safe_regex(regex_pattern):
+                    raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
+                query = query.filter(models.Tractors.serv_center.op('~*')(regex_pattern))
+            except re.error as e:
+                raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
+            except Exception as e:
+                raise ValueError(f"Ошибка при поиске: {str(e)}")
 
 
     query = query.distinct()
@@ -659,19 +673,20 @@ def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFil
 
 from sqlalchemy import func
 
-def get_agg_by_trac_and_comp(db: Session, trac_model: str = None, type_comp: str = None):
+def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None):
     query = (
         db.query(models.Component.model)
-        .select_from(models.Tractors)
-        .join(models.Component, models.Component.tractor_id == models.Tractors.id)
+
+        # .join(models.Component, models.Component.tractor_id == models.Tractors.id)
         .distinct()
     )
     
     # Условное применение фильтров
     if trac_model:
-        query = query.filter(models.Tractors.model == trac_model)
+        query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
+        query = query.filter(models.Tractors.model.in_(trac_model))
     if type_comp:
-        query = query.filter(models.Component.type == type_comp)
+        query = query.filter(models.Component.type.in_(type_comp))
     
     results = query.all()
     return [r.model for r in results if r.model is not None]
