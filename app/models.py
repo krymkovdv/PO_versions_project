@@ -86,7 +86,7 @@ class ComponentParts(Base):
     current_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False)
     recommend_sw_version = Column(Integer, ForeignKey ('Software.id'), nullable=False)
     is_major = Column(Boolean, default=False)
-    not_recom_sw = Column(Text)
+    not_recom_sw = Column(Text, nullable=True)
     next_ver = Column(Text)
 
 
