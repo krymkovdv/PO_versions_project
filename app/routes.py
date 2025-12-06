@@ -306,7 +306,8 @@ def assign_software_to_components_route(
     inner_name: Optional[str] = Form(None),
     release_date: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
-    component_ids: List[int] = Form(...),  
+    component_models: List[str] = Form(...),  
+    part_number: Optional[int] = Form(0),
     db: Session = Depends(get_session)
 ):
     # Валидация даты
@@ -323,7 +324,8 @@ def assign_software_to_components_route(
         inner_name=inner_name,
         release_date=rd,
         description=description,
-        component_ids=component_ids
+        component_models=component_models,
+        part_number = part_number
     )
     
     return CRUDs.assign_software_to_components(
@@ -374,3 +376,8 @@ def get_component_models(request: schemas.RequestModel, db: Session = Depends(ge
         request.type_comp if request.type_comp else None
     )
     return {"component_models": models_list}
+
+@router.get("/component(parts)")
+def get_component_with_part(db: Session = Depends(get_session)):
+    result = CRUDs.get_all_components_with_part(db)
+    return result
