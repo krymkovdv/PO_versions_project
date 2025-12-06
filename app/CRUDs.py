@@ -528,12 +528,36 @@ def save_uploaded_file(file, filename: str) -> str:
             f.write(file)
     return safe_filename
 
+def get_all_components_with_part(db: Session):
+    stmt = (
+        select(
+            models.Component.id,
+            models.Component.model,      
+            models.ComponentParts.part_number 
+        )
+        .join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .order_by(models.Component.model, models.ComponentParts.part_number)
+    )
+    
+    result = db.execute(stmt).all()
+    
+    # Превращаем в список словарей или объектов
+    return [
+        {
+            "model(part)": f"{row.model} ({row.part_number})",
+            "model": row.model,                             
+            "part_number": row.part_number
+        }
+        for row in result
+    ]
+
 def assign_software_to_components(
     db: Session,
-    file: UploadFile,  # ← будем передавать UploadFile напрямую (потоково)
+    file: UploadFile,
     software_data: schemas.AssignSoftwareRequest
 ) -> schemas.SoftwareResponse:
 
+    saved_filename = None  # ← объявляем ДО try
     try:
         # 1. Загружаем файл ПО
         saved_filename = save_uploaded_file(file, file.filename)
@@ -549,49 +573,63 @@ def assign_software_to_components(
         db.add(fw)
         db.flush()  # ← получаем fw.id, но не коммитим пока
         
-        # 3. Для каждого компонента создаём связь
-        for comp_models in software_data.component_models:
-            # Проверяем, что компонент существует
-            component = db.query(models.Component).filter(
-                models.Component.model == comp_models
-            ).first()
-            if not component:
-                raise HTTPException(404, f"Component {comp_models} not found")
-            
-            # Создаём ComponentParts для компонента (если не существует)
-            # Предположим: у компонента одна часть (part_number = "default")
-            part = db.query(models.ComponentParts).filter(
-                models.ComponentParts.component == component.id,
-                models.ComponentParts.part_number == software_data.part_number
-            ).first()
-            
-            if not part:
-                part = models.ComponentParts(
-                    component=comp_models,
-                    part_number= 0,
-                    part_type=component.type,
-                    current_sw_version=fw.id,  # сразу ставим как текущую
-                    recommend_sw_version=fw.id,
-                    is_major=True,
-                    next_ver=""
-                )
-                db.add(part)
-                db.flush()  
-            
-            link = models.Software2ComponentPart(
-                component_part_id=part.id,
-                software_id=fw.id,
-                is_major=software_data.is_major,
-                status='s',  
-                date_change=datetime.utcnow().date(),
-                date_change_record= None
-            )
-            db.add(link)
+        # 3. Находим компонент по модели
+        # component = db.query(models.Component).filter(
+        #     models.Component.model == software_data.model
+        # ).first()
+        # if not component:
+        #     raise HTTPException(404, f"Component model '{software_data.model}' not found")
+
+        # # 4. Находим или создаём часть
+        # part = db.query(models.ComponentParts).filter(
+        #     models.ComponentParts.component == component.id,
+        #     models.ComponentParts.part_number == software_data.part_number
+        # ).first()
+        # В assign_software_to_components:
+        comp_model = software_data.component_models[0]  # ← берём первый
+        component = db.query(Component).filter(
+            Component.model == comp_model
+        ).first()
+        if not component:
+            raise HTTPException(404, f"Component model '{comp_model}' not found")
         
-        # 4. Коммитим всё вместе
+        part_number = software_data.part_number or 0  # ← на случай None
+        
+        part = db.query(ComponentParts).filter(
+            ComponentParts.component == component.id,
+            ComponentParts.part_number == part_number
+        ).first()
+
+# ... и дальше как раньше
+        
+        if not part:
+            part = models.ComponentParts(
+                component=component.id,
+                part_number=software_data.part_number,
+                part_type=component.type,
+                current_sw_version=fw.id,
+                recommend_sw_version=fw.id,
+                is_major=software_data.is_major,
+                next_ver=""
+            )
+            db.add(part)
+            db.flush()  
+        
+        # 5. Создаём связь
+        link = models.Software2ComponentPart(
+            component_part_id=part.id,
+            software_id=fw.id,
+            is_major=software_data.is_major,
+            status='s',  
+            date_change=datetime.utcnow().date(),
+        )
+        db.add(link)
+        
+        # 6. Коммитим
         db.commit()
         db.refresh(fw)
         
+        # 7. Возвращаем ответ
         return schemas.SoftwareResponse(
             id=fw.id,
             name=fw.name,
@@ -604,7 +642,7 @@ def assign_software_to_components(
     except Exception as e:
         db.rollback()
         # Удаляем файл при ошибке
-        if 'saved_filename' in locals():
+        if saved_filename:  # ← безопаснее, чем 'in locals()'
             path = os.path.join(config.UPLOAD_DIR, saved_filename)
             if os.path.exists(path):
                 os.remove(path)
