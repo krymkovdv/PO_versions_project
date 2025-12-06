@@ -81,12 +81,12 @@ class ComponentParts(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement= True)
     component = Column(Integer, ForeignKey('Component.id'), nullable=False)
-    part_number = Column(Text, unique = False, nullable=False)
+    part_number = Column(Integer, unique = False, nullable=False)
     part_type = Column(Text, nullable=False)
     current_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False)
     recommend_sw_version = Column(Integer, ForeignKey ('Software.id'), nullable=False)
     is_major = Column(Boolean, default=False)
-    not_recom_sw = Column(Text)
+    not_recom_sw = Column(Text, nullable=True)
     next_ver = Column(Text)
 
 
