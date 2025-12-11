@@ -107,9 +107,9 @@ class SoftwareSchema(BaseModel):
     id: int
     path: str
     name: str
-    inner_name: str
+    inner_name: Optional[str] = None
     release_date: datetime
-    description: str
+    description: Optional[str] = None
 
 class ComponentPartSchema(BaseModel):
     id: int
@@ -143,7 +143,9 @@ class SoftwareComponentsSchema(BaseModel):
 class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
-    model_comp: str = ''
+    model_comp: List[str] = []
+
+
 
 class TractorFilter(BaseModel):
     trac_model: List[str] = [] 
@@ -173,6 +175,7 @@ class TractorSearchResponse(BaseModel):
     current_sw_version: Optional[int] = None
     recommend_sw_version: Optional[str] = None
     component_type: Optional[str] = None
+    desription: Optional[str] = None
 
     class Config:
         orm_mode = True 
@@ -186,6 +189,15 @@ class ComponentSearchResponseItem(BaseModel):
     is_maj: Optional[bool] = None       
     model_component: str
     id_Firmwares: Optional[int] = None  
+
+    @field_validator('type_component', mode='before')
+    @classmethod
+    def normalize_component_types(cls, v):
+        if v is None:
+            return "unknown"
+        if isinstance(v, str):
+            return v.lower().strip()
+        return str(v).lower().strip()
 
     class Config:
         orm_mode = True  
@@ -233,11 +245,12 @@ class SoftwareResponse(SoftwareBase):
 class AssignSoftwareRequest(BaseModel):
     name: str
     is_major: bool
-    inner_name: Optional[str] = None
+    inner_name: Optional[List[str]] = None
     release_date: Optional[date] = None
     description: Optional[str] = None
-    not_recom: Optional[str] = None
-    component_ids: List[int] = Field(..., min_items=1) 
+    component_models: List[str] = Field(..., min_items=1)
+    part_number: Optional[int] = 0
+    
     
 class SoftwareMetadata(BaseModel):
     """Метаданные ПО для скачивания"""
@@ -255,6 +268,9 @@ class SoftwareFileLocation(BaseModel):
     full_path: str
     size_bytes: int
     exists: bool
+
+class RequestModel(BaseModel):
+    trac_model: List[str] = []
 
 class TractorSearchResponse2(BaseModel):
     vin: str

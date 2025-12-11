@@ -187,7 +187,7 @@ def create_componentPart(db: Session, part: schemas.ComponentPartSchema):
             current_sw_version = part.current_sw_version,
             recommend_sw_version = part.recommend_sw_version,
             is_major = part.is_major,
-            not_recom_sw = part.not_recom_sw,
+            not_recom_sw = part.not_recom,
             next_ver = part.next_ver
         )        
         db.add(db_part)
@@ -258,7 +258,7 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
     if model_comp:
-        query = query.filter(models.Component.model == model_comp)
+        query = query.filter(models.Component.model.in_(model_comp))
 
     query = query.distinct()
 
@@ -381,6 +381,22 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
             print(f"Ошибка преобразования даты: {e}")
             # Можно добавить обработку ошибки
 
+
+if filter.dealer:
+        user_input = filter.dealer.strip()
+        if user_input:
+            try:
+                # 🔁 Переводим wildcard → regex
+                regex_pattern = schemas.wildcard_to_psql_regex(user_input)
+                
+                # 🔐 Проверяем безопасность
+                if not schemas.is_safe_regex(regex_pattern):
+                    raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
+                query = query.filter(models.Tractors.serv_center.op('~*')(regex_pattern))
+            except re.error as e:
+                raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
+            except Exception as e:
+                raise ValueError(f"Ошибка при поиске: {str(e)}")
 
     query = query.distinct()
     results = query.all()
@@ -541,7 +557,8 @@ def get_tractor_by_vin(db: Session, vin: str):
         models.Component.model.label("comp_model"),
         models.ComponentParts.current_sw_version,
         models.ComponentParts.recommend_sw_version,
-        models.Component.type
+        models.Component.type,
+        models.Software.description
     ).select_from(models.Tractors)
 
     query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
@@ -570,7 +587,8 @@ def get_tractor_by_vin(db: Session, vin: str):
             "comp_model": r.comp_model,
             "current_sw_version": r.current_sw_version,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.type
+            "component_type": r.type,
+            "description": r.description
         }
         for r in results
     ]
@@ -595,12 +613,36 @@ def save_uploaded_file(file, filename: str) -> str:
             f.write(file)
     return safe_filename
 
+def get_all_components_with_part(db: Session):
+    stmt = (
+        select(
+            models.Component.id,
+            models.Component.model,      
+            models.ComponentParts.part_number 
+        )
+        .join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .order_by(models.Component.model, models.ComponentParts.part_number)
+    )
+    
+    result = db.execute(stmt).all()
+    
+    # Превращаем в список словарей или объектов
+    return [
+        {
+            "model(part)": f"{row.model} ({row.part_number})",
+            "model": row.model,                             
+            "part_number": row.part_number
+        }
+        for row in result
+    ]
+
 def assign_software_to_components(
     db: Session,
-    file: UploadFile,  # ← будем передавать UploadFile напрямую (потоково)
+    file: UploadFile,
     software_data: schemas.AssignSoftwareRequest
 ) -> schemas.SoftwareResponse:
 
+    saved_filename = None  # ← объявляем ДО try
     try:
         # 1. Загружаем файл ПО
         saved_filename = save_uploaded_file(file, file.filename)
@@ -616,51 +658,63 @@ def assign_software_to_components(
         db.add(fw)
         db.flush()  # ← получаем fw.id, но не коммитим пока
         
-        # 3. Для каждого компонента создаём связь
-        for comp_id in software_data.component_ids:
-            # Проверяем, что компонент существует
-            component = db.query(models.Component).filter(
-                models.Component.id == comp_id
-            ).first()
-            if not component:
-                raise HTTPException(404, f"Component {comp_id} not found")
-            
-            # Создаём ComponentParts для компонента (если не существует)
-            # Предположим: у компонента одна часть (part_number = "default")
-            part = db.query(models.ComponentParts).filter(
-                models.ComponentParts.component == comp_id,
-                models.ComponentParts.part_number == "default"
-            ).first()
-            
-            if not part:
-                part = models.ComponentParts(
-                    component=comp_id,
-                    part_number="default",
-                    part_type=component.type,
-                    current_sw_version=fw.id,  # сразу ставим как текущую
-                    recommend_sw_version=fw.id,
-                    is_major=True,
-                    not_recom_sw="",
-                    next_ver=""
-                )
-                db.add(part)
-                db.flush()  
-            
-            link = models.Software2ComponentPart(
-                component_part_id=part.id,
-                software_id=fw.id,
-                is_major=software_data.is_major,
-                status='s',  
-                date_change=datetime.utcnow().date(),
-                not_recom=software_data.not_recom,
-                date_change_record= None
-            )
-            db.add(link)
+        # 3. Находим компонент по модели
+        # component = db.query(models.Component).filter(
+        #     models.Component.model == software_data.model
+        # ).first()
+        # if not component:
+        #     raise HTTPException(404, f"Component model '{software_data.model}' not found")
+
+        # # 4. Находим или создаём часть
+        # part = db.query(models.ComponentParts).filter(
+        #     models.ComponentParts.component == component.id,
+        #     models.ComponentParts.part_number == software_data.part_number
+        # ).first()
+        # В assign_software_to_components:
+        comp_model = software_data.component_models[0]  # ← берём первый
+        component = db.query(Component).filter(
+            Component.model == comp_model
+        ).first()
+        if not component:
+            raise HTTPException(404, f"Component model '{comp_model}' not found")
         
-        # 4. Коммитим всё вместе
+        part_number = software_data.part_number or 0  # ← на случай None
+        
+        part = db.query(ComponentParts).filter(
+            ComponentParts.component == component.id,
+            ComponentParts.part_number == part_number
+        ).first()
+
+# ... и дальше как раньше
+        
+        if not part:
+            part = models.ComponentParts(
+                component=component.id,
+                part_number=software_data.part_number,
+                part_type=component.type,
+                current_sw_version=fw.id,
+                recommend_sw_version=fw.id,
+                is_major=software_data.is_major,
+                next_ver=""
+            )
+            db.add(part)
+            db.flush()  
+        
+        # 5. Создаём связь
+        link = models.Software2ComponentPart(
+            component_part_id=part.id,
+            software_id=fw.id,
+            is_major=software_data.is_major,
+            status='s',  
+            date_change=datetime.utcnow().date(),
+        )
+        db.add(link)
+        
+        # 6. Коммитим
         db.commit()
         db.refresh(fw)
         
+        # 7. Возвращаем ответ
         return schemas.SoftwareResponse(
             id=fw.id,
             name=fw.name,
@@ -673,7 +727,7 @@ def assign_software_to_components(
     except Exception as e:
         db.rollback()
         # Удаляем файл при ошибке
-        if 'saved_filename' in locals():
+        if saved_filename:  # ← безопаснее, чем 'in locals()'
             path = os.path.join(config.UPLOAD_DIR, saved_filename)
             if os.path.exists(path):
                 os.remove(path)
@@ -723,3 +777,23 @@ def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFil
         size_bytes=os.path.getsize(file_path),
         exists=True
     )
+
+from sqlalchemy import func
+
+def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None):
+    query = (
+        db.query(models.Component.model)
+
+        # .join(models.Component, models.Component.tractor_id == models.Tractors.id)
+        .distinct()
+    )
+    
+    # Условное применение фильтров
+    if trac_model:
+        query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
+        query = query.filter(models.Tractors.model.in_(trac_model))
+    if type_comp:
+        query = query.filter(models.Component.type.in_(type_comp))
+    
+    results = query.all()
+    return [r.model for r in results if r.model is not None]
