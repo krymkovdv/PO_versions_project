@@ -382,42 +382,42 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
             # Можно добавить обработку ошибки
 
 
-if filter.dealer:
-        user_input = filter.dealer.strip()
-        if user_input:
-            try:
-                # 🔁 Переводим wildcard → regex
-                regex_pattern = schemas.wildcard_to_psql_regex(user_input)
-                
-                # 🔐 Проверяем безопасность
-                if not schemas.is_safe_regex(regex_pattern):
-                    raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
-                query = query.filter(models.Tractors.serv_center.op('~*')(regex_pattern))
-            except re.error as e:
-                raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
-            except Exception as e:
-                raise ValueError(f"Ошибка при поиске: {str(e)}")
+    if filter.dealer:
+            user_input = filter.dealer.strip()
+            if user_input:
+                try:
+                    # 🔁 Переводим wildcard → regex
+                    regex_pattern = schemas.wildcard_to_psql_regex(user_input)
+                    
+                    # 🔐 Проверяем безопасность
+                    if not schemas.is_safe_regex(regex_pattern):
+                        raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
+                    query = query.filter(models.Tractors.serv_center.op('~*')(regex_pattern))
+                except re.error as e:
+                    raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
+                except Exception as e:
+                    raise ValueError(f"Ошибка при поиске: {str(e)}")
 
-    query = query.distinct()
-    results = query.all()
-    return [
-        {
-            "vin": r.vin,
-            "model": r.model,
-            "consumer": r.consumer,
-            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
-            "region": r.region,
-            "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
-            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-            "sw_name": r.name,
-            "componentParts_id": r.componentParts_id,
-            "component_id": r.component_id,
-            "comp_model": r.comp_model,
-            "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.component_type
-        }
-        for r in results
-    ]
+            query = query.distinct()
+            results = query.all()
+            return [
+                {
+                    "vin": r.vin,
+                    "model": r.model,
+                    "consumer": r.consumer,
+                    "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+                    "region": r.region,
+                    "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
+                    "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+                    "sw_name": r.name,
+                    "componentParts_id": r.componentParts_id,
+                    "component_id": r.component_id,
+                    "comp_model": r.comp_model,
+                    "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
+                    "component_type": r.component_type
+                }
+                for r in results
+        ]
      
 #Глобальный поиск ТРАКТОРОВ
 def search_tractors(db: Session, request: str):
