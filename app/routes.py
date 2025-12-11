@@ -108,7 +108,7 @@ def get_component(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/component/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("moderator"))])
+@router.post("/component/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED)
 def create_component(component: schemas.ComponentSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат terminal_id
     if CRUDs.get_component_by_terminal(db, component.id):
@@ -248,8 +248,8 @@ def delete_Software2Components(id: int, db: Session = Depends(get_session)):
 
 #3-я страница
 #Поиск по фильтрам КОМПОНЕНТОВ
-@router.post("/component-info")
-def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session), response_model=List[schemas.ComponentSearchResponseItem]):
+@router.post("/component-info", response_model=List[schemas.ComponentSearchResponseItem])
+def get_component_by_filters(filters: schemas.ComponentInfoRequest, db: Session = Depends(get_session)):
     query = CRUDs.get_component_by_filters(
         db,
         trac_model=filters.trac_model,
@@ -299,7 +299,7 @@ def get_Search_Tractors_vin(
     "/software/assign",
     response_model=schemas.SoftwareResponse,
     status_code=201,
-    dependencies=[Depends(require_role("moderator"))]
+    # dependencies=[Depends(require_role("moderator"))]
 )
 def assign_software_to_components_route(
     file: UploadFile = File(...),
@@ -308,8 +308,8 @@ def assign_software_to_components_route(
     inner_name: Optional[str] = Form(None),
     release_date: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
-    not_recom: Optional[str] = Form(None),
-    component_ids: List[int] = Form(...),  
+    component_models: List[str] = Form(...),  
+    part_number: Optional[int] = Form(0),
     db: Session = Depends(get_session)
 ):
     # Валидация даты
@@ -326,8 +326,8 @@ def assign_software_to_components_route(
         inner_name=inner_name,
         release_date=rd,
         description=description,
-        not_recom=not_recom,
-        component_ids=component_ids
+        component_models=component_models,
+        part_number = part_number
     )
     
     return CRUDs.assign_software_to_components(
@@ -368,3 +368,18 @@ def check_software_file(id: int, db: Session = Depends(get_session)):
         "size": file_info.size_bytes,
         "path": file_info.full_path
     }
+
+
+@router.post("/component-models")
+def get_component_models(request: schemas.RequestModel, db: Session = Depends(get_session)):
+    models_list = CRUDs.get_agg_by_trac_and_comp(
+        db, 
+        request.trac_model if request.trac_model else None, 
+        request.type_comp if request.type_comp else None
+    )
+    return {"component_models": models_list}
+
+@router.get("/component(parts)")
+def get_component_with_part(db: Session = Depends(get_session)):
+    result = CRUDs.get_all_components_with_part(db)
+    return result
