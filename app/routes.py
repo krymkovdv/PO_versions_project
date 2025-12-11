@@ -41,7 +41,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/users/", status_code=201, dependencies=[Depends(require_role("moderator"))])
+@router.post("/users/", status_code=201,dependencies=[Depends(require_role("moderator"))])
 def post_user(user: schemas.UserCreate, db: Session = Depends(get_session)):
     existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
     if existing:
@@ -271,7 +271,9 @@ def get_Search_Component(
 #Поиск по фильтрам ТРАКТОРОВ
 @router.post("/tractor-info", response_model=List[schemas.TractorSearchResponse] )
 def get_tractors_by_filters(filters: schemas.TractorFilter, db: Session = Depends(get_session)):
+    print("Received filters:", filters.dict())
     data = CRUDs.get_tractors_by_filters(db,filters)
+    print("Data count:", len(data))
     return data
 
 #Глобальный поиск тракторов
@@ -284,7 +286,7 @@ def get_Search_Tractors(
     return data
 
 #Поиск по vinу для Трактора
-@router.get("/search-tractor-vin", response_model=List[schemas.TractorSearchResponse])
+@router.get("/search-tractor-vin", response_model=List[schemas.TractorSearchResponse2])
 def get_Search_Tractors_vin(
     request: str,
     db: Session = Depends(get_session),
