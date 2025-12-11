@@ -114,13 +114,13 @@ class SoftwareSchema(BaseModel):
 class ComponentPartSchema(BaseModel):
     id: int
     component: int
-    part_number: str
-    part_type: str
-    current_sw_version: int
+    part_number: int
+    part_type: Optional[str] = None
+    current_sw_version: int 
     recommend_sw_version: int
-    is_major: bool
+    is_major: Optional[bool] = None
     not_recom: Optional[str] = None
-    next_ver: str
+    next_ver: Optional[str] = None
 
 class SoftwareComponentsSchema(BaseModel):
     id: int
@@ -245,11 +245,11 @@ class SoftwareResponse(SoftwareBase):
 class AssignSoftwareRequest(BaseModel):
     name: str
     is_major: bool
-    inner_name: Optional[List[str]] = None
+    inner_name: Optional[str] = None
     release_date: Optional[date] = None
     description: Optional[str] = None
-    component_models: List[str] = Field(..., min_items=1)
-    part_number: Optional[int] = 0
+    component_models: List[str] = Field(..., min_items=1) 
+    part_number: List[int] = Field(..., min_items=1)
     
     
 class SoftwareMetadata(BaseModel):
