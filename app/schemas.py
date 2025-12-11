@@ -151,7 +151,7 @@ class TractorFilter(BaseModel):
     trac_model: List[str] = [] 
     status: List[str] = [] 
     dealer: str = ''
-    date_assemle: Optional[str] = None
+    date_assemle: Optional[date] = None
 
 
 class TractorInfoRequest(BaseModel):
