@@ -8,7 +8,7 @@ class Base(DeclarativeBase): pass
 class UserDB(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     role = Column(String, default="user")
@@ -16,7 +16,7 @@ class UserDB(Base):
 class Tractors(Base):
     __tablename__ = "Tractors"
 
-    id = Column(Integer, primary_key=True, index = True)
+    id = Column(Integer, primary_key=True, index = True, autoincrement=True)
     model = Column(Text, nullable= False)
     vin = Column(Text, unique=True, nullable = False)
     oh_hour = Column(Integer, nullable= False)
@@ -47,7 +47,7 @@ class TelemetryComponents(Base):
 class Component(Base):
     __tablename__='Component'
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     type = Column(Text, nullable=False)
     model = Column(Text, unique = True, nullable=False)
     comp_ser_num = Column(Text, unique = True)
@@ -63,7 +63,7 @@ class Component(Base):
 class Software2ComponentPart(Base):
     __tablename__ = 'Software2ComponentPart'
 
-    id = Column(Integer, primary_key=True, autoincrement= True)
+    id = Column(Integer, primary_key=True, index = True, autoincrement= True)
     component_part_id = Column(Integer, ForeignKey('ComponentParts.id'), nullable=False)
     software_id = Column(Integer, ForeignKey('Software.id'), nullable=False)
     is_major = Column(Boolean, default=False)
