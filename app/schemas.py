@@ -151,6 +151,7 @@ class TractorFilter(BaseModel):
     trac_model: List[str] = [] 
     status: List[str] = [] 
     dealer: str = ''
+    is_major: Optional[bool] = None
     date_assemle: Optional[date] = None
 
 
