@@ -151,7 +151,7 @@ class TractorFilter(BaseModel):
     trac_model: List[str] = [] 
     status: List[str] = [] 
     dealer: str = ''
-    date_assemle: Optional[date] = None
+    date_assemle: Optional[str] = None
 
 
 class TractorInfoRequest(BaseModel):
@@ -269,7 +269,25 @@ class SoftwareFileLocation(BaseModel):
     size_bytes: int
     exists: bool
 
-
 class RequestModel(BaseModel):
     trac_model: List[str] = []
-    type_comp: List[str] = []
+
+class TractorSearchResponse2(BaseModel):
+    vin: str
+    model: str
+    consumer: str
+    assembly_date: Optional[datetime] = None
+    region: str
+    oh_hour: Optional[str] = None              
+    last_activity: Optional[datetime] = None
+    sw_name: Optional[str] = None     
+    description: Optional[str] = None          
+    componentParts_id: Optional[int] = None   
+    component_id: Optional[int] = None         
+    comp_model: Optional[str] = None   
+    current_sw_version: Optional[int] = None
+    recommend_sw_version: Optional[str] = None
+    component_type: Optional[str] = None
+
+    class Config:
+        orm_mode = True 
