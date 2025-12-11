@@ -297,19 +297,19 @@ def search_components(db: Session, model_comp: str):
     query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
     query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
 
-    # 🔍 Глобальный поиск по model_component с поддержкой расширенных wildcards
+    #  Глобальный поиск по model_component с поддержкой расширенных wildcards
     if model_comp:
         user_input = model_comp.strip()
         if user_input:
             try:
-                # 🔁 Переводим wildcard → regex
+                #  Переводим wildcard → regex
                 regex_pattern = schemas.wildcard_to_psql_regex(user_input)
                 
-                # 🔐 Проверяем безопасность
+                #  Проверяем безопасность
                 if not schemas.is_safe_regex(regex_pattern):
                     raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
                 
-                # 🚀 Выполняем case-insensitive regex-поиск в PostgreSQL
+                #  Выполняем case-insensitive regex-поиск в PostgreSQL
                 query = query.filter(models.Component.model.op('~*')(regex_pattern))
                 
             except re.error as e:
@@ -360,46 +360,64 @@ def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
         query = query.filter(models.Tractors.model.in_(filter.trac_model))
     if filter.status:
         query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
+    if filter.dealer:
+        query = query.filter(models.Tractors.consumer == filter.dealer)
+    # if filter.date_assemle:
+    #     query = query.filter(models.Tractors.assembly_date == filter.date_assemle)
     if filter.date_assemle:
-        query = query.filter(models.Tractors.assembly_date == filter.date_assemle)
+        try:
+            # Преобразуем строку даты в datetime (начало дня)
+            from datetime import datetime
+            filter_date = datetime.strptime(filter.date_assemle, '%Y-%m-%d')
+            
+            # Ищем записи за этот день (от начала до конца дня)
+            next_day = filter_date.replace(day=filter_date.day + 1)
+            
+            query = query.filter(
+                models.Tractors.assembly_date >= filter_date,
+                models.Tractors.assembly_date < next_day
+            )
+        except ValueError as e:
+            print(f"Ошибка преобразования даты: {e}")
+            # Можно добавить обработку ошибки
+
 
     if filter.dealer:
-        user_input = filter.dealer.strip()
-        if user_input:
-            try:
-                # 🔁 Переводим wildcard → regex
-                regex_pattern = schemas.wildcard_to_psql_regex(user_input)
-                
-                # 🔐 Проверяем безопасность
-                if not schemas.is_safe_regex(regex_pattern):
-                    raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
-                query = query.filter(models.Tractors.serv_center.op('~*')(regex_pattern))
-            except re.error as e:
-                raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
-            except Exception as e:
-                raise ValueError(f"Ошибка при поиске: {str(e)}")
+            user_input = filter.dealer.strip()
+            if user_input:
+                try:
+                    # 🔁 Переводим wildcard → regex
+                    regex_pattern = schemas.wildcard_to_psql_regex(user_input)
+                    
+                    # 🔐 Проверяем безопасность
+                    if not schemas.is_safe_regex(regex_pattern):
+                        raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
+                    query = query.filter(models.Tractors.serv_center.op('~*')(regex_pattern))
+                except re.error as e:
+                    raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
+                except Exception as e:
+                    raise ValueError(f"Ошибка при поиске: {str(e)}")
 
-
-    query = query.distinct()
-    results = query.all()
-    return [
-        {
-            "vin": r.vin,
-            "model": r.model,
-            "consumer": r.consumer,
-            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
-            "region": r.region,
-            "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
-            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-            "sw_name": r.name,
-            "componentParts_id": r.componentParts_id,
-            "component_id": r.component_id,
-            "comp_model": r.comp_model,
-            "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.component_type
-        }
-        for r in results
-    ]
+            query = query.distinct()
+            results = query.all()
+            return [
+                {
+                    "vin": r.vin,
+                    "model": r.model,
+                    "consumer": r.consumer,
+                    "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+                    "region": r.region,
+                    "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
+                    "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+                    "sw_name": r.name,
+                    "componentParts_id": r.componentParts_id,
+                    "component_id": r.component_id,
+                    "comp_model": r.comp_model,
+                    "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
+                    "component_type": r.component_type
+                }
+                for r in results
+        ]
      
 #Глобальный поиск ТРАКТОРОВ
 def search_tractors(db: Session, request: str):
@@ -435,12 +453,14 @@ def search_tractors(db: Session, request: str):
                 if not schemas.is_safe_regex(regex_pattern):
                     raise ValueError("Слишком сложный поисковый запрос")
                 
+                layout_regex = _similar_chars(regex_pattern)
+                
                 # 🚀 Используем ~* (case-insensitive regex в PostgreSQL)
                 or_conditions = [
-                    models.Tractors.vin.op('~*')(regex_pattern),
-                    models.Tractors.model.op('~*')(regex_pattern),
-                    models.Software.name.op('~*')(regex_pattern),
-                    models.Component.model.op('~*')(regex_pattern),
+                    models.Tractors.vin.op('~*')(layout_regex),
+                    models.Tractors.model.op('~*')(layout_regex),
+                    models.Software.name.op('~*')(layout_regex),
+                    models.Component.model.op('~*')(layout_regex),
                 ]
                 query = query.filter(or_(*or_conditions))
                 
@@ -470,6 +490,55 @@ def search_tractors(db: Session, request: str):
         for r in results
     ]
 
+def _similar_chars(regex_pattern: str) -> str:
+    """
+    Преобразует regex для поддержки визуально похожих букв в разных раскладках.
+    Только для действительно похожих символов.
+    """
+    similar_chars = {
+        'а': '[аa]',      # a
+        'е': '[еe]',      # e
+        'к': '[кk]',      # k
+        'о': '[оo]',      # o
+        'р': '[рp]',      # p
+        'с': '[сc]',      # c
+        'у': '[уy]',      # y
+        'х': '[хx]',      # x
+        'м': '[мm]',      # m
+        'н': '[нh]',      # h
+        'т': '[тt]',      # t
+        'в': '[вb]',      # b
+        
+        # Английская -> Русская
+        'a': '[aа]',
+        'e': '[eе]',
+        'k': '[kк]',
+        'o': '[oо]',
+        'p': '[pр]',
+        'c': '[cс]',
+        'y': '[yу]',
+        'x': '[xх]',
+        'm': '[mм]',
+        'h': '[hн]',
+        't': '[tт]',
+        'b': '[bв]'
+    }
+    
+    result = []
+    for char in regex_pattern:
+        if char.lower() in similar_chars:
+            if char.isupper():
+                # Для заглавных букв создаем варианты в обоих регистрах
+                variants = similar_chars[char.lower()]
+                result.append(f'({variants.upper()}|{variants})')
+            else:
+                result.append(similar_chars[char])
+        else:
+            result.append(char)
+    
+    return ''.join(result)               
+    
+
 
 #для страницы с инфе про трактор
 def get_tractor_by_vin(db: Session, vin: str):
@@ -482,6 +551,7 @@ def get_tractor_by_vin(db: Session, vin: str):
         models.Tractors.oh_hour,
         models.Tractors.last_activity,
         models.Software.name,
+        models.Software.description,
         models.ComponentParts.id.label("componentPart_id"),
         models.Component.id.label("component_id"),
         models.Component.model.label("comp_model"),
@@ -511,6 +581,7 @@ def get_tractor_by_vin(db: Session, vin: str):
             "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
             "last_activity": r.last_activity.isoformat() if r.last_activity else None,
             "sw_name": r.name,
+            "description": r.description,
             "componentParts_id": r.componentPart_id,
             "component_id": r.component_id,
             "comp_model": r.comp_model,
