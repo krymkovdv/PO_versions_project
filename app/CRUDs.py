@@ -386,17 +386,36 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
                     models.TelemetryComponents.current_sw_version == models.Software2ComponentPart.software_id
                 )
             )
-
     if filter.date_assemle:
         try:
-            filter_date = datetime.strptime(filter.date_assemle, '%Y-%m-%d')
-            next_day = filter_date.replace(day=filter_date.day + 1)
+            if isinstance(filter.date_assemle, str):
+                filter_date = datetime.strptime(filter.date_assemle, '%Y-%m-%d').date()
+            else:
+                filter_date = filter.date_assemle 
+            next_day = filter_date + timedelta(days=1)
+
             query = query.filter(
                 models.Tractors.assembly_date >= filter_date,
                 models.Tractors.assembly_date < next_day
             )
-        except ValueError as e:
+        except (ValueError, TypeError) as e:
             print(f"Ошибка преобразования даты: {e}")
+
+    elif filter.date_start or filter.date_end:
+        if filter.date_start and not filter.date_end:
+            query = query.filter(models.Tractors.assembly_date >= filter.date_start)  
+            print(f"Фильтрация по дате ОТ: {filter.date_start}")
+
+        elif filter.date_end and not filter.date_start:
+            query = query.filter(models.Tractors.assembly_date <= filter.date_end)
+            print(f"Фильтрация по дате ДО: {filter.date_end}")
+
+        elif filter.date_start and filter.date_end:
+            query = query.filter(
+                models.Tractors.assembly_date >= filter.date_start,
+                models.Tractors.assembly_date <= filter.date_end
+            )
+            print(f"Фильтрация по диапазону: {filter.date_start} - {filter.date_end}")
 
     query = query.distinct()
     results = query.all()
