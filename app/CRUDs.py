@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from . import models, schemas, config
-from sqlalchemy import or_, cast, String, select
+from sqlalchemy import or_, cast, String, select, func
 from fastapi import HTTPException, status, Depends, Form, File, UploadFile
 from datetime import datetime
 from typing import List
@@ -370,6 +370,8 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter) -> List[
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
 
+    if filter.is_major:
+        query = query.filter(models.Software2ComponentPart.is_major == filter.is_major)
     # Фильтрация по дате сборки
     if filter.date_assemle:
         try:
@@ -389,6 +391,23 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter) -> List[
         except (ValueError, TypeError) as e:
             print(f"Ошибка преобразования даты: {e}")
             # Опционально: можно игнорировать фильтр или бросать исключение
+
+    elif filter.date_start or filter.date_end:
+        if filter.date_start and not filter.date_end:
+            query = query.filter(models.Tractors.assembly_date >= filter.date_end)
+            print(f"Фильтрация по дате ОТ: {filter.date_start}")
+        
+        elif filter.date_end and not filter.date_start:
+            query = query.filter(models.Tractors.assembly_date <= filter.date_end)
+            print(f"Фильтрация по дате ДО: {filter.date_end}")
+
+        elif filter.date_start and filter.date_end:
+            query = query.filter(
+                models.Tractors.assembly_date >= filter.date_start,
+                models.Tractors.assembly_date <= filter.date_end
+            )
+            print(f"Фильтрация по диапазону: {filter.date_start} - {filter.date_end}")    
+
 
     # === ВАЖНО: distinct и выполнение запроса — вынесены НАРУЖУ ===
     query = query.distinct()
@@ -766,8 +785,6 @@ def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFil
         size_bytes=os.path.getsize(file_path),
         exists=True
     )
-
-from sqlalchemy import func
 
 def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None):
     query = (
