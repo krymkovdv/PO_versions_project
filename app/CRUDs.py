@@ -187,7 +187,6 @@ def get_component_part_by_id(db: Session, id: int):
 def create_component_part(db: Session, part: schemas.ComponentPartSchema):
     db_part = models.ComponentParts(
         component=part.component,
-        part_number=part.part_number,
         part_type=part.part_type
     )
     db.add(db_part)
@@ -587,19 +586,19 @@ def get_all_components_with_part(db: Session):
         select(
             models.Component.id,
             models.Component.model,
-            models.ComponentParts.part_number
+            models.ComponentParts.part_type
         )
         .join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .order_by(models.Component.model, models.ComponentParts.part_number)
+        .order_by(models.Component.model, models.ComponentParts.part_type)
     )
 
     result = db.execute(stmt).all()
 
     return [
         {
-            "model(part)": f"{row.model} ({row.part_number})",
+            "model(part)": f"{row.model} ({row.part_type})",
             "model": row.model,
-            "part_number": row.part_number
+            "part_number": row.part_type
         }
         for row in result
     ]
@@ -641,7 +640,7 @@ def assign_software_to_components(
         db.flush()
 
         n_models = len(software_data.component_models)
-        n_parts = len(software_data.part_number)
+        n_parts = len(software_data.part_type)
         if n_models != n_parts:
             raise HTTPException(
                 400,
@@ -652,7 +651,7 @@ def assign_software_to_components(
 
         for i in range(n_models):
             comp_model = software_data.component_models[i]
-            part_num = software_data.part_number[i]
+            part_type = software_data.part_type[i]
 
             component = db.query(models.Component).filter(
                 models.Component.model == comp_model
@@ -662,13 +661,13 @@ def assign_software_to_components(
 
             part = db.query(models.ComponentParts).filter(
                 models.ComponentParts.component == component.id,
-                models.ComponentParts.part_number == part_num
+                models.ComponentParts.part_type == part_type
             ).first()
 
             if not part:
                 part = models.ComponentParts(
                     component=component.id,
-                    part_number=part_num,
+                    part_number=part_type,
                     part_type=component.type,
                     current_sw_version=fw.id,
                     recommend_sw_version=fw.id,
