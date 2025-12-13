@@ -69,7 +69,7 @@ def delete_user(id: int, db: Session = Depends(get_session)):
         logger.info(f"[delete_users] выполнена успешно")
         return {"message": f"User {id} deleted successfully"}
     else:
-        logger.error(f"[delete_users] неизвестная ошибка: {str(e)}",exc_info=True)
+        logger.error(f"[delete_users] неизвестная ошибка: {str()}",exc_info=True)
         raise HTTPException(status_code=404, detail="User not found")
     
 #Routes трактора
