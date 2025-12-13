@@ -41,8 +41,8 @@ class TelemetryComponents(Base):
     time_rec = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     comp_ser_num = Column(Text, unique=True)
     mounting_date = Column(Date, nullable=False)
-    current_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False)  # текущая версия ПО
-    recommend_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False)  # рекомендуемая версия ПО
+    current_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False)
+    recommend_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False) 
 
     # Отношения
     components = relationship('Component', back_populates='tel_comp')
