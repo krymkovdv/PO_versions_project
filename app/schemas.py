@@ -110,7 +110,6 @@ class SoftwareSchema(BaseModel):
 
 class ComponentPartSchema(BaseModel):
     component: int
-    part_number: int
     part_type: str
     id: Optional[int] = None
 
@@ -256,7 +255,7 @@ class AssignSoftwareRequest(BaseModel):
     release_date: Optional[date] = None
     description: Optional[str] = None
     component_models: List[str] = Field(..., min_items=1)
-    part_number: List[int] = Field(..., min_items=1)
+    part_type: List[str] = Field(..., min_items=1)
 
 class SoftwareMetadata(BaseModel):
     id: int

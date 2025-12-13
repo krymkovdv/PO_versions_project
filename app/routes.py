@@ -374,7 +374,7 @@ def assign_software_to_components_route(
     release_date: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     component_models: List[str] = Form(...),
-    part_number: List[int] = Form(...),
+    part_type: List[str] = Form(...),
     db: Session = Depends(get_session)
 ):
     rd = None
@@ -391,7 +391,7 @@ def assign_software_to_components_route(
         release_date=rd,
         description=description,
         component_models=component_models,
-        part_number=part_number
+        part_type=part_type
     )
 
     try:
@@ -463,3 +463,4 @@ def get_component_with_part(db: Session = Depends(get_session)):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
