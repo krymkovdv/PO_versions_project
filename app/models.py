@@ -34,10 +34,8 @@ class TelemetryComponents(Base):
     __tablename__ = 'TelemetryComponents'
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    software = Column(Integer, ForeignKey('Software.id'), nullable=False)
     tractor = Column(Integer, ForeignKey('Tractors.id'), nullable=False)
     component = Column(Integer, ForeignKey('Component.id'), nullable=False)
-    component_part_id = Column(Integer, ForeignKey('ComponentParts.id'), nullable=True)
     time_rec = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     comp_ser_num = Column(Text, unique=True)
     mounting_date = Column(Date, nullable=False)
@@ -49,7 +47,6 @@ class TelemetryComponents(Base):
     tractors = relationship('Tractors', back_populates='tel_trac')
     current_soft = relationship('Software', foreign_keys=[current_sw_version], back_populates='current_telemetry_versions', uselist=False)
     recommended_soft = relationship('Software', foreign_keys=[recommend_sw_version], back_populates='recommended_telemetry_versions', uselist=False)
-    component_part = relationship("ComponentParts", back_populates="telemetry_records")
 
 class Component(Base):
     __tablename__ = 'Component'
@@ -74,10 +71,10 @@ class Software2ComponentPart(Base):
     date_change_major = Column(Date)  # дата изменения Major
     not_recom = Column(Text)
     date_change_record = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # дата изменения записи
-    previous_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False)
+    previous_sw_version = Column(Integer, ForeignKey('Software.id'))
 
     component_parts = relationship("ComponentParts", back_populates="software_link")
-    software = relationship("Software", back_populates="components_links")
+    software = relationship("Software", foreign_keys=[software_id], back_populates="components_links")
     previous_software = relationship('Software', foreign_keys=[previous_sw_version], back_populates='previous_in_links', uselist=False)
 
 @event.listens_for(Software2ComponentPart, 'before_update')
@@ -104,7 +101,6 @@ class ComponentParts(Base):
 
     components = relationship("Component", back_populates="parts")
     software_link = relationship("Software2ComponentPart", back_populates="component_parts")
-    telemetry_records = relationship("TelemetryComponents", back_populates="component_part")
 
 class Software(Base):
     __tablename__ = 'Software'
@@ -116,7 +112,7 @@ class Software(Base):
     release_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     description = Column(Text)
 
-    components_links = relationship("Software2ComponentPart", back_populates="software")
+    components_links = relationship("Software2ComponentPart", foreign_keys="[Software2ComponentPart.software_id]", back_populates="software")
     current_telemetry_versions = relationship('TelemetryComponents', foreign_keys="[TelemetryComponents.current_sw_version]", back_populates='current_soft')
     recommended_telemetry_versions = relationship('TelemetryComponents', foreign_keys="[TelemetryComponents.recommend_sw_version]", back_populates='recommended_soft')
     previous_in_links = relationship('Software2ComponentPart', foreign_keys="[Software2ComponentPart.previous_sw_version]", back_populates='previous_software')

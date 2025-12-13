@@ -13,7 +13,7 @@ import re
 import logging
 import os
 import uuid
-from config import UPLOAD_DIR
+from .config import UPLOAD_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -124,10 +124,8 @@ def get_telemetry_component_by_id(db: Session, id: int):
 
 def create_telemetry_component(db: Session, telemetry_component: schemas.TelemetryComponentSchema):
     db_telemetry_component = models.TelemetryComponents(
-        software=telemetry_component.software,
         tractor=telemetry_component.tractor,
         component=telemetry_component.component,
-        component_part_id=telemetry_component.component_part_id,
         time_rec=telemetry_component.time_rec,
         comp_ser_num=telemetry_component.comp_ser_num,
         mounting_date=telemetry_component.mounting_date,
@@ -261,7 +259,7 @@ def get_component_by_filters(
         .outerjoin(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
         .outerjoin(models.Tractors, models.TelemetryComponents.tractor == models.Tractors.id)
         .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id)
         .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
     )
 
@@ -306,7 +304,7 @@ def search_components(db: Session, model_comp: str):
         .outerjoin(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
         .outerjoin(models.Tractors, models.TelemetryComponents.tractor == models.Tractors.id)
         .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id)
         .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
     )
 
@@ -353,17 +351,19 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
             models.Tractors.oh_hour,
             models.Tractors.last_activity,
             models.Software.name,
-            models.ComponentParts.id.label("componentParts_id"),
+            models.ComponentParts.id.label("componentPart_id"),
             models.Component.id.label("component_id"),
             models.Component.model.label("comp_model"),
-            models.ComponentParts.recommend_sw_version,
-            models.Component.type.label("component_type")
+            models.TelemetryComponents.recommend_sw_version,
+            models.TelemetryComponents.current_sw_version, 
+            models.Software.description,
+            models.Component.type
         )
         .select_from(models.Tractors)
         .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
         .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
         .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id) 
         .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
     )
 
@@ -373,6 +373,19 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
+    if filter.is_major is not None:
+        if filter.is_major:
+            query = query.filter(
+                models.Software2ComponentPart.software_id.isnot(None),
+                models.TelemetryComponents.current_sw_version != models.Software2ComponentPart.software_id
+            )
+        else:
+            query = query.filter(
+                or_(
+                    models.Software2ComponentPart.software_id.is_(None),
+                    models.TelemetryComponents.current_sw_version == models.Software2ComponentPart.software_id
+                )
+            )
 
     if filter.date_assemle:
         try:
@@ -398,11 +411,13 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
             "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
             "last_activity": r.last_activity.isoformat() if r.last_activity else None,
             "sw_name": r.name,
-            "componentParts_id": r.componentParts_id,
+            "componentParts_id": r.componentPart_id,
             "component_id": r.component_id,
             "comp_model": r.comp_model,
+            "current_sw_version": r.current_sw_version,
+            "description": r.description if r.description is not None else "",
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.component_type
+            "component_type": r.type
         }
         for r in results
     ]
@@ -421,14 +436,16 @@ def search_tractors(db: Session, request: str):
             models.ComponentParts.id.label("componentPart_id"),
             models.Component.id.label("component_id"),
             models.Component.model.label("comp_model"),
-            models.ComponentParts.recommend_sw_version,
+            models.TelemetryComponents.recommend_sw_version,
+            models.TelemetryComponents.current_sw_version, 
+            models.Software.description,
             models.Component.type
         )
         .select_from(models.Tractors)
         .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
         .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
         .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id)
         .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
     )
 
@@ -466,12 +483,13 @@ def search_tractors(db: Session, request: str):
             "componentParts_id": r.componentPart_id,
             "component_id": r.component_id,
             "comp_model": r.comp_model,
+            "current_sw_version": r.current_sw_version,
+            "description": r.description if r.description is not None else "",
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
             "component_type": r.type
         }
         for r in results
     ]
-
 def _similar_chars(regex_pattern: str) -> str:
     similar_chars = {
         'а': '[аa]', 'е': '[еe]', 'к': '[кk]', 'о': '[оo]', 'р': '[рp]',
@@ -509,15 +527,15 @@ def get_tractor_by_vin(db: Session, vin: str):
             models.ComponentParts.id.label("componentPart_id"),
             models.Component.id.label("component_id"),
             models.Component.model.label("comp_model"),
-            models.ComponentParts.current_sw_version,
-            models.ComponentParts.recommend_sw_version,
+            models.TelemetryComponents.current_sw_version,
+            models.TelemetryComponents.recommend_sw_version, 
             models.Component.type
         )
         .select_from(models.Tractors)
         .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
         .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
         .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id) 
     )
 
     query = query.filter(models.Tractors.vin == vin)
@@ -646,7 +664,7 @@ def assign_software_to_components(
                 software_id=fw.id,
                 is_major=software_data.is_major,
                 status='s',
-                date_change=datetime.utcnow().date(),
+                date_change_major=datetime.utcnow().date(),
             )
             db.add(link)
 

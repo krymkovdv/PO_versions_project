@@ -91,10 +91,8 @@ class ComponentSchema(BaseModel):
     id: Optional[int] = None
 
 class TelemetryComponentSchema(BaseModel):
-    software: int
     tractor: int
     component: int
-    component_part_id: Optional[int] = None
     time_rec: Optional[datetime] = None
     comp_ser_num: Optional[str] = None
     mounting_date: date
@@ -121,10 +119,10 @@ class SoftwareComponentsSchema(BaseModel):
     software_id: int
     is_major: bool
     status: str
-    date_change_major: Optional[date] = None  # обновлено
+    date_change_major: Optional[date] = None 
     not_recom: Optional[str] = None
-    date_change_record: Optional[datetime] = None  # обновлено
-    previous_sw_version: int  # обновлено
+    date_change_record: Optional[datetime] = None  
+    previous_sw_version: Optional[int] = None 
     id: Optional[int] = None
 
     @field_validator('status')
@@ -164,6 +162,7 @@ class TractorFilter(BaseModel):
     status: List[str] = []
     dealer: str = ''
     date_assemle: Optional[str] = None
+    is_major: Optional[bool] = False
 
 class TractorInfoRequest(BaseModel):
     trac_model: List[str] = []
