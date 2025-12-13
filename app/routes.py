@@ -13,6 +13,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from datetime import date
 from fastapi.responses import FileResponse
+from .log import logger
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
@@ -21,13 +22,16 @@ router = APIRouter()
 @router.get("/users/", response_model=List[schemas.UserSchema])
 def get_users(db: Session = Depends(get_session)):
     try: 
+        logger.info(f"[get_user] успешно выполнена")
         return CRUDs.get_users(db)
     except SQLAlchemyError as e:
+        logger.error(f"[get_user] ошибка SQLAlchemy {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка базы данных при получении пользователей: {str(e)}"
         )
     except Exception as e:
+        logger.error(f"[get_user] неизвестная ошибка {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Неизвестная ошибка: {str(e)}"
