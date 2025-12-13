@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from . import models, schemas, config
-from sqlalchemy import or_, cast, String, select
+from sqlalchemy import or_, cast, String, select, func
 from fastapi import HTTPException, status, Depends, Form, File, UploadFile
 from datetime import datetime
 from typing import List
@@ -370,7 +370,9 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter) -> List[
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
 
-    # Фильтрация по дате сборки (rjyrhtnyfz)
+    if filter.is_major:
+        query = query.filter(models.Software2ComponentPart.is_major == filter.is_major)
+    # Фильтрация по дате сборки
     if filter.date_assemle:
         try:
             # Поддерживаем как строку, так и date (если Pydantic уже распарсил)
@@ -783,8 +785,6 @@ def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFil
         size_bytes=os.path.getsize(file_path),
         exists=True
     )
-
-from sqlalchemy import func
 
 def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None):
     query = (
