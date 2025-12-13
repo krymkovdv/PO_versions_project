@@ -152,6 +152,32 @@ class TractorFilter(BaseModel):
     status: List[str] = [] 
     dealer: str = ''
     date_assemle: Optional[date] = None
+    date_start: Optional[date] = None
+    date_end: Optional[date] = None
+    # Валидатор: если указана конкретная дата, игнорируем диапазон
+    @field_validator('date_start', 'date_end')
+    @classmethod
+    def validate_date_logic(cls, v, info):
+        field_name = info.field_name
+        values = info.data
+        
+        # Если указана конкретная дата, сбрасываем диапазон
+        if 'date_assemle' in values and values['date_assemle'] is not None:
+            if field_name in ['date_start', 'date_end']:
+                return None
+        
+        return v
+    
+    @field_validator('date_end')
+    @classmethod
+    def validate_date_range(cls, v, info):
+        values = info.data
+        date_start = values.get('date_start')
+        
+        # Проверяем только если указаны обе даты диапазона
+        if date_start and v and date_start > v:
+            raise ValueError('date_end не может быть раньше date_start')
+        return v
 
 
 class TractorInfoRequest(BaseModel):

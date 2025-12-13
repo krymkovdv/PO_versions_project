@@ -370,7 +370,7 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter) -> List[
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
 
-    # Фильтрация по дате сборки
+    # Фильтрация по дате сборки (rjyrhtnyfz)
     if filter.date_assemle:
         try:
             # Поддерживаем как строку, так и date (если Pydantic уже распарсил)
@@ -389,6 +389,23 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter) -> List[
         except (ValueError, TypeError) as e:
             print(f"Ошибка преобразования даты: {e}")
             # Опционально: можно игнорировать фильтр или бросать исключение
+
+    elif filter.date_start or filter.date_end:
+        if filter.date_start and not filter.date_end:
+            query = query.filter(models.Tractors.assembly_date >= filter.date_end)
+            print(f"Фильтрация по дате ОТ: {filter.date_start}")
+        
+        elif filter.date_end and not filter.date_start:
+            query = query.filter(models.Tractors.assembly_date <= filter.date_end)
+            print(f"Фильтрация по дате ДО: {filter.date_end}")
+
+        elif filter.date_start and filter.date_end:
+            query = query.filter(
+                models.Tractors.assembly_date >= filter.date_start,
+                models.Tractors.assembly_date <= filter.date_end
+            )
+            print(f"Фильтрация по диапазону: {filter.date_start} - {filter.date_end}")    
+
 
     # === ВАЖНО: distinct и выполнение запроса — вынесены НАРУЖУ ===
     query = query.distinct()
