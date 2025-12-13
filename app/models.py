@@ -96,7 +96,6 @@ class ComponentParts(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     component = Column(Integer, ForeignKey('Component.id'), nullable=False)
-    part_number = Column(Integer, unique=False, nullable=False)
     part_type = Column(Text, nullable=False)
 
     components = relationship("Component", back_populates="parts")
