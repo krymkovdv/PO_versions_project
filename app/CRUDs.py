@@ -7,19 +7,40 @@ from typing import List
 from .authorization import *
 from .models import *
 from datetime import timedelta
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
 import logging
 import os
 import uuid
-
+from config import UPLOAD_DIR
 
 logger = logging.getLogger(__name__)
+
 #---------АВТОРИЗАЦИЯ-------------
 def get_users(db: Session):
     stmt = select(models.UserDB)
     result = db.execute(stmt).scalars().all()
     return result
+
+def create_user(db: Session, user: schemas.UserCreate):
+    # Проверка на дубликат username
+    existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="User already exists")
+    user_in = models.UserDB(
+        username=user.username,
+        password_hash=get_password_hash(user.password),
+        role=user.role
+    )
+    db.add(user_in)
+    try:
+        db.commit()
+        db.refresh(user_in)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="User already exists")
+    return {"username": user_in.username, "role": user_in.role}
 
 def delete_users(db: Session, id: int):
     user = db.query(models.UserDB).filter(models.UserDB.id == id).first()
@@ -38,22 +59,21 @@ def get_tractors(db: Session):
 
 def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db_tractor = models.Tractors(
-        id = tractor.id,
         model=tractor.model,
-        vin =tractor.vin,
-        oh_hour = tractor.oh_hour,
+        vin=tractor.vin,
+        oh_hour=tractor.oh_hour,
         last_activity=tractor.last_activity,
         assembly_date=tractor.assembly_date,
-        region = tractor.region,
-        consumer = tractor.consumer,
-        serv_center = tractor.serv_center
+        region=tractor.region,
+        consumer=tractor.consumer,
+        serv_center=tractor.serv_center
     )
     db.add(db_tractor)
     db.commit()
     db.refresh(db_tractor)
     return db_tractor
 
-def get_tractor_by_terminal(db: Session, id: int):
+def get_tractor_by_id(db: Session, id: int):
     return db.query(models.Tractors).filter(models.Tractors.id == id).first()
 
 def delete_tractor(db: Session, id: int):
@@ -64,25 +84,21 @@ def delete_tractor(db: Session, id: int):
     db.commit()
     return True
 
-# #Cruds for Component
-def get_component(db: Session):
+# CRUD для Component
+def get_components(db: Session):
     stmt = select(models.Component)
     result = db.execute(stmt).scalars().all()
     return result
 
-def get_component_by_terminal(db: Session, id: str):
+def get_component_by_id(db: Session, id: int):
     return db.query(models.Component).filter(models.Component.id == id).first()
 
 def create_component(db: Session, component: schemas.ComponentSchema):
     db_component = models.Component(
-        id = component.id,
-        type = component.type,
-        model = component.model,
-        mounting_date = component.mounting_date,
-        comp_ser_num = component.comp_ser_num,
-        tractor_id = component.tractor_id,
-        number_of_parts = component.number_of_parts,
-        producer_comp = component.producer_comp
+        type=component.type,
+        model=component.model,
+        number_of_parts=component.number_of_parts,
+        producer_comp=component.producer_comp
     )
     db.add(db_component)
     db.commit()
@@ -97,23 +113,26 @@ def delete_component(db: Session, id: int):
     db.commit()
     return True
 
-#CRUDs for TelemetryComponent
-def get_telemetry_component(db: Session):
+# CRUD для TelemetryComponents
+def get_telemetry_components(db: Session):
     stmt = select(models.TelemetryComponents)
     result = db.execute(stmt).scalars().all()
     return result
 
-def get_telemetry_component_by_terminal(db: Session, id: str):
+def get_telemetry_component_by_id(db: Session, id: int):
     return db.query(models.TelemetryComponents).filter(models.TelemetryComponents.id == id).first()
 
 def create_telemetry_component(db: Session, telemetry_component: schemas.TelemetryComponentSchema):
     db_telemetry_component = models.TelemetryComponents(
-        id= telemetry_component.id,
-        software = telemetry_component.software,
-        tractor = telemetry_component.tractor,
-        component = telemetry_component.component,
-        component_part_id = telemetry_component.component_part_id,
-        time_rec = telemetry_component.time_rec
+        software=telemetry_component.software,
+        tractor=telemetry_component.tractor,
+        component=telemetry_component.component,
+        component_part_id=telemetry_component.component_part_id,
+        time_rec=telemetry_component.time_rec,
+        comp_ser_num=telemetry_component.comp_ser_num,
+        mounting_date=telemetry_component.mounting_date,
+        current_sw_version=telemetry_component.current_sw_version,
+        recommend_sw_version=telemetry_component.recommend_sw_version
     )
     db.add(db_telemetry_component)
     db.commit()
@@ -128,33 +147,22 @@ def delete_telemetry_component(db: Session, id: int):
     db.commit()
     return True
 
-#CRUDs for Software
-def download_software(db: Session, id: int):
-    """
-    Получить информацию о прошивке для скачивания
-    """
-    fw = db.query(models.Software).filter(models.Software.id == id).first()
-    if not fw:
-        return None
-    return fw
-
-
+# CRUD для Software
 def get_software(db: Session):
     stmt = select(models.Software)
     result = db.execute(stmt).scalars().all()
     return result
 
-def get_software_by_terminal(db: Session, id: str):
+def get_software_by_id(db: Session, id: int):
     return db.query(models.Software).filter(models.Software.id == id).first()
 
 def create_software(db: Session, software: schemas.SoftwareSchema):
     db_software = models.Software(
-        id = software.id,
-        path = software.path,
-        name = software.name,
-        inner_name = software.inner_name,
-        release_date = software.release_date,
-        description = software.description
+        path=software.path,
+        name=software.name,
+        inner_name=software.inner_name,
+        release_date=software.release_date,
+        description=software.description
     )
     db.add(db_software)
     db.commit()
@@ -169,90 +177,94 @@ def delete_software(db: Session, id: int):
     db.commit()
     return True
 
-# #CRUDs for ComponentsPart
-def get_componentPart(db: Session):
+# CRUD для ComponentParts
+def get_component_parts(db: Session):
     stmt = select(models.ComponentParts)
     result = db.execute(stmt).scalars().all()
     return result
 
-def get_componentPart_by_terminal(db: Session, id: str):
+def get_component_part_by_id(db: Session, id: int):
     return db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
 
-def create_componentPart(db: Session, part: schemas.ComponentPartSchema):
-        db_part = models.ComponentParts(
-            id = part.id,
-            component = part.component,
-            part_number = part.part_number,
-            part_type = part.part_type,
-            current_sw_version = part.current_sw_version,
-            recommend_sw_version = part.recommend_sw_version,
-            is_major = part.is_major,
-            not_recom_sw = part.not_recom,
-            next_ver = part.next_ver
-        )        
-        db.add(db_part)
-        db.commit()
-        db.refresh(db_part)
-        return db_part
+def create_component_part(db: Session, part: schemas.ComponentPartSchema):
+    db_part = models.ComponentParts(
+        component=part.component,
+        part_number=part.part_number,
+        part_type=part.part_type
+    )
+    db.add(db_part)
+    db.commit()
+    db.refresh(db_part)
+    return db_part
 
-def delete_componentPart(db: Session, id: int):
-    component = db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
-    if component is None:
+def delete_component_part(db: Session, id: int):
+    part = db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
+    if part is None:
         return False
-    db.delete(component)
+    db.delete(part)
     db.commit()
     return True
 
-#CRUDs for Software2ComponentParts
-def get_software_componentParts(db: Session):
+# CRUD для Software2ComponentPart
+def get_software_component_parts(db: Session):
     stmt = select(models.Software2ComponentPart)
     result = db.execute(stmt).scalars().all()
     return result
 
-def get_software_componentsParts_by_terminal(db: Session, id: str):
+def get_software_component_part_by_id(db: Session, id: int):
     return db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == id).first()
 
-def create_software_componentsParts(db: Session, software_components: schemas.SoftwareComponentsSchema):
-
-    db_software_components = models.Software2ComponentPart(
-        id = software_components.id,
-        component_part_id = software_components.component_part_id,
-        software_id = software_components.software_id,
-        is_major = software_components.is_major,
-        status = software_components.status,
-        date_change = software_components.date_change,
-        not_recom = software_components.not_recom,
-        date_change_record = software_components.date_change_record
-        )
-    db.add(db_software_components)
+def create_software_component_part(db: Session, link: schemas.SoftwareComponentsSchema):
+    db_link = models.Software2ComponentPart(
+        component_part_id=link.component_part_id,
+        software_id=link.software_id,
+        is_major=link.is_major,
+        status=link.status,
+        date_change_major=link.date_change_major,
+        not_recom=link.not_recom,
+        date_change_record=link.date_change_record,
+        previous_sw_version=link.previous_sw_version
+    )
+    db.add(db_link)
     db.commit()
-    db.refresh(db_software_components)
-    return db_software_components
+    db.refresh(db_link)
+    return db_link
 
-def delete_software_components(db: Session, id: int):
-    db.delete(db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == id).first())
+def delete_software_component_part(db: Session, id: int):
+    link = db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == id).first()
+    if link is None:
+        return False
+    db.delete(link)
     db.commit()
-
-
+    return True
 
 #CRUD'ы для страницы 3
-#ПО фильтрам Компоненты
-def get_component_by_filters (db: Session, trac_model: List[str], type_comp: List[str], model_comp: str):
-    query = db.query(models.Software.id, 
-                    models.Software.path.label("download_link"),
-                    models.Software.name.label("producer_version"),
-                    models.Software.inner_name.label("inner_version"),
-                    models.Software.release_date,
-                    models.Software.id.label("id_Firmwares"),
-                    models.Component.type.label("type_component"),
-                    models.Component.model.label("model_component"),
-                    models.Software2ComponentPart.is_major.label("is_maj")
-                        ).select_from(models.Component)
-    query = query.outerjoin(models.Tractors, models.Component.tractor_id == models.Tractors.id)
-    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id) 
-    
+def get_component_by_filters(
+    db: Session,
+    trac_model: List[str],
+    type_comp: List[str],
+    model_comp: List[str]
+):
+    query = (
+        db.query(
+            models.Software.id,
+            models.Software.path.label("download_link"),
+            models.Software.name.label("producer_version"),
+            models.Software.inner_name.label("inner_version"),
+            models.Software.release_date,
+            models.Software.id.label("id_Firmwares"),
+            models.Component.type.label("type_component"),
+            models.Component.model.label("model_component"),
+            models.Software2ComponentPart.is_major.label("is_maj")
+        )
+        .select_from(models.Component)
+        .outerjoin(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
+        .outerjoin(models.Tractors, models.TelemetryComponents.tractor == models.Tractors.id)
+        .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    )
+
     if trac_model:
         query = query.filter(models.Tractors.model.in_(trac_model))
     if type_comp:
@@ -261,7 +273,6 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
         query = query.filter(models.Component.model.in_(model_comp))
 
     query = query.distinct()
-
     results = query.all()
 
     return [
@@ -278,45 +289,40 @@ def get_component_by_filters (db: Session, trac_model: List[str], type_comp: Lis
         for r in results
     ]
 
-#Глобальный поиск компонентов
 def search_components(db: Session, model_comp: str):
-    query = db.query(
-        models.Software.id,
-        models.Software.path.label("download_link"),
-        models.Software.name.label("producer_version"),
-        models.Software.inner_name.label("inner_version"),
-        models.Software.release_date,
-        models.Software.id.label("id_Firmwares"),
-        models.Component.type.label("type_component"),
-        models.Component.model.label("model_component"),
-        models.Software2ComponentPart.is_major.label("is_maj")
-    ).select_from(models.Component)
+    query = (
+        db.query(
+            models.Software.id,
+            models.Software.path.label("download_link"),
+            models.Software.name.label("producer_version"),
+            models.Software.inner_name.label("inner_version"),
+            models.Software.release_date,
+            models.Software.id.label("id_Firmwares"),
+            models.Component.type.label("type_component"),
+            models.Component.model.label("model_component"),
+            models.Software2ComponentPart.is_major.label("is_maj")
+        )
+        .select_from(models.Component)
+        .outerjoin(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
+        .outerjoin(models.Tractors, models.TelemetryComponents.tractor == models.Tractors.id)
+        .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    )
 
-    query = query.outerjoin(models.Tractors, models.Component.tractor_id == models.Tractors.id)
-    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
-
-    #  Глобальный поиск по model_component с поддержкой расширенных wildcards
     if model_comp:
         user_input = model_comp.strip()
         if user_input:
             try:
-                #  Переводим wildcard → regex
                 regex_pattern = schemas.wildcard_to_psql_regex(user_input)
-                
-                #  Проверяем безопасность
                 if not schemas.is_safe_regex(regex_pattern):
                     raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
-                
-                #  Выполняем case-insensitive regex-поиск в PostgreSQL
                 query = query.filter(models.Component.model.op('~*')(regex_pattern))
-                
             except re.error as e:
                 raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
             except Exception as e:
                 raise ValueError(f"Ошибка при поиске: {str(e)}")
-    
+
     query = query.distinct()
     results = query.all()
 
@@ -330,132 +336,110 @@ def search_components(db: Session, model_comp: str):
             "is_maj": r.is_maj,
             "model_component": r.model_component,
             "id_Firmwares": r.id_Firmwares
-        }   
+        }
         for r in results
     ]
-#CRUD'ы для страницы 4
-#ПО фильтрам Трактора
-def get_tractors_by_filters(db: Session, filter:schemas.TractorFilter):
-    query = db.query(models.Tractors.vin,
-                     models.Tractors.model,
-                     models.Tractors.consumer,
-                     models.Tractors.assembly_date,
-                     models.Tractors.region,
-                     models.Tractors.oh_hour,
-                     models.Tractors.last_activity,
-                     models.Software.name,
-                     models.ComponentParts.id.label("componentParts_id"),
-                     models.Component.id.label("component_id"),
-                     models.Component.model.label("comp_model"),
-                     models.ComponentParts.recommend_sw_version,
-                     models.Component.type.label("component_type")
-                     ).select_from(models.Tractors)
-    query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
-    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
 
-    
+# --- CRUD для Tractor Info (страница 4) ---
+
+def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
+    query = (
+        db.query(
+            models.Tractors.vin,
+            models.Tractors.model,
+            models.Tractors.consumer,
+            models.Tractors.assembly_date,
+            models.Tractors.region,
+            models.Tractors.oh_hour,
+            models.Tractors.last_activity,
+            models.Software.name,
+            models.ComponentParts.id.label("componentParts_id"),
+            models.Component.id.label("component_id"),
+            models.Component.model.label("comp_model"),
+            models.ComponentParts.recommend_sw_version,
+            models.Component.type.label("component_type")
+        )
+        .select_from(models.Tractors)
+        .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
+        .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
+        .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    )
+
     if filter.trac_model:
         query = query.filter(models.Tractors.model.in_(filter.trac_model))
     if filter.status:
         query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
-    # if filter.date_assemle:
-    #     query = query.filter(models.Tractors.assembly_date == filter.date_assemle)
+
     if filter.date_assemle:
         try:
-            # Преобразуем строку даты в datetime (начало дня)
-            from datetime import datetime
             filter_date = datetime.strptime(filter.date_assemle, '%Y-%m-%d')
-            
-            # Ищем записи за этот день (от начала до конца дня)
             next_day = filter_date.replace(day=filter_date.day + 1)
-            
             query = query.filter(
                 models.Tractors.assembly_date >= filter_date,
                 models.Tractors.assembly_date < next_day
             )
         except ValueError as e:
             print(f"Ошибка преобразования даты: {e}")
-            # Можно добавить обработку ошибки
 
+    query = query.distinct()
+    results = query.all()
 
-    if filter.dealer:
-            user_input = filter.dealer.strip()
-            if user_input:
-                try:
-                    # 🔁 Переводим wildcard → regex
-                    regex_pattern = schemas.wildcard_to_psql_regex(user_input)
-                    
-                    # 🔐 Проверяем безопасность
-                    if not schemas.is_safe_regex(regex_pattern):
-                        raise ValueError("Слишком сложный или потенциально опасный поисковый запрос")
-                    query = query.filter(models.Tractors.serv_center.op('~*')(regex_pattern))
-                except re.error as e:
-                    raise ValueError(f"Некорректный поисковый шаблон: {str(e)}")
-                except Exception as e:
-                    raise ValueError(f"Ошибка при поиске: {str(e)}")
+    return [
+        {
+            "vin": r.vin,
+            "model": r.model,
+            "consumer": r.consumer,
+            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+            "region": r.region,
+            "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
+            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+            "sw_name": r.name,
+            "componentParts_id": r.componentParts_id,
+            "component_id": r.component_id,
+            "comp_model": r.comp_model,
+            "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
+            "component_type": r.component_type
+        }
+        for r in results
+    ]
 
-            query = query.distinct()
-            results = query.all()
-            return [
-                {
-                    "vin": r.vin,
-                    "model": r.model,
-                    "consumer": r.consumer,
-                    "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
-                    "region": r.region,
-                    "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
-                    "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-                    "sw_name": r.name,
-                    "componentParts_id": r.componentParts_id,
-                    "component_id": r.component_id,
-                    "comp_model": r.comp_model,
-                    "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-                    "component_type": r.component_type
-                }
-                for r in results
-        ]
-     
-#Глобальный поиск ТРАКТОРОВ
 def search_tractors(db: Session, request: str):
-    query = db.query(
-        models.Tractors.vin,
-        models.Tractors.model,
-        models.Tractors.consumer,
-        models.Tractors.assembly_date,
-        models.Tractors.region,
-        models.Tractors.oh_hour,
-        models.Tractors.last_activity,
-        models.Software.name,
-        models.ComponentParts.id.label("componentPart_id"),
-        models.Component.id.label("component_id"),
-        models.Component.model.label("comp_model"),
-        models.ComponentParts.recommend_sw_version,
-        models.Component.type
-    ).select_from(models.Tractors)
-
-    query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
-    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    query = (
+        db.query(
+            models.Tractors.vin,
+            models.Tractors.model,
+            models.Tractors.consumer,
+            models.Tractors.assembly_date,
+            models.Tractors.region,
+            models.Tractors.oh_hour,
+            models.Tractors.last_activity,
+            models.Software.name,
+            models.ComponentParts.id.label("componentPart_id"),
+            models.Component.id.label("component_id"),
+            models.Component.model.label("comp_model"),
+            models.ComponentParts.recommend_sw_version,
+            models.Component.type
+        )
+        .select_from(models.Tractors)
+        .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
+        .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
+        .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+        .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    )
 
     if request:
         q = request.strip()
         if q:
             try:
-                # 🔁 Wildcard → regex
                 regex_pattern = schemas.wildcard_to_psql_regex(q)
-                
-                # 🔐 Безопасность
                 if not schemas.is_safe_regex(regex_pattern):
                     raise ValueError("Слишком сложный поисковый запрос")
-                
                 layout_regex = _similar_chars(regex_pattern)
-                
-                # 🚀 Используем ~* (case-insensitive regex в PostgreSQL)
                 or_conditions = [
                     models.Tractors.vin.op('~*')(layout_regex),
                     models.Tractors.model.op('~*')(layout_regex),
@@ -463,11 +447,9 @@ def search_tractors(db: Session, request: str):
                     models.Component.model.op('~*')(layout_regex),
                 ]
                 query = query.filter(or_(*or_conditions))
-                
             except Exception as e:
-                # Логируем, но не падаем — можно вернуть пустой результат или ошибку
                 raise ValueError(f"Ошибка поиска: {str(e)}")
-   
+
     query = query.distinct()
     results = query.all()
 
@@ -491,87 +473,58 @@ def search_tractors(db: Session, request: str):
     ]
 
 def _similar_chars(regex_pattern: str) -> str:
-    """
-    Преобразует regex для поддержки визуально похожих букв в разных раскладках.
-    Только для действительно похожих символов.
-    """
     similar_chars = {
-        'а': '[аa]',      # a
-        'е': '[еe]',      # e
-        'к': '[кk]',      # k
-        'о': '[оo]',      # o
-        'р': '[рp]',      # p
-        'с': '[сc]',      # c
-        'у': '[уy]',      # y
-        'х': '[хx]',      # x
-        'м': '[мm]',      # m
-        'н': '[нh]',      # h
-        'т': '[тt]',      # t
-        'в': '[вb]',      # b
-        
-        # Английская -> Русская
-        'a': '[aа]',
-        'e': '[eе]',
-        'k': '[kк]',
-        'o': '[oо]',
-        'p': '[pр]',
-        'c': '[cс]',
-        'y': '[yу]',
-        'x': '[xх]',
-        'm': '[mм]',
-        'h': '[hн]',
-        't': '[tт]',
-        'b': '[bв]'
+        'а': '[аa]', 'е': '[еe]', 'к': '[кk]', 'о': '[оo]', 'р': '[рp]',
+        'с': '[сc]', 'у': '[уy]', 'х': '[хx]', 'м': '[мm]', 'н': '[нh]',
+        'т': '[тt]', 'в': '[вb]',
+        'a': '[aа]', 'e': '[eе]', 'k': '[kк]', 'o': '[oо]', 'p': '[pр]',
+        'c': '[cс]', 'y': '[yу]', 'x': '[xх]', 'm': '[mм]', 'h': '[hн]',
+        't': '[tт]', 'b': '[bв]'
     }
-    
+
     result = []
     for char in regex_pattern:
         if char.lower() in similar_chars:
             if char.isupper():
-                # Для заглавных букв создаем варианты в обоих регистрах
                 variants = similar_chars[char.lower()]
                 result.append(f'({variants.upper()}|{variants})')
             else:
                 result.append(similar_chars[char])
         else:
             result.append(char)
-    
-    return ''.join(result)               
-    
+    return ''.join(result)
 
-
-#для страницы с инфе про трактор
 def get_tractor_by_vin(db: Session, vin: str):
-    query = db.query(
-        models.Tractors.vin,
-        models.Tractors.model,
-        models.Tractors.consumer,
-        models.Tractors.assembly_date,
-        models.Tractors.region,
-        models.Tractors.oh_hour,
-        models.Tractors.last_activity,
-        models.Software.name,
-        models.Software.description,
-        models.ComponentParts.id.label("componentPart_id"),
-        models.Component.id.label("component_id"),
-        models.Component.model.label("comp_model"),
-        models.ComponentParts.current_sw_version,
-        models.ComponentParts.recommend_sw_version,
-        models.Component.type,
-        models.Software.description
-    ).select_from(models.Tractors)
-
-    query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
-    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    query = (
+        db.query(
+            models.Tractors.vin,
+            models.Tractors.model,
+            models.Tractors.consumer,
+            models.Tractors.assembly_date,
+            models.Tractors.region,
+            models.Tractors.oh_hour,
+            models.Tractors.last_activity,
+            models.Software.name,
+            models.Software.description,
+            models.ComponentParts.id.label("componentPart_id"),
+            models.Component.id.label("component_id"),
+            models.Component.model.label("comp_model"),
+            models.ComponentParts.current_sw_version,
+            models.ComponentParts.recommend_sw_version,
+            models.Component.type
+        )
+        .select_from(models.Tractors)
+        .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
+        .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
+        .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
+    )
 
     query = query.filter(models.Tractors.vin == vin)
-
     query = query.distinct()
     results = query.all()
 
-    return[
+    return [
         {
             "vin": r.vin,
             "model": r.model,
@@ -587,24 +540,42 @@ def get_tractor_by_vin(db: Session, vin: str):
             "comp_model": r.comp_model,
             "current_sw_version": r.current_sw_version,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.type,
-            "description": r.description
+            "component_type": r.type
         }
         for r in results
     ]
 
+def get_all_components_with_part(db: Session):
+    stmt = (
+        select(
+            models.Component.id,
+            models.Component.model,
+            models.ComponentParts.part_number
+        )
+        .join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .order_by(models.Component.model, models.ComponentParts.part_number)
+    )
 
+    result = db.execute(stmt).all()
+
+    return [
+        {
+            "model(part)": f"{row.model} ({row.part_number})",
+            "model": row.model,
+            "part_number": row.part_number
+        }
+        for row in result
+    ]
 
 def secure_filename(filename: str) -> str:
     filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
     return filename.strip("._")
 
 def save_uploaded_file(file, filename: str) -> str:
-    """Сохраняет файл из FastAPI UploadFile или bytes"""
-    os.makedirs(config.UPLOAD_DIR, exist_ok=True)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     safe_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
-    file_path = os.path.join(config.UPLOAD_DIR, safe_filename)
-    
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+
     with open(file_path, "wb") as f:
         if hasattr(file, 'read'):  # UploadFile
             while chunk := file.file.read(8192):
@@ -613,41 +584,15 @@ def save_uploaded_file(file, filename: str) -> str:
             f.write(file)
     return safe_filename
 
-def get_all_components_with_part(db: Session):
-    stmt = (
-        select(
-            models.Component.id,
-            models.Component.model,      
-            models.ComponentParts.part_number 
-        )
-        .join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .order_by(models.Component.model, models.ComponentParts.part_number)
-    )
-    
-    result = db.execute(stmt).all()
-    
-    # Превращаем в список словарей или объектов
-    return [
-        {
-            "model(part)": f"{row.model} ({row.part_number})",
-            "model": row.model,                             
-            "part_number": row.part_number
-        }
-        for row in result
-    ]
-
 def assign_software_to_components(
     db: Session,
-    file: UploadFile,
+    file,
     software_data: schemas.AssignSoftwareRequest
 ) -> schemas.SoftwareResponse:
-
     saved_filename = None
     try:
-        # 1. Сохраняем файл ПО (один раз!)
         saved_filename = save_uploaded_file(file, file.filename)
-        
-        # 2. Создаём запись ПО
+
         fw = models.Software(
             path=saved_filename,
             name=software_data.name,
@@ -656,37 +601,33 @@ def assign_software_to_components(
             description=software_data.description
         )
         db.add(fw)
-        db.flush()  # получаем fw.id
+        db.flush()
 
-        # 3. Проверяем соответствие длин списков
         n_models = len(software_data.component_models)
         n_parts = len(software_data.part_number)
         if n_models != n_parts:
             raise HTTPException(
-                400, 
+                400,
                 f"Несоответствие: component_models ({n_models}) и part_number ({n_parts}) должны иметь одинаковую длину"
             )
         if n_models == 0:
             raise HTTPException(400, "Должен быть указан хотя бы один компонент")
 
-        # 4. Обрабатываем каждую пару (model, part_number)
         for i in range(n_models):
             comp_model = software_data.component_models[i]
             part_num = software_data.part_number[i]
 
-            # Находим компонент по модели
             component = db.query(models.Component).filter(
                 models.Component.model == comp_model
             ).first()
             if not component:
                 raise HTTPException(404, f"Component model '{comp_model}' not found")
 
-            # Находим или создаём часть
             part = db.query(models.ComponentParts).filter(
                 models.ComponentParts.component == component.id,
                 models.ComponentParts.part_number == part_num
             ).first()
-            
+
             if not part:
                 part = models.ComponentParts(
                     component=component.id,
@@ -698,9 +639,8 @@ def assign_software_to_components(
                     next_ver=""
                 )
                 db.add(part)
-                db.flush()  # получаем part.id
+                db.flush()
 
-            # Создаём связь ПО ↔ часть компонента
             link = models.Software2ComponentPart(
                 component_part_id=part.id,
                 software_id=fw.id,
@@ -710,10 +650,9 @@ def assign_software_to_components(
             )
             db.add(link)
 
-        # 5. Коммитим всё вместе
         db.commit()
         db.refresh(fw)
-        
+
         return schemas.SoftwareResponse(
             id=fw.id,
             name=fw.name,
@@ -722,36 +661,35 @@ def assign_software_to_components(
             description=fw.description,
             download_url=f"/software/download/{fw.id}"
         )
-    
+
     except Exception as e:
         db.rollback()
         if saved_filename:
-            path = os.path.join(config.UPLOAD_DIR, saved_filename)
+            path = os.path.join(UPLOAD_DIR, saved_filename)
             if os.path.exists(path):
                 os.remove(path)
         raise
 
-def get_software_full(db: Session, software_id: int) -> tuple[models.Software, str]:
+def get_software_full(db: Session, software_id: int):
     fw = db.query(models.Software).filter(
         models.Software.id == software_id
     ).first()
-    
+
     if not fw:
         raise HTTPException(404, "Software not found")
-    
-    full_path = os.path.join(config.UPLOAD_DIR, fw.path)
-    
+
+    full_path = os.path.join(UPLOAD_DIR, fw.path)
+
     if not os.path.exists(full_path):
         raise HTTPException(404, f"File '{fw.path}' not found on disk")
-    
+
     return fw, full_path
 
 def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMetadata:
     fw, _ = get_software_full(db, software_id)
-    
     safe_name = re.sub(r'[<>:"/\\|?*]', '_', fw.name) if fw.name else fw.path
     download_name = f"{safe_name}.bin" if fw.name else fw.path
-    
+
     return schemas.SoftwareMetadata(
         id=fw.id,
         name=fw.name,
@@ -772,22 +710,15 @@ def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFil
         exists=True
     )
 
-from sqlalchemy import func
-
 def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None):
-    query = (
-        db.query(models.Component.model)
+    query = db.query(models.Component.model).distinct()
 
-        # .join(models.Component, models.Component.tractor_id == models.Tractors.id)
-        .distinct()
-    )
-    
-    # Условное применение фильтров
     if trac_model:
-        query = query.join(models.Tractors, models.Component.tractor_id == models.Tractors.id)
+        query = query.join(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
+        query = query.join(models.Tractors, models.TelemetryComponents.tractor == models.Tractors.id)
         query = query.filter(models.Tractors.model.in_(trac_model))
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
-    
+
     results = query.all()
     return [r.model for r in results if r.model is not None]
