@@ -18,7 +18,7 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 # Авторизация
-@router.get("/users/", response_model=List[schemas.UserSchema], dependencies=[Depends(require_role("moderator"))])
+@router.get("/users/", response_model=List[schemas.UserSchema])
 def get_users(db: Session = Depends(get_session)):
     try: 
         return CRUDs.get_users(db)
