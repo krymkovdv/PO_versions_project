@@ -271,6 +271,7 @@ class SoftwareFileLocation(BaseModel):
 
 class RequestModel(BaseModel):
     trac_model: List[str] = []
+    type_comp: List[str] = []
 
 class TractorSearchResponse2(BaseModel):
     vin: str
