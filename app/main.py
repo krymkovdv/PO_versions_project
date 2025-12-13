@@ -19,10 +19,11 @@ app = FastAPI(title="Сервис контроля версий")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Адрес вашего фронтенда
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Адрес вашего фронтенда
     allow_credentials=True,
     allow_methods=["*"],  # Разрешить все методы (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],  # Разрешить все заголовки
+    expose_headers=["*"],  # Экспортировать все заголовки
 )
 
 app.include_router(router)

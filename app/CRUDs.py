@@ -350,7 +350,8 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter) -> List[
         models.Component.id.label("component_id"),
         models.Component.model.label("comp_model"),
         models.ComponentParts.recommend_sw_version,
-        models.Component.type.label("component_type")
+        models.Component.type.label("component_type"),
+        models.Software2ComponentPart.is_major.label("is_major")  # ВАЖНО: Добавьте это
     ).select_from(models.Tractors)
     
     query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
@@ -428,78 +429,8 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter) -> List[
             "component_id": r.component_id,
             "comp_model": r.comp_model,
             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.component_type
-        }
-        for r in results
-    ]
-     
-#Глобальный поиск ТРАКТОРОВ
-def search_tractors(db: Session, request: str):
-    query = db.query(
-        models.Tractors.vin,
-        models.Tractors.model,
-        models.Tractors.consumer,
-        models.Tractors.assembly_date,
-        models.Tractors.region,
-        models.Tractors.oh_hour,
-        models.Tractors.last_activity,
-        models.Software.name,
-        models.ComponentParts.id.label("componentPart_id"),
-        models.Component.id.label("component_id"),
-        models.Component.model.label("comp_model"),
-        models.ComponentParts.recommend_sw_version,
-        models.Component.type
-    ).select_from(models.Tractors)
-
-    query = query.outerjoin(models.Component, models.Component.tractor_id == models.Tractors.id)
-    query = query.outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-    query = query.outerjoin(models.Software, models.ComponentParts.current_sw_version == models.Software.id)
-    query = query.outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
-
-    if request:
-        q = request.strip()
-        if q:
-            try:
-                # 🔁 Wildcard → regex
-                regex_pattern = schemas.wildcard_to_psql_regex(q)
-                
-                # 🔐 Безопасность
-                if not schemas.is_safe_regex(regex_pattern):
-                    raise ValueError("Слишком сложный поисковый запрос")
-                
-                layout_regex = _similar_chars(regex_pattern)
-                
-                # 🚀 Используем ~* (case-insensitive regex в PostgreSQL)
-                or_conditions = [
-                    models.Tractors.vin.op('~*')(layout_regex),
-                    models.Tractors.model.op('~*')(layout_regex),
-                    models.Software.name.op('~*')(layout_regex),
-                    models.Component.model.op('~*')(layout_regex),
-                ]
-                query = query.filter(or_(*or_conditions))
-                
-            except Exception as e:
-                # Логируем, но не падаем — можно вернуть пустой результат или ошибку
-                raise ValueError(f"Ошибка поиска: {str(e)}")
-   
-    query = query.distinct()
-    results = query.all()
-
-    return [
-        {
-            "vin": r.vin,
-            "model": r.model,
-            "consumer": r.consumer,
-            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
-            "region": r.region,
-            "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
-            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-            "sw_name": r.name,
-            "componentParts_id": r.componentPart_id,
-            "component_id": r.component_id,
-            "comp_model": r.comp_model,
-            "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.type
+            "component_type": r.component_type,
+            "is_major": r.is_major
         }
         for r in results
     ]
