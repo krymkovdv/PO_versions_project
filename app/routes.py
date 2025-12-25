@@ -130,7 +130,7 @@ def delete_tractor(tractor_id: int, db: Session = Depends(get_session)):
 def get_component(session: Session = Depends(get_session)):
     try:
         logger.info(f"[get_component] запрос успешно выполнен") 
-        return CRUDs.get_component(session)
+        return CRUDs.get_components(session)
     except SQLAlchemyError as e:
         logger.error(f"[get_component] Ошибка SQLAlchemy: {str(e)}",exc_info=True)
         raise HTTPException(
@@ -167,7 +167,7 @@ def delete_component(id: int, db: Session = Depends(get_session)):
 @router.get("/telemetryComponents/", response_model=list[schemas.TelemetryComponentSchema])
 def get_telemetry_components(session: Session = Depends(get_session)): 
     try:
-        return CRUDs.get_telemetry_component(session)
+        return CRUDs.get_telemetry_components(session)
     except SQLAlchemyError as e:
         logger.error(f"[get_telemetryComponent] Ошибка SQLAlchemy: {str(e)}",exc_info=True)
         raise HTTPException(
