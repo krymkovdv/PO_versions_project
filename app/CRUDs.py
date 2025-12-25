@@ -629,11 +629,37 @@ def save_uploaded_file(file, filename: str) -> str:
             f.write(file)
     return safe_filename
 
+def check_file_size(file: UploadFile, max_size: int) -> int:
+    """
+    Читает файл по частям и проверяет, не превышает ли его размер max_size.
+    Возвращает размер файла или вызывает HTTPException.
+    """
+    size = 0
+    chunk_size = 8192  # 8KB за раз
+    original_pos = file.file.tell()
+    file.file.seek(0)
+
+    while True:
+        chunk = file.file.read(chunk_size)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > max_size:
+            file.file.seek(original_pos) 
+            raise HTTPException(
+                status_code=413,
+                detail=f"File size too large: {size + len(chunk)} bytes > {max_size} bytes"
+            )
+
+    file.file.seek(original_pos)  
+    return size
+
 def assign_software_to_components(
     db: Session,
     file,
     software_data: schemas.AssignSoftwareRequest
 ) -> schemas.SoftwareResponse:
+    check_file_size(file, config.MAX_FILE_SIZE)
     saved_filename = None
     try:
         saved_filename = save_uploaded_file(file, file.filename)
@@ -677,21 +703,18 @@ def assign_software_to_components(
                 part = models.ComponentParts(
                     component=component.id,
                     part_number=part_type,
-                    part_type=component.type,
-                    current_sw_version=fw.id,
-                    recommend_sw_version=fw.id,
-                    is_major=software_data.is_major,
-                    next_ver=""
+                    part_type=component.type
                 )
                 db.add(part)
                 db.flush()
 
             link = models.Software2ComponentPart(
                 component_part_id=part.id,
-                software_id=fw.id,
+                software_id=fw.id, 
                 is_major=software_data.is_major,
                 status='s',
-                date_change_major=datetime.utcnow().date(),
+                date_change_major=datetime.utcnow().date() if software_data.is_major else None,
+                previous_sw_version=software_data.previous_sw_version 
             )
             db.add(link)
 
