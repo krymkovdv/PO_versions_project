@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from . import models, schemas, config
-from sqlalchemy import or_, cast, String, select
+from sqlalchemy import or_, cast, String, select, exists
 from fastapi import HTTPException, status, Depends, Form, File, UploadFile
 from datetime import datetime
 from typing import List
@@ -372,19 +372,23 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
+
+    major_update_exists_subq = (
+        db.query(models.Software2ComponentPart.id)
+        .filter(
+            models.Software2ComponentPart.component_part_id == models.ComponentParts.id,
+            models.Software2ComponentPart.software_id != models.TelemetryComponents.current_sw_version,
+            models.Software2ComponentPart.is_major == True,
+            models.Software2ComponentPart.date_change_major.isnot(None)
+        )
+    )
+
     if filter.is_major is not None:
         if filter.is_major:
-            query = query.filter(
-                models.Software2ComponentPart.software_id.isnot(None),
-                models.TelemetryComponents.current_sw_version != models.Software2ComponentPart.software_id
-            )
+                query = query.filter(exists(major_update_exists_subq))
         else:
-            query = query.filter(
-                or_(
-                    models.Software2ComponentPart.software_id.is_(None),
-                    models.TelemetryComponents.current_sw_version == models.Software2ComponentPart.software_id
-                )
-            )
+                query = query.filter(~exists(major_update_exists_subq))
+
     if filter.date_assemle:
         try:
             if isinstance(filter.date_assemle, str):
