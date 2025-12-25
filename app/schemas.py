@@ -256,6 +256,7 @@ class AssignSoftwareRequest(BaseModel):
     description: Optional[str] = None
     component_models: List[str] = Field(..., min_items=1)
     part_type: List[str] = Field(..., min_items=1)
+    previous_sw_version: Optional[int] = None
 
 class SoftwareMetadata(BaseModel):
     id: int
