@@ -374,14 +374,19 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         query = query.filter(models.Tractors.consumer == filter.dealer)
 
     major_update_exists_subq = (
-        db.query(models.Software2ComponentPart.id)
-        .filter(
-            models.Software2ComponentPart.component_part_id == models.ComponentParts.id,
-            models.Software2ComponentPart.software_id != models.TelemetryComponents.current_sw_version,
-            models.Software2ComponentPart.is_major == True,
-            models.Software2ComponentPart.date_change_major.isnot(None)
-        )
+    select(1) 
+    .where(
+        models.Software2ComponentPart.component_part_id == models.ComponentParts.id,
+        models.Software2ComponentPart.software_id != models.TelemetryComponents.current_sw_version,
+        models.Software2ComponentPart.is_major == True,
+        models.Software2ComponentPart.date_change_major.isnot(None)
     )
+    .correlate(
+        models.ComponentParts,
+        models.TelemetryComponents
+    )
+)
+
 
     if filter.is_major is not None:
         if filter.is_major:
