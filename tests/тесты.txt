@@ -1,0 +1,17 @@
+https://chat.qwen.ai/c/14f83553-59a8-4737-8153-522e5cc82f76
+
+
+pytest
+pytest-mock
+fastapi
+requests
+locust
+
+Для модульных/интеграционных тестов: используйте pytest + TestClient.
+Для нагрузки: Locust или k6.
+Для API: pytest + requests или Postman/Newman.
+Для безопасности: bandit, safety, ZAP.
+Для CI/CD: GitHub Actions.
+Для производительности: pytest-benchmark, wrk, ab.
+
+Как-то так
