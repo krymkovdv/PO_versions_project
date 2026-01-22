@@ -23,11 +23,13 @@ def get_users(db: Session):
     result = db.execute(stmt).scalars().all()
     return result
 
+from sqlalchemy.exc import IntegrityError
+
 def create_user(db: Session, user: schemas.UserCreate):
-    # Проверка на дубликат username
     existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
     if existing:
         raise HTTPException(status_code=409, detail="User already exists")
+
     user_in = models.UserDB(
         username=user.username,
         password_hash=get_password_hash(user.password),
@@ -40,7 +42,8 @@ def create_user(db: Session, user: schemas.UserCreate):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="User already exists")
-    return {"username": user_in.username, "role": user_in.role}
+
+    return {"username": user_in.username, "role": user_in.role}  
 
 def delete_users(db: Session, id: int):
     user = db.query(models.UserDB).filter(models.UserDB.id == id).first()
