@@ -60,7 +60,7 @@ def get_tractors(db: Session):
     result = db.execute(stmt).scalars().all()
     return result
 
-def create_tractor(db: Session, tractor: schemas.TractorsSchema):
+def create_tractor(db: Session, tractor: schemas.TractorsSchema, dependenies):
     db_tractor = models.Tractors(
         model=tractor.model,
         vin=tractor.vin,
