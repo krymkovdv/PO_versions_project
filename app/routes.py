@@ -47,7 +47,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     logger.info(f"[login] Успешный вход username={form_data.username}{require_role}")
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/users/", status_code=201)
+@router.post("/users/", status_code=201,dependencies=[Depends(require_role("moderator"))])
 def post_user(user: schemas.UserCreate, db: Session = Depends(get_session)):
     existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
     if existing:
@@ -63,7 +63,7 @@ def post_user(user: schemas.UserCreate, db: Session = Depends(get_session)):
     db.refresh(user_in)
     return {"username": user_in.username, "role": user_in.role}
 
-@router.delete("/users/")
+@router.delete("/users/",dependencies=[Depends(require_role("moderator"))])
 def delete_user(id: int, db: Session = Depends(get_session)):
     if CRUDs.delete_users(db, id):
         logger.info(f"[delete_users] выполнена успешно")
@@ -93,7 +93,7 @@ def get_tractors(db: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/tractors/", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/tractors/", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_tractor(tractor: schemas.TractorsSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат vin (если нужно)
     existing = db.query(models.Tractors).filter(models.Tractors.vin == tractor.vin).first()
@@ -117,7 +117,7 @@ def create_tractor(tractor: schemas.TractorsSchema, db: Session = Depends(get_se
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/tractors/{tractor_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/tractors/{tractor_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_tractor(tractor_id: int, db: Session = Depends(get_session)):
     try:
         success = CRUDs.delete_tractor(db, tractor_id)
@@ -151,7 +151,7 @@ def get_component(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/component/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/component/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_component(component: schemas.ComponentSchema, db: Session = Depends(get_session)):
     try:
     # Проверка на дубликат terminal_id
@@ -162,7 +162,7 @@ def create_component(component: schemas.ComponentSchema, db: Session = Depends(g
         logger.error(f"[create_component] ошибка: {str(e)}",exc_info=True)
 
 
-@router.delete("/component/{row_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/component/{row_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_component(id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_component(db, id)
     if not success:
@@ -188,7 +188,7 @@ def get_telemetry_components(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/telemetry-components/", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/telemetry-components/", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат comp_ser_num
     if telemetry_component.comp_ser_num:
@@ -211,7 +211,7 @@ def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSc
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/telemetry-components/{telemetry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/telemetry-components/{telemetry_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_telemetry_component(telemetry_id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_telemetry_component(db, telemetry_id)
     if not success:
@@ -236,7 +236,7 @@ def get_software(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/software/", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/software/", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат name или path
     existing = db.query(models.Software).filter(
@@ -261,7 +261,7 @@ def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/software/{software_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/software/{software_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_software(software_id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_software(db, software_id)
     if not success:
@@ -288,7 +288,7 @@ def get_components_parts(session: Session = Depends(get_session)):
         )
     
 # app/routes.py
-@router.post("/component-parts/", response_model=schemas.ComponentPartSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/component-parts/", response_model=schemas.ComponentPartSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_component_parts(part: schemas.ComponentPartSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат part_type + component (если нужно)
     existing = db.query(models.ComponentParts).filter(
@@ -313,7 +313,7 @@ def create_component_parts(part: schemas.ComponentPartSchema, db: Session = Depe
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/component-parts/{part_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/component-parts/{part_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_component_part(part_id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_component_part(db, part_id)
     if not success:
@@ -338,7 +338,7 @@ def get_software_component_links(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/software-component-links/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/software-component-links/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_software_component_link(link: schemas.SoftwareComponentsSchema, db: Session = Depends(get_session)):
     # Проверка на дубликат связки component_part_id + software_id
     existing = db.query(models.Software2ComponentPart).filter(
@@ -364,7 +364,7 @@ def create_software_component_link(link: schemas.SoftwareComponentsSchema, db: S
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/software-component-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/software-component-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_software_component_link(link_id: int, db: Session = Depends(get_session)):
     success = CRUDs.delete_software_component_part(db, link_id)
     if not success:
