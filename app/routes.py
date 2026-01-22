@@ -440,6 +440,7 @@ def assign_software_to_components_route(
     description: Optional[str] = Form(None),
     component_models: List[str] = Form(...),
     part_type: List[str] = Form(...),
+    previous_sw_version: List[str] = Form(...),
     db: Session = Depends(get_session)
 ):
     rd = None
@@ -456,7 +457,8 @@ def assign_software_to_components_route(
         release_date=rd,
         description=description,
         component_models=component_models,
-        part_type=part_type
+        part_type=part_type,
+        previous_sw_version=previous_sw_version
     )
 
     try:
