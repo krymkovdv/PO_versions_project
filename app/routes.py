@@ -498,7 +498,7 @@ def assign_software_to_components_route(
     description: Optional[str] = Form(None),
     component_models: List[str] = Form(...),
     part_type: List[str] = Form(...),
-    previous_sw_version: List[str] = Form(...),
+    previous_sw_version_str: Optional[str] = Form(None),
     db: Session = Depends(get_session)
 ):
     rd = None
@@ -509,6 +509,13 @@ def assign_software_to_components_route(
             logger.error(f"[software/assign] неверный формат даты: {release_date} user=anonymous role=anonymous")
             raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
 
+    prev_sw_ver_int: Optional[int] = None
+    if previous_sw_version_str is not None and previous_sw_version_str.strip() != "":
+        try:
+            prev_sw_ver_int = int(previous_sw_version_str)
+        except ValueError:
+            raise HTTPException(400, f"previous_sw_version '{previous_sw_version_str}' is not a valid integer")
+
     software_data = schemas.AssignSoftwareRequest(
         name=name,
         is_major=is_major,
@@ -517,7 +524,7 @@ def assign_software_to_components_route(
         description=description,
         component_models=component_models,
         part_type=part_type,
-        previous_sw_version=previous_sw_version
+        previous_sw_version=prev_sw_ver_int
     )
 
     try:
