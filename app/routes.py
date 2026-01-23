@@ -493,7 +493,7 @@ def assign_software_to_components_route(
     file: UploadFile = File(...),
     name: str = Form(...),
     is_major: bool = Form(...),
-    inner_name: Optional[str] = Form(None),
+    inner_name: str = Form(...),
     release_date: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     component_models: List[str] = Form(...),
