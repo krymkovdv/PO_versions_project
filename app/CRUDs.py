@@ -610,7 +610,7 @@ def get_all_components_with_part(db: Session):
         {
             "model(part)": f"{row.model} ({row.part_type})",
             "model": row.model,
-            "part_number": row.part_type
+            "part_type": row.part_type
         }
         for row in result
     ]
@@ -682,7 +682,7 @@ def assign_software_to_components(
         if n_models != n_parts:
             raise HTTPException(
                 400,
-                f"Несоответствие: component_models ({n_models}) и part_number ({n_parts}) должны иметь одинаковую длину"
+                f"Несоответствие: component_models ({n_models}) и part_type ({n_parts}) должны иметь одинаковую длину"
             )
         if n_models == 0:
             raise HTTPException(400, "Должен быть указан хотя бы один компонент")
@@ -705,8 +705,8 @@ def assign_software_to_components(
             if not part:
                 part = models.ComponentParts(
                     component=component.id,
-                    part_number=part_type,
-                    part_type=component.type
+                    part_number=i,
+                    part_type=part_type
                 )
                 db.add(part)
                 db.flush()
