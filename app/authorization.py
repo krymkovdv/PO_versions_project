@@ -71,3 +71,18 @@ def require_role(*allowed_roles: str):
             )
         return user
     return role_checker
+
+
+def extract_user_and_role_from_token(token: str) -> tuple[str, str]:
+    try:
+        auth_data = settings.get_auth_data()
+        payload = jwt.decode(
+            token,
+            auth_data['secret_key'],
+            algorithms=[auth_data['algorithm']]
+        )
+        username = payload.get("sub", "anonymous")
+        role = payload.get("role", "anonymous")
+        return username, role
+    except JWTError:
+        return "anonymous", "anonymous"
