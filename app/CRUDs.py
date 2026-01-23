@@ -23,13 +23,11 @@ def get_users(db: Session):
     result = db.execute(stmt).scalars().all()
     return result
 
-from sqlalchemy.exc import IntegrityError
-
 def create_user(db: Session, user: schemas.UserCreate):
+    # Проверка на дубликат username
     existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
     if existing:
         raise HTTPException(status_code=409, detail="User already exists")
-
     user_in = models.UserDB(
         username=user.username,
         password_hash=get_password_hash(user.password),
@@ -42,8 +40,7 @@ def create_user(db: Session, user: schemas.UserCreate):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="User already exists")
-
-    return {"username": user_in.username, "role": user_in.role}  
+    return {"username": user_in.username, "role": user_in.role}
 
 def delete_users(db: Session, id: int):
     user = db.query(models.UserDB).filter(models.UserDB.id == id).first()
@@ -60,7 +57,7 @@ def get_tractors(db: Session):
     result = db.execute(stmt).scalars().all()
     return result
 
-def create_tractor(db: Session, tractor: schemas.TractorsSchema, dependenies):
+def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     db_tractor = models.Tractors(
         model=tractor.model,
         vin=tractor.vin,
@@ -610,7 +607,7 @@ def get_all_components_with_part(db: Session):
         {
             "model(part)": f"{row.model} ({row.part_type})",
             "model": row.model,
-            "part_number": row.part_type
+            "part_type": row.part_type
         }
         for row in result
     ]
@@ -682,7 +679,7 @@ def assign_software_to_components(
         if n_models != n_parts:
             raise HTTPException(
                 400,
-                f"Несоответствие: component_models ({n_models}) и part_number ({n_parts}) должны иметь одинаковую длину"
+                f"Несоответствие: component_models ({n_models}) и part_type ({n_parts}) должны иметь одинаковую длину"
             )
         if n_models == 0:
             raise HTTPException(400, "Должен быть указан хотя бы один компонент")
@@ -705,8 +702,8 @@ def assign_software_to_components(
             if not part:
                 part = models.ComponentParts(
                     component=component.id,
-                    part_number=part_type,
-                    part_type=component.type
+                    part_number=i,
+                    part_type=part_type
                 )
                 db.add(part)
                 db.flush()
