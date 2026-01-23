@@ -159,17 +159,17 @@ def get_component(
         )
 
 @router.post("/component/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
-def create_component(component: schemas.ComponentSchema, db: Session = Depends(get_session)):
+def create_component(component: schemas.ComponentSchema, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     try:
         # Проверка на дубликат terminal_id
         if CRUDs.get_component_by_id(db, component.id):
-            logger.error(f"Компонент с id: {component.id} уже существует user=anonymous role=anonymous")
-            raise HTTPException(status_code=400, detail="Tractor component with this terminal_id already exists")
+            logger.error(f"Компонент с id: {component.id} уже существует user={current_user.username} role={current_user.role}")
+            raise HTTPException(status_code=400, detail="Tractor component with this terminal_id already exists user={current_user.username} role={current_user.role}")
         result = CRUDs.create_component(db, component)
-        logger.info(f"Компонент с id: {component.id} создан user=anonymous role=anonymous")
+        logger.info(f"Компонент с id: {component.id} создан user={current_user.username} role={current_user.role}")
         return result
     except Exception as e:
-        logger.error(f"[create_component] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
+        logger.error(f"[create_component] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -189,7 +189,7 @@ def get_telemetry_components(session: Session = Depends(get_session)):
         logger.info(f"[get_telemetryComponents] запрос выполнен user=anonymous role=anonymous")
         return CRUDs.get_telemetry_components(session)
     except SQLAlchemyError as e:
-        logger.error(f"[get_telemetryComponent] Ошибка SQLAlchemy: {str(e)}",exc_info=True)
+        logger.error(f"[get_telemetryComponents] Ошибка SQLAlchemy: {str(e)} user=anonymous role=anonymous",  exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка базы данных при получении телеметрии: {str(e)}" 
