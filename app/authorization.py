@@ -32,10 +32,14 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(to_encode, auth_data['secret_key'], algorithm=auth_data['algorithm'])
 
 def authenticate_user(db: Session, username: str, password: str):
-    user = db.query(UserDB).filter(UserDB.username == username).first()
-    if not user or not verify_password(password, user.password_hash):
+    try:
+        user = db.query(UserDB).filter(UserDB.username == username).first()
+        if not user or not verify_password(password, user.password_hash):
+            return False
+        return user
+    except Exception:
+        logger.error(f"[authenticate_user] Ошибка при аутентификации: ", exc_info=True)
         return False
-    return user
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_session)):
     credentials_exception = HTTPException(

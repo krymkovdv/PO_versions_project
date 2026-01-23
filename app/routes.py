@@ -97,24 +97,31 @@ def get_tractors(db: Session = Depends(get_session), current_user: UserDB = Depe
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/tractors/", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("moderator"))])
+@router.post("/tractors/", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_tractor(tractor: schemas.TractorsSchema, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
-    # Проверка на дубликат terminal_id
-    if CRUDs.get_tractor_by_terminal(db, tractor.id):
-        logger.error(f"Трактор с id: {tractor.id} уже есть user={current_user.username} role={current_user.role}")
-        raise HTTPException(status_code=400, detail="Tractor with this terminal_id already exists")
+    # Проверка на дубликат vin (если нужно)
+    existing = db.query(models.Tractors).filter(models.Tractors.vin == tractor.vin).first()
+    if existing:
+        logger.error(f"Трактор с vin: {tractor.vin} уже есть user={current_user.username} role={current_user.role}")
+        raise HTTPException(status_code=400, detail="Tractor with this VIN already exists")
     try:
         created_tractor = CRUDs.create_tractor(db, tractor)
-        logger.info(f"Трактор с id: {tractor.id} создан user={current_user.username} role={current_user.role}")
+        logger.info(f"Трактор с vin: {tractor.vin} создан user={current_user.username} role={current_user.role}")
         return created_tractor
+    except SQLAlchemyError as e:
+        logger.error(f"[create_tractor] ошибка SQLAlchemy: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при создании трактора: {str(e)}"
+        )
     except Exception as e:
-        logger.error(f"[create_tractor] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        logger.error(f"[create_tractor] неизвестная ошибка: {str(e)} user={current_user.username} role={current_user.role}",  exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/tractors/{tractor_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("moderator"))])
+@router.delete("/tractors/{tractor_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_tractor(tractor_id: int, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     try:
         success = CRUDs.delete_tractor(db, tractor_id)
@@ -151,7 +158,7 @@ def get_component(
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/component/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/component/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_component(component: schemas.ComponentSchema, db: Session = Depends(get_session)):
     try:
         # Проверка на дубликат terminal_id
@@ -166,7 +173,7 @@ def create_component(component: schemas.ComponentSchema, db: Session = Depends(g
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/component/{row_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("moderator"))])
+@router.delete("/component/{row_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_component(id: int, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     success = CRUDs.delete_component(db, id)
     if not success:
@@ -176,25 +183,25 @@ def delete_component(id: int, db: Session = Depends(get_session), current_user: 
 
 
 # Routes for Telemetry components
-@router.get("/telemetryComponents/", response_model=list[schemas.TelemetryComponentSchema])
-def get_telemetry_components(session: Session = Depends(get_session)): 
+@router.get("/telemetry-components/", response_model=list[schemas.TelemetryComponentSchema])
+def get_telemetry_components(session: Session = Depends(get_session)):
     try:
         logger.info(f"[get_telemetryComponents] запрос выполнен user=anonymous role=anonymous")
         return CRUDs.get_telemetry_components(session)
     except SQLAlchemyError as e:
-        logger.error(f"[get_telemetryComponent] Ошибка SQLAlchemy: {str(e)} user=anonymous role=anonymous", exc_info=True)
+        logger.error(f"[get_telemetryComponent] Ошибка SQLAlchemy: {str(e)}",exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка базы данных при получении компонентов: {str(e)}"
+            detail=f"Ошибка базы данных при получении телеметрии: {str(e)}" 
         )
     except Exception as e:
-        logger.error(f"[get_telemetryComponents] неизвестная ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
+        logger.error(f"[get_telemetryComponents] неизвестная ошибка: {str(e)} user=anonymous role=anonymous",  exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/telemetry-components/", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("moderator"))])
+@router.post("/telemetry-components/", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSchema, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     # Проверка на дубликат comp_ser_num
     if telemetry_component.comp_ser_num:
@@ -219,7 +226,7 @@ def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSc
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/telemetry-components/{telemetry_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("moderator"))])
+@router.delete("/telemetry-components/{telemetry_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_telemetry_component(telemetry_id: int, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     success = CRUDs.delete_telemetry_component(db, telemetry_id)
     if not success:
@@ -249,7 +256,7 @@ def get_software(
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/software/", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("moderator"))])
+@router.post("/software/", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     # Проверка на дубликат name или path
     existing = db.query(models.Software).filter(
@@ -275,7 +282,7 @@ def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/software/{software_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("moderator"))])
+@router.delete("/software/{software_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_software(software_id: int, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     success = CRUDs.delete_software(db, software_id)
     if not success:
@@ -302,34 +309,35 @@ def get_components_parts(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/component-parts/", response_model=schemas.ComponentPartSchema, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("moderator"))])
+# app/routes.py
+@router.post("/component-parts/", response_model=schemas.ComponentPartSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_component_parts(part: schemas.ComponentPartSchema, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
-    # Проверка на дубликат part_number + component (если нужно)
+    # Проверка на дубликат part_type + component (если нужно)
     existing = db.query(models.ComponentParts).filter(
         models.ComponentParts.component == part.component,
-        models.ComponentParts.part_number == part.part_number
+        models.ComponentParts.part_type == part.part_type  # <--- part_type
     ).first()
     if existing:
         logger.error(f"Часть компонента уже существует: {part.component}/{part.part_number} user={current_user.username} role={current_user.role}")
-        raise HTTPException(status_code=400, detail="Component part with this number already exists for this component")
+        raise HTTPException(status_code=400, detail="Component part with this type already exists for this component")
     try:
         result = CRUDs.create_component_part(db, part)
         logger.info(f"[post_component-parts] успешно выполнена user={current_user.username} role={current_user.role}")
         return result
     except SQLAlchemyError as e:
-        logger.error(f"[post_component-parts] ошибка SQLAlchemy: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        logger.error(f"[post_component-parts] ошибка SQLAlchemy: {str(e)} user={current_user.username} role={current_user.role}",  exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка базы данных при создании части компонента: {str(e)}"
         )
     except Exception as e:
-        logger.error(f"[post_component-parts] неизвестная ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        logger.error(f"[post_component-parts] неизвестная ошибка: {str(e)} user={current_user.username} role={current_user.role}",  exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/component-parts/{part_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("moderator"))])
+@router.delete("/component-parts/{part_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_component_part(part_id: int, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     success = CRUDs.delete_component_part(db, part_id)
     if not success:
@@ -356,7 +364,7 @@ def get_software_component_links(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/software-component-links/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role("moderator"))])
+@router.post("/software-component-links/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_software_component_link(link: schemas.SoftwareComponentsSchema, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     # Проверка на дубликат связки component_part_id + software_id
     existing = db.query(models.Software2ComponentPart).filter(
@@ -371,19 +379,19 @@ def create_software_component_link(link: schemas.SoftwareComponentsSchema, db: S
         logger.info(f"[post_software-component-links] успешно выполнена user={current_user.username} role={current_user.role}")
         return result
     except SQLAlchemyError as e:
-        logger.error(f"[post_software-component-links] ошибка SQLAlchemy: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        logger.error(f"[post_software-component-links] ошибка SQLAlchemy: {str(e)} user={current_user.username} role={current_user.role}",  exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка базы данных при создании связи ПО и части: {str(e)}"
         )
     except Exception as e:
-        logger.error(f"[post_software-component-links] неизвестная ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        logger.error(f"[post_software-component-links] неизвестная ошибка: {str(e)} user={current_user.username} role={current_user.role}",  exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/software-component-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("moderator"))])
+@router.delete("/software-component-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_software_component_link(link_id: int, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
     success = CRUDs.delete_software_component_part(db, link_id)
     if not success:
@@ -490,6 +498,7 @@ def assign_software_to_components_route(
     description: Optional[str] = Form(None),
     component_models: List[str] = Form(...),
     part_type: List[str] = Form(...),
+    previous_sw_version: List[str] = Form(...),
     db: Session = Depends(get_session)
 ):
     rd = None
@@ -507,7 +516,8 @@ def assign_software_to_components_route(
         release_date=rd,
         description=description,
         component_models=component_models,
-        part_type=part_type
+        part_type=part_type,
+        previous_sw_version=previous_sw_version
     )
 
     try:
