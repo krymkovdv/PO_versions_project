@@ -702,7 +702,6 @@ def assign_software_to_components(
             if not part:
                 part = models.ComponentParts(
                     component=component.id,
-                    part_number=i,
                     part_type=part_type
                 )
                 db.add(part)
