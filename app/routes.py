@@ -488,6 +488,7 @@ def get_search_tractors_vin(
     "/software/assign",
     response_model=schemas.SoftwareResponse,
     status_code=201,
+    
 )
 def assign_software_to_components_route(
     file: UploadFile = File(...),
@@ -499,14 +500,15 @@ def assign_software_to_components_route(
     component_models: List[str] = Form(...),
     part_type: List[str] = Form(...),
     previous_sw_version_str: Optional[str] = Form(None),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_session),
+    current_user: UserDB = Depends(get_current_user)
 ):
     rd = None
     if release_date:
         try:
             rd = date.fromisoformat(release_date)
         except ValueError:
-            logger.error(f"[software/assign] неверный формат даты: {release_date} user=anonymous role=anonymous")
+            logger.error(f"[software/assign] неверный формат даты: {release_date} user={current_user.username} role={current_user.role}")
             raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
 
     prev_sw_ver_int: Optional[int] = None
@@ -514,7 +516,7 @@ def assign_software_to_components_route(
         try:
             prev_sw_ver_int = int(previous_sw_version_str)
         except ValueError:
-            raise HTTPException(400, f"previous_sw_version '{previous_sw_version_str}' is not a valid integer")
+            raise HTTPException(400, f"previous_sw_version '{previous_sw_version_str}' is not a valid integer user={current_user.username} role={current_user.role}")
 
     software_data = schemas.AssignSoftwareRequest(
         name=name,
@@ -528,12 +530,12 @@ def assign_software_to_components_route(
     )
 
     try:
-        logger.info(f"[software/assign] имя={name}, is_major={is_major} user=anonymous role=anonymous")
+        logger.info(f"[software/assign] имя={name}, is_major={is_major} user={current_user.username} role={current_user.role}")
         return CRUDs.assign_software_to_components(db, file=file, software_data=software_data)
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[software/assign] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
+        logger.error(f"[software/assign] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении ПО: {str(e)}")
 
 @router.get("/software/download/{id}", response_class=FileResponse)
