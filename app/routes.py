@@ -482,6 +482,9 @@ def get_search_tractors_vin(
     except Exception as e:
         logger.error(f"[search-tractor-vin] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+
 
 # --- Загрузка и скачивание ПО ---
 @router.post(
