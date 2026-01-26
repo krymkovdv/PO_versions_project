@@ -373,19 +373,31 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
 
+    latest_major_sw_subq = (
+        select(
+            models.Software2ComponentPart.software_id
+        )
+        .where(
+            models.Software2ComponentPart.component_part_id == models.ComponentParts.id,
+            models.Software2ComponentPart.is_major == True,
+            models.Software2ComponentPart.date_change_major.isnot(None)
+        )
+        .order_by(models.Software2ComponentPart.date_change_major.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
     major_update_exists_subq = (
-    select(1) 
-    .where(
-        models.Software2ComponentPart.component_part_id == models.ComponentParts.id,
-        models.Software2ComponentPart.software_id != models.TelemetryComponents.current_sw_version,
-        models.Software2ComponentPart.is_major == True,
-        models.Software2ComponentPart.date_change_major.isnot(None)
+        select(1)
+        .where(
+            latest_major_sw_subq != models.TelemetryComponents.current_sw_version
+        )
+        .correlate(
+            models.ComponentParts,
+            models.TelemetryComponents
+        )
     )
-    .correlate(
-        models.ComponentParts,
-        models.TelemetryComponents
-    )
-)
 
 
     if filter.is_major is not None:
