@@ -165,6 +165,7 @@ class TractorFilter(BaseModel):
     date_assemle: Optional[date] = None
     date_start: Optional[date] = None
     date_end: Optional[date] = None
+    query: Optional[str] = None
     
     @field_validator('date_start', 'date_end')
     @classmethod

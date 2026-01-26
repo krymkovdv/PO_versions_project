@@ -386,6 +386,23 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         models.TelemetryComponents
     )
 )
+    if filter.query:
+        q = filter.query.strip()
+        if q:
+            try:
+                regex_pattern = schemas.wildcard_to_psql_regex(q)
+                if not schemas.is_safe_regex(regex_pattern):
+                    raise ValueError("Слишком сложный поисковый запрос")
+                layout_regex = _similar_chars(regex_pattern)
+                or_conditions = [
+                    models.Tractors.vin.op('~*')(layout_regex),
+                    models.Tractors.model.op('~*')(layout_regex),
+                    models.Software.name.op('~*')(layout_regex),
+                    models.Component.model.op('~*')(layout_regex),
+                ]
+                query = query.filter(or_(*or_conditions))
+            except Exception as e:
+                raise ValueError(f"Ошибка поиска: {str(e)}")
 
 
     if filter.is_major is not None:
