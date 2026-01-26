@@ -373,19 +373,48 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
 
+    latest_major_sw_subq = (
+        select(
+            models.Software2ComponentPart.software_id
+        )
+        .where(
+            models.Software2ComponentPart.component_part_id == models.ComponentParts.id,
+            models.Software2ComponentPart.is_major == True,
+            models.Software2ComponentPart.date_change_major.isnot(None)
+        )
+        .order_by(models.Software2ComponentPart.date_change_major.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
     major_update_exists_subq = (
-    select(1) 
-    .where(
-        models.Software2ComponentPart.component_part_id == models.ComponentParts.id,
-        models.Software2ComponentPart.software_id != models.TelemetryComponents.current_sw_version,
-        models.Software2ComponentPart.is_major == True,
-        models.Software2ComponentPart.date_change_major.isnot(None)
+        select(1)
+        .where(
+            latest_major_sw_subq != models.TelemetryComponents.current_sw_version
+        )
+        .correlate(
+            models.ComponentParts,
+            models.TelemetryComponents
+        )
     )
-    .correlate(
-        models.ComponentParts,
-        models.TelemetryComponents
-    )
-)
+    if filter.query:
+        q = filter.query.strip()
+        if q:
+            try:
+                regex_pattern = schemas.wildcard_to_psql_regex(q)
+                if not schemas.is_safe_regex(regex_pattern):
+                    raise ValueError("Слишком сложный поисковый запрос")
+                layout_regex = _similar_chars(regex_pattern)
+                or_conditions = [
+                    models.Tractors.vin.op('~*')(layout_regex),
+                    models.Tractors.model.op('~*')(layout_regex),
+                    models.Software.name.op('~*')(layout_regex),
+                    models.Component.model.op('~*')(layout_regex),
+                ]
+                query = query.filter(or_(*or_conditions))
+            except Exception as e:
+                raise ValueError(f"Ошибка поиска: {str(e)}")
 
 
     if filter.is_major is not None:
@@ -702,7 +731,6 @@ def assign_software_to_components(
             if not part:
                 part = models.ComponentParts(
                     component=component.id,
-                    part_number=i,
                     part_type=part_type
                 )
                 db.add(part)
