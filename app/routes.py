@@ -624,3 +624,17 @@ def get_component_with_part(db: Session = Depends(get_session)):
     except Exception as e:
         logger.error(f"[component-parts/all] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+@router.get("/get-po-by-vin/{id}/metadata", response_model=schemas.SoftwareSchema)
+def get_tractor_by_id(id: int, db: Session = Depends(get_session), current_user: UserDB = Depends(get_current_user)):
+    try:
+        result = CRUDs.get_tractor_by_id(db, id)
+        logger.info(f"[get-po-by-vin] успешно выполнена id={id} user={current_user.username} role={current_user.role}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/metadata] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
