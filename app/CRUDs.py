@@ -556,6 +556,11 @@ def _similar_chars(regex_pattern: str) -> str:
     return ''.join(result)
 
 def get_tractor_by_vin(db: Session, vin: str):
+    
+    tractor = db.query(models.Tractors).filter(models.Tractors.vin == vin).first()
+    
+    if not tractor:
+      return []
     query = (
         db.query(
             models.Tractors.vin,
@@ -567,7 +572,6 @@ def get_tractor_by_vin(db: Session, vin: str):
             models.Tractors.last_activity,
             models.Software.name,
             models.Software.description,
-            models.ComponentParts.id.label("componentPart_id"),
             models.Component.id.label("component_id"),
             models.Component.model.label("comp_model"),
             models.TelemetryComponents.current_sw_version,
@@ -575,36 +579,52 @@ def get_tractor_by_vin(db: Session, vin: str):
             models.Component.type
         )
         .select_from(models.Tractors)
-        .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
-        .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
-        .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .join(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
+        .join(models.Component, models.TelemetryComponents.component == models.Component.id)
         .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id) 
+        .filter(models.Tractors.vin == vin)
     )
 
-    query = query.filter(models.Tractors.vin == vin)
-    query = query.distinct()
     results = query.all()
 
-    return [
-        {
-            "vin": r.vin,
-            "model": r.model,
-            "consumer": r.consumer,
-            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
-            "region": r.region,
-            "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
-            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-            "sw_name": r.name,
-            "description": r.description,
-            "componentParts_id": r.componentPart_id,
-            "component_id": r.component_id,
-            "comp_model": r.comp_model,
-            "current_sw_version": r.current_sw_version,
-            "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.type
-        }
-        for r in results
-    ]
+    if results:
+        return [
+            {
+                "vin": r.vin,
+                "model": r.model,
+                "consumer": r.consumer,
+                "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+                "region": r.region,
+                "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
+                "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+                "sw_name": r.name,
+                "description": r.description,
+                "component_id": r.component_id,
+                "comp_model": r.comp_model,
+                "current_sw_version": r.current_sw_version,
+                "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
+                "component_type": r.type
+            }
+            for r in results
+        ]
+    else:
+        # Если нет компонентов, возвращаем только информацию о тракторе
+        return [{
+            "vin": tractor.vin,
+            "model": tractor.model,
+            "consumer": tractor.consumer,
+            "assembly_date": tractor.assembly_date.isoformat() if tractor.assembly_date else None,
+            "region": tractor.region,
+            "oh_hour": str(tractor.oh_hour) if tractor.oh_hour is not None else "",
+            "last_activity": tractor.last_activity.isoformat() if tractor.last_activity else None,
+            "sw_name": None,
+            "description": None,
+            "component_id": None,
+            "comp_model": None,
+            "current_sw_version": None,
+            "recommend_sw_version": None,
+            "component_type": None
+        }]
 
 def get_all_components_with_part(db: Session):
     stmt = (
