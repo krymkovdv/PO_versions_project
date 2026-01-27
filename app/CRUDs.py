@@ -354,15 +354,15 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
             models.Component.id.label("component_id"),
             models.Component.model.label("comp_model"),
             models.TelemetryComponents.recommend_sw_version,
-            models.TelemetryComponents.current_sw_version, 
+            models.TelemetryComponents.current_sw_version,
             models.Software.description,
             models.Component.type
         )
         .select_from(models.Tractors)
-        .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
-        .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
-        .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id) 
+        .join(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
+        .join(models.Component, models.TelemetryComponents.component == models.Component.id)
+        .join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id)
         .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
     )
 
@@ -373,12 +373,13 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     if filter.dealer:
         query = query.filter(models.Tractors.consumer == filter.dealer)
 
+    # ✅ Подзапрос для получения последнего major ПО для конкретной детали компонента
     latest_major_sw_subq = (
         select(
             models.Software2ComponentPart.software_id
         )
         .where(
-            models.Software2ComponentPart.component_part_id == models.ComponentParts.id,
+            models.Software2ComponentPart.component_part_id == models.ComponentParts.id,  # ✅ Связываем с деталью компонента
             models.Software2ComponentPart.is_major == True,
             models.Software2ComponentPart.date_change_major.isnot(None)
         )
@@ -387,17 +388,23 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         .scalar_subquery()
     )
 
-
+    # ✅ Подзапрос для проверки, есть ли major обновление
     major_update_exists_subq = (
         select(1)
         .where(
-            latest_major_sw_subq != models.TelemetryComponents.current_sw_version
+            latest_major_sw_subq.isnot(None),  # ✅ Проверка, что новое major ПО существует
+            latest_major_sw_subq != models.TelemetryComponents.current_sw_version  # ✅ Сравнение с текущим ПО для этого трактора/компонента
         )
-        .correlate(
-            models.ComponentParts,
-            models.TelemetryComponents
-        )
+        # ❌ correlate не нужен
     )
+
+    # ✅ Применяем фильтр is_major
+    if filter.is_major is not None:
+        if filter.is_major:
+            query = query.filter(exists(major_update_exists_subq))
+        else:
+            query = query.filter(~exists(major_update_exists_subq))
+
     if filter.query:
         q = filter.query.strip()
         if q:
@@ -416,19 +423,12 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
             except Exception as e:
                 raise ValueError(f"Ошибка поиска: {str(e)}")
 
-
-    if filter.is_major is not None:
-        if filter.is_major:
-                query = query.filter(exists(major_update_exists_subq))
-        else:
-                query = query.filter(~exists(major_update_exists_subq))
-
     if filter.date_assemle:
         try:
             if isinstance(filter.date_assemle, str):
                 filter_date = datetime.strptime(filter.date_assemle, '%Y-%m-%d').date()
             else:
-                filter_date = filter.date_assemle 
+                filter_date = filter.date_assemle
             next_day = filter_date + timedelta(days=1)
 
             query = query.filter(
@@ -440,7 +440,7 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
 
     elif filter.date_start or filter.date_end:
         if filter.date_start and not filter.date_end:
-            query = query.filter(models.Tractors.assembly_date >= filter.date_start)  
+            query = query.filter(models.Tractors.assembly_date >= filter.date_start)
             print(f"Фильтрация по дате ОТ: {filter.date_start}")
 
         elif filter.date_end and not filter.date_start:
