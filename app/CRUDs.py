@@ -397,8 +397,12 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     if filter.status:
         query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
     if filter.dealer:
-        query = query.filter(models.Tractors.consumer == filter.dealer)
-        
+        dealer_pattern = schemas.wildcard_to_psql_regex(filter.dealer)
+        if not schemas.is_safe_regex(dealer_pattern):
+            raise ValueError("Слишком сложный поисковый запрос для дилера")
+        layout_regex = _similar_chars(dealer_pattern)
+        query = query.filter(models.Tractors.consumer.op('~*')(layout_regex))
+
     if filter.query:
         q = filter.query.strip()
         if q:
