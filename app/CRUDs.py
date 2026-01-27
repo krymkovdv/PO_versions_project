@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from . import models, schemas, config
-from sqlalchemy import or_, cast, String, select, exists
+from sqlalchemy import or_, cast, String, select, exists, and_
 from fastapi import HTTPException, status, Depends, Form, File, UploadFile
 from datetime import datetime
 from typing import List
@@ -340,70 +340,57 @@ def search_components(db: Session, model_comp: str):
 # --- CRUD для Tractor Info (страница 4) ---
 
 def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
-    query = (
-        db.query(
-            models.Tractors.vin,
-            models.Tractors.model,
-            models.Tractors.consumer,
-            models.Tractors.assembly_date,
-            models.Tractors.region,
-            models.Tractors.oh_hour,
-            models.Tractors.last_activity,
-            models.Software.name,
-            models.ComponentParts.id.label("componentPart_id"),
-            models.Component.id.label("component_id"),
-            models.Component.model.label("comp_model"),
-            models.TelemetryComponents.recommend_sw_version,
-            models.TelemetryComponents.current_sw_version,
-            models.Software.description,
-            models.Component.type
-        )
-        .select_from(models.Tractors)
-        .join(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
-        .join(models.Component, models.TelemetryComponents.component == models.Component.id)
-        .join(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id)
-        .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+    # Подзапрос: найти тракторов, у которых есть нужда в major обновлении
+    tractors_needing_major_update = select(models.Tractors.id).join(
+        models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor
+    ).join(
+        models.Component, models.TelemetryComponents.component == models.Component.id
+    ).join(
+        models.ComponentParts, models.Component.id == models.ComponentParts.component
+    ).join(
+        models.Software2ComponentPart, models.ComponentParts.id == models.Software2ComponentPart.component_part_id
+    ).where(
+        models.Software2ComponentPart.is_major == True,
+        models.Software2ComponentPart.date_change_major.isnot(None),
+        models.Software2ComponentPart.software_id != models.TelemetryComponents.current_sw_version
+    ).distinct(models.Tractors.id).subquery()
+
+    # Основной запрос: получить данные только для этих тракторов
+    query = db.query(
+        models.Tractors.vin,
+        models.Tractors.model,
+        models.Tractors.consumer,
+        models.Tractors.assembly_date,
+        models.Tractors.region,
+        models.Tractors.oh_hour,
+        models.Tractors.last_activity,
+        models.Software.name,
+        models.ComponentParts.id.label("componentPart_id"),
+        models.Component.id.label("component_id"),
+        models.Component.model.label("comp_model"),
+        models.TelemetryComponents.recommend_sw_version,
+        models.TelemetryComponents.current_sw_version,
+        models.Software.description,
+        models.Component.type
+    ).select_from(
+        models.Tractors
+    ).join(
+        models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor
+    ).join(
+        models.Component, models.TelemetryComponents.component == models.Component.id
+    ).join(
+        models.ComponentParts, models.Component.id == models.ComponentParts.component
+    ).outerjoin(
+        models.Software, models.TelemetryComponents.current_sw_version == models.Software.id
+    ).outerjoin(
+        models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id
     )
 
-    if filter.trac_model:
-        query = query.filter(models.Tractors.model.in_(filter.trac_model))
-    if filter.status:
-        query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
-    if filter.dealer:
-        query = query.filter(models.Tractors.consumer == filter.dealer)
-
-    # ✅ Подзапрос для получения последнего major ПО для конкретной детали компонента
-    latest_major_sw_subq = (
-        select(
-            models.Software2ComponentPart.software_id
-        )
-        .where(
-            models.Software2ComponentPart.component_part_id == models.ComponentParts.id,  # ✅ Связываем с деталью компонента
-            models.Software2ComponentPart.is_major == True,
-            models.Software2ComponentPart.date_change_major.isnot(None)
-        )
-        .order_by(models.Software2ComponentPart.date_change_major.desc())
-        .limit(1)
-        .scalar_subquery()
-    )
-
-    # ✅ Подзапрос для проверки, есть ли major обновление
-    major_update_exists_subq = (
-        select(1)
-        .where(
-            latest_major_sw_subq.isnot(None),  # ✅ Проверка, что новое major ПО существует
-            latest_major_sw_subq != models.TelemetryComponents.current_sw_version  # ✅ Сравнение с текущим ПО для этого трактора/компонента
-        )
-        # ❌ correlate не нужен
-    )
-
-    # ✅ Применяем фильтр is_major
     if filter.is_major is not None:
         if filter.is_major:
-            query = query.filter(exists(major_update_exists_subq))
+            query = query.filter(models.Tractors.id.in_(select(tractors_needing_major_update.c.id)))
         else:
-            query = query.filter(~exists(major_update_exists_subq))
+            query = query.filter(~models.Tractors.id.in_(select(tractors_needing_major_update.c.id)))
 
     if filter.query:
         q = filter.query.strip()
