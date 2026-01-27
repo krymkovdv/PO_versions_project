@@ -392,6 +392,13 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         else:
             query = query.filter(~models.Tractors.id.in_(select(tractors_needing_major_update.c.id)))
 
+    if filter.trac_model:
+        query = query.filter(models.Tractors.model.in_(filter.trac_model))
+    if filter.status:
+        query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
+    if filter.dealer:
+        query = query.filter(models.Tractors.consumer == filter.dealer)
+        
     if filter.query:
         q = filter.query.strip()
         if q:
