@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from . import config
-from .routes import router
 from .models import Base
 from fastapi.middleware.cors import CORSMiddleware
 
-
+from .api import (
+    auth, users, tractors, components,
+    telemetry, software, search
+)
 
 
 
@@ -27,7 +28,13 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-app.include_router(router)
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(tractors.router)
+app.include_router(components.router)
+app.include_router(telemetry.router)
+app.include_router(software.router)
+app.include_router(search.router)
 
 # uvicorn app.main:app --reload
 # python -m app.main
