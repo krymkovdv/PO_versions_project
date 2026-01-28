@@ -80,7 +80,7 @@ def create_component_parts(part: schemas.ComponentPartSchema, db: Session = Depe
         models.ComponentParts.part_type == part.part_type  # <--- part_type
     ).first()
     if existing:
-        logger.error(f"Часть компонента уже существует: {part.component}/{part.part_number} user={current_user.username} role={current_user.role}")
+        logger.error(f"Часть компонента уже существует: {part.component}/{part.part_type} user={current_user.username} role={current_user.role}")
         raise HTTPException(status_code=400, detail="Component part with this type already exists for this component")
     try:
         result = crud.components.create_component_part(db, part)
