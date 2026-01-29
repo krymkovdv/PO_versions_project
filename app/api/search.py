@@ -62,21 +62,48 @@ def get_tractors_by_filters(
         logger.error(f"[tractor-info] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/search-tractor", response_model=List[schemas.TractorSearchResponse])
-def get_search_tractors(
-    request: str, 
+@router.post("/tractor-components", response_model=List[schemas.TractorComponentResponse])
+def get_tractor_components(
+    request: schemas.TractorComponentRequest,
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
-    logger.info(f"[search-tractor] запрос={request} user={current_user.username} role={current_user.role}")
-    try:
-        return crud.search.search_tractors(db, request=request)
-    except ValueError as ve:
-        logger.error(f"[search-tractor] ошибка: {str(ve)} user={current_user.username} role={current_user.role}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        logger.error(f"[search-tractor] неизвестная ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    if not request.vins:
+        return []
+    query = db.query(
+        models.Tractors.vin,
+        models.Component.type.label("component_type"),
+        models.Component.model.label("comp_model")
+    ).select_from(models.Tractors)\
+     .join(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)\
+     .join(models.Component, models.TelemetryComponents.component == models.Component.id)\
+     .filter(models.Tractors.vin.in_(request.vins))
+    
+    results = query.all()
+    return [
+        {
+            "vin": r.vin,
+            "component_type": r.component_type,
+            "comp_model": r.comp_model
+        }
+        for r in results
+    ]
+
+# @router.get("/search-tractor", response_model=List[schemas.TractorSearchResponse])
+# def get_search_tractors(
+#     request: str, 
+#     db: Session = Depends(get_session),
+#     current_user: models.UserDB = Depends(get_current_user)
+# ):
+#     logger.info(f"[search-tractor] запрос={request} user={current_user.username} role={current_user.role}")
+#     try:
+#         return crud.search.search_tractors(db, request=request)
+#     except ValueError as ve:
+#         logger.error(f"[search-tractor] ошибка: {str(ve)} user={current_user.username} role={current_user.role}", exc_info=True)
+#         raise HTTPException(status_code=400, detail=str(ve))
+#     except Exception as e:
+#         logger.error(f"[search-tractor] неизвестная ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
     
 
 @router.get("/search-tractor-vin", response_model=List[schemas.TractorSearchResponse2])

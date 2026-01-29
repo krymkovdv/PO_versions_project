@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from .. import models, schemas
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, exists
 from typing import List
 from datetime import timedelta, datetime
 import re
@@ -114,7 +114,6 @@ def search_components(db: Session, model_comp: str):
 # --- CRUD для Tractor Info (страница 4) ---
 
 def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
-    # Подзапрос: найти тракторов, у которых есть нужда в major обновлении
     tractors_needing_major_update = select(models.Tractors.id).join(
         models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor
     ).join(
@@ -129,7 +128,7 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         models.Software2ComponentPart.software_id != models.TelemetryComponents.current_sw_version
     ).distinct(models.Tractors.id).subquery()
 
-    # Основной запрос: получить данные только для этих тракторов
+    # Основной запрос — ТОЛЬКО Tractors
     query = db.query(
         models.Tractors.vin,
         models.Tractors.model,
@@ -138,38 +137,19 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         models.Tractors.region,
         models.Tractors.oh_hour,
         models.Tractors.last_activity,
-        models.Software.name,
-        models.ComponentParts.id.label("componentPart_id"),
-        models.Component.id.label("component_id"),
-        models.Component.model.label("comp_model"),
-        models.TelemetryComponents.recommend_sw_version,
-        models.TelemetryComponents.current_sw_version,
-        models.Software.description,
-        models.Component.type
-    ).select_from(
-        models.Tractors
-    ).join(
-        models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor
-    ).join(
-        models.Component, models.TelemetryComponents.component == models.Component.id
-    ).join(
-        models.ComponentParts, models.Component.id == models.ComponentParts.component
-    ).outerjoin(
-        models.Software, models.TelemetryComponents.current_sw_version == models.Software.id
-    ).outerjoin(
-        models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id
-    )
+    ).select_from(models.Tractors)
 
+    # Применяем фильтр по is_major
     if filter.is_major is not None:
         if filter.is_major:
             query = query.filter(models.Tractors.id.in_(select(tractors_needing_major_update.c.id)))
         else:
             query = query.filter(~models.Tractors.id.in_(select(tractors_needing_major_update.c.id)))
 
+    # Фильтры по модели, дилеру, дате, поиску — остаются как есть
     if filter.trac_model:
         query = query.filter(models.Tractors.model.in_(filter.trac_model))
-    if filter.status:
-        query = query.filter(models.Software2ComponentPart.status.in_(filter.status))
+
     if filter.dealer:
         dealer_pattern = schemas.wildcard_to_psql_regex(filter.dealer)
         if not schemas.is_safe_regex(dealer_pattern):
@@ -188,8 +168,6 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
                 or_conditions = [
                     models.Tractors.vin.op('~*')(layout_regex),
                     models.Tractors.model.op('~*')(layout_regex),
-                    models.Software.name.op('~*')(layout_regex),
-                    models.Component.model.op('~*')(layout_regex),
                 ]
                 query = query.filter(or_(*or_conditions))
             except Exception as e:
@@ -202,102 +180,39 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
             else:
                 filter_date = filter.date_assemle
             next_day = filter_date + timedelta(days=1)
-
             query = query.filter(
                 models.Tractors.assembly_date >= filter_date,
                 models.Tractors.assembly_date < next_day
             )
         except (ValueError, TypeError) as e:
             print(f"Ошибка преобразования даты: {e}")
-
     elif filter.date_start or filter.date_end:
         if filter.date_start and not filter.date_end:
             query = query.filter(models.Tractors.assembly_date >= filter.date_start)
-            print(f"Фильтрация по дате ОТ: {filter.date_start}")
-
         elif filter.date_end and not filter.date_start:
             query = query.filter(models.Tractors.assembly_date <= filter.date_end)
-            print(f"Фильтрация по дате ДО: {filter.date_end}")
-
         elif filter.date_start and filter.date_end:
             query = query.filter(
                 models.Tractors.assembly_date >= filter.date_start,
                 models.Tractors.assembly_date <= filter.date_end
             )
-            print(f"Фильтрация по диапазону: {filter.date_start} - {filter.date_end}")
-
-    query = query.distinct()
-    results = query.all()
-
-    return [
-        {
-            "vin": r.vin,
-            "model": r.model,
-            "consumer": r.consumer,
-            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
-            "region": r.region,
-            "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
-            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-            "sw_name": r.name,
-            "componentParts_id": r.componentPart_id,
-            "component_id": r.component_id,
-            "comp_model": r.comp_model,
-            "current_sw_version": r.current_sw_version,
-            "description": r.description if r.description is not None else "",
-            "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.type
-        }
-        for r in results
-    ]
-
-def search_tractors(db: Session, request: str):
-    query = (
-        db.query(
-            models.Tractors.vin,
-            models.Tractors.model,
-            models.Tractors.consumer,
-            models.Tractors.assembly_date,
-            models.Tractors.region,
-            models.Tractors.oh_hour,
-            models.Tractors.last_activity,
-            models.Software.name,
-            models.ComponentParts.id.label("componentPart_id"),
-            models.Component.id.label("component_id"),
-            models.Component.model.label("comp_model"),
-            models.TelemetryComponents.recommend_sw_version,
-            models.TelemetryComponents.current_sw_version, 
-            models.Software.description,
-            models.Component.type
+    if filter.status:
+        exists_condition = (
+            select(1)
+            .select_from(models.TelemetryComponents)
+            .join(
+                models.Software2ComponentPart,
+                models.TelemetryComponents.current_sw_version == models.Software2ComponentPart.software_id
+            )
+            .where(
+                models.TelemetryComponents.tractor == models.Tractors.id,
+                models.Software2ComponentPart.status.in_(filter.status)
+            )
         )
-        .select_from(models.Tractors)
-        .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
-        .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
-        .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
-        .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id)
-        .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
-    )
-
-    if request:
-        q = request.strip()
-        if q:
-            try:
-                regex_pattern = schemas.wildcard_to_psql_regex(q)
-                if not schemas.is_safe_regex(regex_pattern):
-                    raise ValueError("Слишком сложный поисковый запрос")
-                layout_regex = _similar_chars(regex_pattern)
-                or_conditions = [
-                    models.Tractors.vin.op('~*')(layout_regex),
-                    models.Tractors.model.op('~*')(layout_regex),
-                    models.Software.name.op('~*')(layout_regex),
-                    models.Component.model.op('~*')(layout_regex),
-                ]
-                query = query.filter(or_(*or_conditions))
-            except Exception as e:
-                raise ValueError(f"Ошибка поиска: {str(e)}")
+        query = query.filter(exists(exists_condition))
 
     query = query.distinct()
     results = query.all()
-
     return [
         {
             "vin": r.vin,
@@ -307,17 +222,78 @@ def search_tractors(db: Session, request: str):
             "region": r.region,
             "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
             "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-            "sw_name": r.name,
-            "componentParts_id": r.componentPart_id,
-            "component_id": r.component_id,
-            "comp_model": r.comp_model,
-            "current_sw_version": r.current_sw_version,
-            "description": r.description if r.description is not None else "",
-            "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-            "component_type": r.type
         }
         for r in results
     ]
+
+# def search_tractors(db: Session, request: str):
+#     query = (
+#         db.query(
+#             models.Tractors.vin,
+#             models.Tractors.model,
+#             models.Tractors.consumer,
+#             models.Tractors.assembly_date,
+#             models.Tractors.region,
+#             models.Tractors.oh_hour,
+#             models.Tractors.last_activity,
+#             models.Software.name,
+#             models.ComponentParts.id.label("componentPart_id"),
+#             models.Component.id.label("component_id"),
+#             models.Component.model.label("comp_model"),
+#             models.TelemetryComponents.recommend_sw_version,
+#             models.TelemetryComponents.current_sw_version, 
+#             models.Software.description,
+#             models.Component.type
+#         )
+#         .select_from(models.Tractors)
+#         .outerjoin(models.TelemetryComponents, models.Tractors.id == models.TelemetryComponents.tractor)
+#         .outerjoin(models.Component, models.TelemetryComponents.component == models.Component.id)
+#         .outerjoin(models.ComponentParts, models.Component.id == models.ComponentParts.component)
+#         .outerjoin(models.Software, models.TelemetryComponents.current_sw_version == models.Software.id)
+#         .outerjoin(models.Software2ComponentPart, models.Software2ComponentPart.software_id == models.Software.id)
+#     )
+
+#     if request:
+#         q = request.strip()
+#         if q:
+#             try:
+#                 regex_pattern = schemas.wildcard_to_psql_regex(q)
+#                 if not schemas.is_safe_regex(regex_pattern):
+#                     raise ValueError("Слишком сложный поисковый запрос")
+#                 layout_regex = _similar_chars(regex_pattern)
+#                 or_conditions = [
+#                     models.Tractors.vin.op('~*')(layout_regex),
+#                     models.Tractors.model.op('~*')(layout_regex),
+#                     models.Software.name.op('~*')(layout_regex),
+#                     models.Component.model.op('~*')(layout_regex),
+#                 ]
+#                 query = query.filter(or_(*or_conditions))
+#             except Exception as e:
+#                 raise ValueError(f"Ошибка поиска: {str(e)}")
+
+#     query = query.distinct()
+#     results = query.all()
+
+#     return [
+#         {
+#             "vin": r.vin,
+#             "model": r.model,
+#             "consumer": r.consumer,
+#             "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+#             "region": r.region,
+#             "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
+#             "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+#             "sw_name": r.name,
+#             "componentParts_id": r.componentPart_id,
+#             "component_id": r.component_id,
+#             "comp_model": r.comp_model,
+#             "current_sw_version": r.current_sw_version,
+#             "description": r.description if r.description is not None else "",
+#             "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
+#             "component_type": r.type
+#         }
+#         for r in results
+#     ]
 def _similar_chars(regex_pattern: str) -> str:
     similar_chars = {
         'а': '[аa]', 'е': '[еe]', 'к': '[кk]', 'о': '[оo]', 'р': '[рp]',
