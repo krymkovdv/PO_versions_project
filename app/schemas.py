@@ -296,3 +296,11 @@ class TractorSearchResponse2(BaseModel):
 
     class Config:
         from_attributes = True
+
+class TractorComponentRequest(BaseModel):
+    vins: List[str]
+
+class TractorComponentResponse(BaseModel):
+    vin: str
+    component_type: str
+    comp_model: str
