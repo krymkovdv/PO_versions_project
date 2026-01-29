@@ -5,3 +5,4 @@ ENV/
 *py[cod]
 __pycache__/
 *.tmp
+*.crt
