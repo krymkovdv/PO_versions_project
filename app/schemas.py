@@ -161,7 +161,7 @@ class TractorFilter(BaseModel):
     status: List[str] = []
     dealer: str = ''
     date_assemle: Optional[str] = None
-    is_major: Optional[bool] = False
+    is_major: Optional[bool] = None
     date_assemle: Optional[date] = None
     date_start: Optional[date] = None
     date_end: Optional[date] = None
