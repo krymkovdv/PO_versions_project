@@ -3,6 +3,8 @@ from .. import models, schemas
 from sqlalchemy import select
 from typing import List
 import logging
+from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,21 @@ def delete_component(db: Session, id: int):
     db.commit()
     return True
 
+def update_component(db: Session, component_id: int, component_update: schemas.ComponentUpdate):
+    db_comp = db.query(models.Component).filter(models.Component.id == component_id).first()
+    if not db_comp:
+        raise HTTPException(status_code=404, detail="Component not found")
+    for field, value in component_update.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(db_comp, field, value)
+    try:
+        db.commit()
+        db.refresh(db_comp)
+        return db_comp
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
+
 def get_component_parts(db: Session):
     stmt = select(models.ComponentParts)
     result = db.execute(stmt).scalars().all()
@@ -60,6 +77,21 @@ def delete_component_part(db: Session, id: int):
     db.commit()
     return True
 
+def update_component_part(db: Session, part_id: int, part_update: schemas.ComponentPartUpdate):
+    db_part = db.query(models.ComponentParts).filter(models.ComponentParts.id == part_id).first()
+    if not db_part:
+        raise HTTPException(status_code=404, detail="Component part not found")
+    for field, value in part_update.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(db_part, field, value)
+    try:
+        db.commit()
+        db.refresh(db_part)
+        return db_part
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
+    
 def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None):
     query = db.query(models.Component.model).distinct()
 
@@ -71,4 +103,6 @@ def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_com
         query = query.filter(models.Component.type.in_(type_comp))
 
     results = query.all()
-    return [r.model for r in results if r.model is not None]
+    return [r.model for r in results if r.model is not None]    
+
+

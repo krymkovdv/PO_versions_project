@@ -54,6 +54,17 @@ def delete_component(id: int, db: Session = Depends(get_session), current_user: 
         raise HTTPException(status_code=404, detail="Tractor component not found")
     logger.info(f"[delete_component] компонент {id} удалён user={current_user.username} role={current_user.role}")
 
+@router.patch("/{component_id}", response_model=schemas.ComponentSchema)
+def update_component(
+    component_id: int,
+    component_update: schemas.ComponentUpdate,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only moderator can update components")
+    return crud.components.update_component(db, component_id, component_update)
+
 @router.get("/component-parts/", response_model=List[schemas.ComponentPartSchema])
 def get_components_parts(session: Session = Depends(get_session)): 
     try:
@@ -106,3 +117,14 @@ def delete_component_part(part_id: int, db: Session = Depends(get_session), curr
         logger.error(f"[delete_component_part] часть {part_id} не найдена user={current_user.username} role={current_user.role}")
         raise HTTPException(status_code=404, detail="Component part not found")
     logger.info(f"[delete_component_part] часть {part_id} удалена user={current_user.username} role={current_user.role}")
+
+@router.patch("/component-parts/{part_id}", response_model=schemas.ComponentPartSchema)
+def update_component_part(
+    part_id: int,
+    part_update: schemas.ComponentPartUpdate,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only moderator can update component parts")
+    return crud.components.update_component_part(db, part_id, part_update)        

@@ -68,3 +68,14 @@ def delete_tractor(tractor_id: int, db: Session = Depends(get_session), current_
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Неизвестная ошибка: {str(e)}"
         )
+
+@router.patch("/{vin}", response_model=schemas.TractorsSchema)
+def update_tractor(
+    vin: str,
+    tractor_update: schemas.TractorUpdate,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    if current_user.role not in ["moderator"]:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    return crud.tractors.update_tractor(db, vin, tractor_update)

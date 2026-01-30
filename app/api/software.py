@@ -67,6 +67,17 @@ def delete_software(software_id: int, db: Session = Depends(get_session), curren
         raise HTTPException(status_code=404, detail="Software not found")
     logger.info(f"[delete_software] software {software_id} удалён user={current_user.username} role={current_user.role}")
 
+@router.patch("/{sw_id}", response_model=schemas.SoftwareResponse)
+def update_software(
+    sw_id: int,
+    software_update: schemas.SoftwareUpdate,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only moderator can update software")
+    return crud.software.update_software(db, sw_id, software_update)
+
 @router.get("/software-component-links/", response_model=List[schemas.SoftwareComponentsSchema])
 def get_software_component_links(session: Session = Depends(get_session)): 
     try:
@@ -228,3 +239,14 @@ def check_software_file(id: int, db: Session = Depends(get_session)):
     except Exception as e:
         logger.error(f"[software/head] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.patch("/software-component-links/{link_id}", response_model=schemas.SoftwareComponentsSchema)
+def update_software_component_link(
+    link_id: int,
+    link_update: schemas.SoftwareComponentLinkUpdate,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only moderator can update software-component links")
+    return crud.software.update_software_component_part(db, link_id, link_update)

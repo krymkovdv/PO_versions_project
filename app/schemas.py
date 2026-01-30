@@ -304,3 +304,46 @@ class TractorComponentResponse(BaseModel):
     vin: str
     component_type: str
     comp_model: str
+
+class TractorUpdate(BaseModel):
+    model: Optional[str] = None
+    oh_hour: Optional[int] = None
+    last_activity: Optional[datetime] = None
+    assembly_date: Optional[datetime] = None
+    region: Optional[str] = None
+    consumer: Optional[str] = None
+    serv_center: Optional[str] = None
+
+class ComponentUpdate(BaseModel):
+    type: Optional[str] = None
+    model: Optional[str] = None
+    number_of_parts: Optional[int] = None
+    producer_comp: Optional[str] = None
+
+class SoftwareUpdate(BaseModel):
+    name: Optional[str] = None
+    inner_name: Optional[str] = None
+    release_date: Optional[datetime] = None
+    description: Optional[str] = None
+    is_major: Optional[bool] = None
+
+class ComponentPartUpdate(BaseModel):
+    component: Optional[int] = None
+    part_type: Optional[str] = None
+
+class SoftwareComponentLinkUpdate(BaseModel):
+    component_part_id: Optional[int] = None
+    software_id: Optional[int] = None
+    is_major: Optional[bool] = None
+    status: Optional[str] = None
+    date_change_major: Optional[date] = None
+    not_recom: Optional[str] = None
+    date_change_record: Optional[datetime] = None
+    previous_sw_version: Optional[int] = None
+
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v):
+        if v is not None and v not in {'s', 't', 'b', 'o'}:
+            raise ValueError("Status must be one of: 's', 't', 'b', 'o'")
+        return v

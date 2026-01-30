@@ -8,6 +8,8 @@ import os
 from datetime import datetime
 import logging
 import magic
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,21 @@ def delete_software(db: Session, id: int):
     db.commit()
     return True
 
+def update_software(db: Session, sw_id: int, software_update: schemas.SoftwareUpdate):
+    db_sw = db.query(models.Software).filter(models.Software.id == sw_id).first()
+    if not db_sw:
+        raise HTTPException(status_code=404, detail="Software not found")
+    for field, value in software_update.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(db_sw, field, value)
+    try:
+        db.commit()
+        db.refresh(db_sw)
+        return db_sw
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
+    
 #Link Software and ComponentParts
 def get_software_component_parts(db: Session):
     stmt = select(models.Software2ComponentPart)
@@ -74,6 +91,21 @@ def delete_software_component_part(db: Session, id: int):
     db.commit()
     return True
 
+def update_software_component_part(db: Session, link_id: int, link_update: schemas.SoftwareComponentLinkUpdate):
+    db_link = db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == link_id).first()
+    if not db_link:
+        raise HTTPException(status_code=404, detail="Software-component link not found")
+    for field, value in link_update.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(db_link, field, value)
+    try:
+        db.commit()
+        db.refresh(db_link)
+        return db_link
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
+    
 def secure_filename(filename: str) -> str:
     filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
     return filename.strip("._")
