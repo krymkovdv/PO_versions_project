@@ -7,6 +7,7 @@ import re
 import os
 from datetime import datetime
 import logging
+import magic
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ def assign_software_to_components(
     file,
     software_data: schemas.AssignSoftwareRequest
 ) -> schemas.SoftwareResponse:
+    validate_file_type(file)
     check_file_size(file, config.MAX_FILE_SIZE)
     saved_filename = None
     try:
@@ -238,3 +240,32 @@ def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFil
         exists=True
     )
 
+ALLOWED_EXTENSIONS = {'.bin', '.zip', '.pdf'}
+ALLOWED_MIME_TYPES = {
+    'application/octet-stream',   # .bin
+    'application/zip',           # .zip
+    'application/pdf',           # .pdf
+}
+
+def validate_file_type(file: UploadFile):
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Недопустимое расширение файла. Разрешены: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+
+    # Читаем первые 1024 байта для определения MIME
+    file.file.seek(0)
+    sample = file.file.read(1024)
+    file.file.seek(0)  # возвращаем указатель
+
+    mime = magic.from_buffer(sample, mime=True)
+
+    if mime not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Недопустимый тип файла: {mime}. Разрешены: {', '.join(ALLOWED_MIME_TYPES)}"
+        )
