@@ -148,6 +148,12 @@ def check_file_size(file: UploadFile, max_size: int) -> int:
     file.file.seek(original_pos)  
     return size
 
+"""
+ВАЖНО: Служебный трактор с VIN='TEMPLATE_SOFTWARE_ASSIGNMENT' 
+используется ТОЛЬКО для связывания ПО с компонентами в запросе component-info.
+Его модель='Template' гарантирует, что он не попадёт в результаты при фильтрации 
+по реальным моделям тракторов (K-7, K-525 и т.д.).
+"""
 def assign_software_to_components(
     db: Session,
     file,
@@ -157,8 +163,10 @@ def assign_software_to_components(
     check_file_size(file, config.MAX_FILE_SIZE)
     saved_filename = None
     try:
+        # Сохраняем файл
         saved_filename = save_uploaded_file(file, file.filename)
-
+        
+        # === ШАГ 2: Создание записи ПО ===
         fw = models.Software(
             path=saved_filename,
             name=software_data.name,
@@ -167,54 +175,119 @@ def assign_software_to_components(
             description=software_data.description
         )
         db.add(fw)
-        db.flush()
-
+        db.flush()  # Получаем fw.id для дальнейшего использования
+        
+        # === ШАГ 3: Валидация входных данных ===
         n_models = len(software_data.component_models)
         n_parts = len(software_data.part_type)
+        
         if n_models != n_parts:
             raise HTTPException(
-                400,
-                f"Несоответствие: component_models ({n_models}) и part_type ({n_parts}) должны иметь одинаковую длину"
+                status_code=400,
+                detail=f"Несоответствие: component_models ({n_models}) и part_type ({n_parts}) должны иметь одинаковую длину"
             )
         if n_models == 0:
-            raise HTTPException(400, "Должен быть указан хотя бы один компонент")
-
+            raise HTTPException(status_code=400, detail="Должен быть указан хотя бы один компонент")
+        
+        # === ШАГ 4: Создание/получение служебного трактора ===
+        TEMPLATE_TRACTOR_VIN = "TEMPLATE_SOFTWARE_ASSIGNMENT"
+        template_tractor = db.query(models.Tractors).filter(
+            models.Tractors.vin == TEMPLATE_TRACTOR_VIN
+        ).first()
+        
+        if not template_tractor:
+            # Создаём служебный трактор с минимально необходимыми данными
+            template_tractor = models.Tractors(
+                vin=TEMPLATE_TRACTOR_VIN,
+                model="Template",
+                oh_hour=0,
+                last_activity=datetime.utcnow(),
+                assembly_date=datetime.utcnow().date(),  # ← Исправлено: .date()
+                region="System",
+                consumer="System",
+                serv_center="System"
+            )
+            db.add(template_tractor)
+            db.flush()  # Получаем ID трактора
+        
+        # === ШАГ 5: Обработка каждого компонента ===
         for i in range(n_models):
             comp_model = software_data.component_models[i]
             part_type = software_data.part_type[i]
-
+            
+            # Поиск компонента по модели (уникальное поле)
             component = db.query(models.Component).filter(
                 models.Component.model == comp_model
             ).first()
             if not component:
-                raise HTTPException(404, f"Component model '{comp_model}' not found")
-
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Component model '{comp_model}' not found"
+                )
+            
+            # Поиск или создание части компонента
             part = db.query(models.ComponentParts).filter(
                 models.ComponentParts.component == component.id,
                 models.ComponentParts.part_type == part_type
             ).first()
-
+            
             if not part:
                 part = models.ComponentParts(
                     component=component.id,
                     part_type=part_type
                 )
                 db.add(part)
-                db.flush()
-
+                db.flush()  # Получаем part.id
+            
+            # Создание связи ПО с частью компонента
             link = models.Software2ComponentPart(
                 component_part_id=part.id,
-                software_id=fw.id, 
+                software_id=fw.id,
                 is_major=software_data.is_major,
                 status='s',
                 date_change_major=datetime.utcnow().date() if software_data.is_major else None,
-                previous_sw_version=software_data.previous_sw_version 
+                previous_sw_version=software_data.previous_sw_version
             )
             db.add(link)
-
+            
+            # === ШАГ 6: Создание "нулевой телеметрии" ===
+            # Проверяем существование записи для (служебный трактор, компонент)
+            existing_telemetry = db.query(models.TelemetryComponents).filter(
+                models.TelemetryComponents.tractor == template_tractor.id,
+                models.TelemetryComponents.component == component.id
+            ).first()
+            
+            # Формируем данные для телеметрии
+            telemetry_data = {
+                "current_sw_version": fw.id,
+                "recommend_sw_version": fw.id,  # Рекомендуемая версия = текущая
+                "comp_ser_num": f"TEMPLATE_{uuid.uuid4().hex[:12].upper()}",
+                "time_rec": datetime.utcnow(),
+                "mounting_date": (
+                    software_data.release_date  # ← Исправлено: убран .date()
+                    if software_data.release_date 
+                    else datetime.utcnow().date()
+                )
+            }
+            
+            if existing_telemetry:
+                # Обновляем существующую запись (избегаем дубликатов)
+                for key, value in telemetry_data.items():
+                    setattr(existing_telemetry, key, value)
+            else:
+                # Создаём новую запись
+                new_telemetry = models.TelemetryComponents(
+                    tractor=template_tractor.id,
+                    component=component.id,
+                    **telemetry_data
+                )
+                db.add(new_telemetry)
+        
+        # === ШАГ 7: Фиксация изменений ===
         db.commit()
         db.refresh(fw)
-
+        
+        # Возвращаем ответ
         return schemas.SoftwareResponse(
             id=fw.id,
             name=fw.name,
@@ -223,13 +296,18 @@ def assign_software_to_components(
             description=fw.description,
             download_url=f"/software/download/{fw.id}"
         )
-
+    
     except Exception as e:
+        # Откат транзакции при любой ошибке
         db.rollback()
+        
+        # Удаление сохранённого файла при ошибке
         if saved_filename:
             path = os.path.join(config.UPLOAD_DIR, saved_filename)
             if os.path.exists(path):
                 os.remove(path)
+        
+        # Пробрасываем исключение для обработки на уровне API
         raise
 
 def get_software_full(db: Session, software_id: int):
