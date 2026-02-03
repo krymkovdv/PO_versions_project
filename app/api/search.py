@@ -153,7 +153,7 @@ def get_component_with_part(db: Session = Depends(get_session)):
 @router.get("/get-po-by-vin/{id}/metadata", response_model=schemas.SoftwareSchema)
 def get_tractor_by_id(id: int, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     try:
-        result = crud.tractors.get_tractor_by_id(db, id)
+        result = crud.software.get_software_by_id(db, id)
         logger.info(f"[get-po-by-vin] успешно выполнена id={id} user={current_user.username} role={current_user.role}")
         return result
     except HTTPException:
