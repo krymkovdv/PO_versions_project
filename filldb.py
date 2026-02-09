@@ -1,8 +1,9 @@
 # fill_realistic_data.py
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from app.database import get_session
 from app.models import Tractors, Component, ComponentParts, TelemetryComponents, Software, Software2ComponentPart
 from sqlalchemy.orm import Session
+import random
 
 def fill_realistic_data():
     # Получаем сессию
@@ -19,8 +20,8 @@ def fill_realistic_data():
                 model=models_pool[(i - 1) % 3],  # K-7, K-525, K-742МСТ по кругу
                 vin=f"REALVIN{i:03d}",
                 oh_hour=100 * i,
-                last_activity=datetime(2024, 11, 15) if i % 2 == 0 else datetime(2024, 12, 15),
-                assembly_date=datetime(2024, 1, i % 12 + 1),
+                last_activity=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 30)),
+                assembly_date=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 730)),
                 region="RU-MOS" if i <= 10 else "RU-SPE" if i <= 20 else "RU-KRA",
                 consumer=f"Dealer {chr(64 + (i % 26 + 1))}",
                 serv_center=f"Center {(i % 5) + 1}"
@@ -64,6 +65,7 @@ def fill_realistic_data():
         print("✅ Добавлено деталей компонентов.")
 
         # --- 4. Добавляем ПО ---
+        # ⚠️ ИСПРАВЛЕНО: было 'for s_data in softwares' (ошибка!), стало 'for s_data in softwares_data'
         softwares_data = [
             {"path": "engine_v1.bin", "name": "Engine-v1", "inner_name": "EngV1", "release_date": datetime(2024, 1, 1), "description": "Initial engine SW"},
             {"path": "engine_v2.bin", "name": "Engine-v2", "inner_name": "EngV2", "release_date": datetime(2024, 5, 1), "description": "Major engine update"},
@@ -78,7 +80,8 @@ def fill_realistic_data():
         ]
 
         softwares = []
-        for s_data in softwares:
+        # ⚠️ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: было 'for s_data in softwares' → стало 'for s_data in softwares_data'
+        for s_data in softwares_data:  # ← ИСПРАВЛЕНО!
             sw = Software(**s_data)
             session.add(sw)
             softwares.append(sw)
@@ -87,11 +90,6 @@ def fill_realistic_data():
         print("✅ Добавлено 10 ПО.")
 
         # --- 5. Создаём телеметрию и устанавливаем ПО ---
-        # Предположим, что:
-        # - Трактора 1-10 (REALVIN001 - 010) → требуют major (v1 -> v2)
-        # - Трактора 11-20 (REALVIN011 - 020) → требуют minor (v2 -> v2.1, или v2 -> v3)
-        # - Трактора 21-30 (REALVIN021 - 030) → обновлены (v2 или v3 установлено)
-
         sw_map = {sw.name: sw for sw in softwares}
 
         for i, tractor in enumerate(tractors_data):
@@ -129,16 +127,16 @@ def fill_realistic_data():
                 elif i < 20:  # Трактора 10-19 (REALVIN011 - REALVIN020) -> MINOR обновления
                     if comp.type == "engine":
                         sw_name_current = "Engine-v2"
-                        sw_name_recommend = "Engine-v3"
+                        sw_name_recommend = "Engine-v2"  # minor - та же версия
                     elif comp.type == "transmission":
                         sw_name_current = "Trans-v2"
-                        sw_name_recommend = "Trans-v3"  # предположим, что v3 — это minor от v2
+                        sw_name_recommend = "Trans-v2"
                     elif comp.type == "hydraulics":
                         sw_name_current = "Hydra-v2"
                         sw_name_recommend = "Hydra-v3"
                     elif comp.type == "suspension":
                         sw_name_current = "Susp-v2"
-                        sw_name_recommend = "Susp-v3"
+                        sw_name_recommend = "Susp-v2"
                     else:
                         continue
 
@@ -153,7 +151,7 @@ def fill_realistic_data():
                         sw_name_recommend = "Trans-v2"
                     elif comp.type == "hydraulics":
                         sw_name_current = "Hydra-v3"
-                        sw_name_recommend = "Hydra-v3"
+                        sw_name_recommend = "Hydra-v4"
                     elif comp.type == "suspension":
                         sw_name_current = "Susp-v2"
                         sw_name_recommend = "Susp-v2"
@@ -175,117 +173,36 @@ def fill_realistic_data():
                     component=comp.id,
                     mounting_date=date.today(),
                     current_sw_version=current_sw.id,
-                    recommend_sw_version=recommend_sw.id if recommend_sw else current_sw.id
+                    recommend_sw_version=recommend_sw.id if recommend_sw else current_sw.id,
+                    comp_ser_num=f"SERIAL_{tractor.id}_{comp.id}",
+                    time_rec=datetime.now(timezone.utc)
                 )
                 session.add(tc)
 
                 # --- Создаём связи ПО <-> Детали компонентов ---
-                # MAJOR обновления (трактора 1-10)
-                if i < 10 and recommend_sw:
+                # Для всех тракторов создаём связи
+                for part in [part_main, part_aux]:
+                    if not part:
+                        continue
+                    
                     # Проверим, нет ли уже такой связи
-                    existing_link_main = session.query(Software2ComponentPart).filter(
-                        Software2ComponentPart.component_part_id == part_main.id,
-                        Software2ComponentPart.software_id == recommend_sw.id
-                    ).first()
-                    existing_link_aux = session.query(Software2ComponentPart).filter(
-                        Software2ComponentPart.component_part_id == part_aux.id,
-                        Software2ComponentPart.software_id == recommend_sw.id
-                    ).first()
-
-                    if not existing_link_main:
-                        link_main = Software2ComponentPart(
-                            component_part_id=part_main.id,
-                            software_id=recommend_sw.id,
-                            is_major=True, # ✅ Это MAJOR обновление
-                            status='s',
-                            date_change_major=date.today(),
-                            previous_sw_version=current_sw.id
-                        )
-                        session.add(link_main)
-                        print(f"    - Создана связь MAJOR для {part_main.id} -> {recommend_sw.name}")
-
-                    if not existing_link_aux:
-                        link_aux = Software2ComponentPart(
-                            component_part_id=part_aux.id,
-                            software_id=recommend_sw.id,
-                            is_major=True, # ✅ Это MAJOR обновление
-                            status='s',
-                            date_change_major=date.today(),
-                            previous_sw_version=current_sw.id
-                        )
-                        session.add(link_aux)
-                        print(f"    - Создана связь MAJOR для {part_aux.id} -> {recommend_sw.name}")
-
-                # MINOR обновления (трактора 11-20)
-                elif 10 <= i < 20 and recommend_sw:
-                    existing_link_main = session.query(Software2ComponentPart).filter(
-                        Software2ComponentPart.component_part_id == part_main.id,
-                        Software2ComponentPart.software_id == recommend_sw.id
-                    ).first()
-                    existing_link_aux = session.query(Software2ComponentPart).filter(
-                        Software2ComponentPart.component_part_id == part_aux.id,
-                        Software2ComponentPart.software_id == recommend_sw.id
-                    ).first()
-
-                    if not existing_link_main:
-                        link_main = Software2ComponentPart(
-                            component_part_id=part_main.id,
-                            software_id=recommend_sw.id,
-                            is_major=False, # ✅ Это MINOR обновление
-                            status='s',
-                            date_change_major=None, # Для minor не обязательно
-                            previous_sw_version=current_sw.id
-                        )
-                        session.add(link_main)
-                        print(f"    - Создана связь MINOR для {part_main.id} -> {recommend_sw.name}")
-
-                    if not existing_link_aux:
-                        link_aux = Software2ComponentPart(
-                            component_part_id=part_aux.id,
-                            software_id=recommend_sw.id,
-                            is_major=False, # ✅ Это MINOR обновление
-                            status='s',
-                            date_change_major=None, # Для minor не обязательно
-                            previous_sw_version=current_sw.id
-                        )
-                        session.add(link_aux)
-                        print(f"    - Создана связь MINOR для {part_aux.id} -> {recommend_sw.name}")
-
-                # UP-TO-DATE (трактора 21-30) — можно создать связи с текущим ПО, но is_major=False
-                elif i >= 20:
-                    # Создаём связи с текущим ПО как "установленное", но не major
-                    existing_link_main = session.query(Software2ComponentPart).filter(
-                        Software2ComponentPart.component_part_id == part_main.id,
+                    existing_link = session.query(Software2ComponentPart).filter(
+                        Software2ComponentPart.component_part_id == part.id,
                         Software2ComponentPart.software_id == current_sw.id
                     ).first()
-                    existing_link_aux = session.query(Software2ComponentPart).filter(
-                        Software2ComponentPart.component_part_id == part_aux.id,
-                        Software2ComponentPart.software_id == current_sw.id
-                    ).first()
-
-                    if not existing_link_main:
-                        link_main = Software2ComponentPart(
-                            component_part_id=part_main.id,
+                    
+                    if not existing_link:
+                        is_major = i < 10  # Первые 10 тракторов - major обновления
+                        
+                        link = Software2ComponentPart(
+                            component_part_id=part.id,
                             software_id=current_sw.id,
-                            is_major=False,
+                            is_major=is_major,
                             status='s',
-                            date_change_major=None,
+                            date_change_major=date.today() if is_major else None,
                             previous_sw_version=None
                         )
-                        session.add(link_main)
-                        print(f"    - Создана связь UP-TO-DATE для {part_main.id} -> {current_sw.name}")
-
-                    if not existing_link_aux:
-                        link_aux = Software2ComponentPart(
-                            component_part_id=part_aux.id,
-                            software_id=current_sw.id,
-                            is_major=False,
-                            status='s',
-                            date_change_major=None,
-                            previous_sw_version=None
-                        )
-                        session.add(link_aux)
-                        print(f"    - Создана связь UP-TO-DATE для {part_aux.id} -> {current_sw.name}")
+                        session.add(link)
 
         session.commit()
         print("\n--- Реалистичные данные успешно добавлены! ---")
@@ -296,6 +213,8 @@ def fill_realistic_data():
     except Exception as e:
         session.rollback()
         print(f"❌ Ошибка при заполнении базы данных: {e}")
+        import traceback
+        traceback.print_exc()
         raise
     finally:
         session.close()
