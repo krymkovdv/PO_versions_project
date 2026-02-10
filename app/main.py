@@ -40,3 +40,4 @@ app.include_router(search.router)
 # python -m app.main
 # .\venv\Scripts\Activate.ps1
 # uvicorn app.main:app --host 172.20.46.71 --port 8000
+# uvicorn app.main:app --host 26.77.162.134 --port 8000
