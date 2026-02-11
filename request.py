@@ -1,6 +1,7 @@
 import requests
 import time
 from datetime import datetime
+import json
 
 url = "https://agromonitor.kirovets-ptz.com/auth/login?jwt=1"
 data = {
@@ -47,23 +48,94 @@ try:
     
     if response.status_code == 200:
         data = response.json()
-        print("Успешный ответ:")
-        print(data)
         
-        # Если нужно обработать полученные данные
-        # Например, отправить их в ваш лог эндпоинт
-        # for each in data:
-        #     log_response = requests.post(
-        #         url_log, 
-        #         json={
-        #             "terminalId": each['id'], 
-        #             "dateFrom": each["dateID"]//1000, 
-        #             "dateTo": each["dateID"]//1000
-        #         }, 
-        #         headers={"Authorization": "JWT " + jwt}
-        #     )
-        #     print(log_response.text)
+        print("\n" + "="*80)
+        print(f"ДАННЫЕ ТЕЛЕМЕТРИИ ТРАКТОРА (vehicleId: {payload['vehicleId']})")
+        print("="*80)
+        
+        # Парсинг exCanData
+        if data.get('exCanData'):
+            print(f"\n📊 CAN-ДАННЫЕ ({len(data['exCanData'])} записей):\n")
             
+            for idx, record in enumerate(data['exCanData'], 1):
+                print(f"{'─'*80}")
+                print(f"Запись #{idx}")
+                print(f"{'─'*80}")
+                
+                # Временная метка
+                event_date = record.get('eventDate')
+                if event_date:
+                    dt = datetime.fromtimestamp(event_date)
+                    print(f"📅 Время: {dt.strftime('%d.%m.%Y %H:%M:%S')} ({event_date})")
+                
+                # Парсинг вложенного JSON
+                json_data_str = record.get('jsonData', '{}')
+                try:
+                    json_data = json.loads(json_data_str)
+                    
+                    if json_data:
+                        print(f"\nПараметры:")
+                        print(f"{'─'*80}")
+                        
+                        # Сортируем параметры для красивого вывода
+                        for param_name, param_value in sorted(json_data.items()):
+                            # Форматируем название параметра
+                            param_name_clean = param_name.strip()
+                            
+                            # Определяем категорию параметра для группировки
+                            category = "⚙️ Прочее"
+                            if "температура" in param_name.lower() or "°С" in param_name:
+                                category = "🌡️ Температура"
+                            elif "давление" in param_name.lower() or "кПа" in param_name:
+                                category = "💨 Давление"
+                            elif "обороты" in param_name.lower() or "об/мин" in param_name:
+                                category = "🔄 Обороты"
+                            elif "расход" in param_name.lower() or "л/ч" in param_name:
+                                category = "⛽ Расход топлива"
+                            elif "счётчик" in param_name.lower() or "моточас" in param_name.lower():
+                                category = "⏱️ Моточасы"
+                            elif "крутящий" in param_name.lower() or "%" in param_name:
+                                category = "💪 Мощность/Момент"
+                            elif "передача" in param_name.lower():
+                                category = "🚗 Трансмиссия"
+                            elif "загрузка" in param_name.lower():
+                                category = "📈 Загрузка"
+                            elif "одометр" in param_name.lower() or "км" in param_name:
+                                category = "📍 Пробег"
+                            
+                            # Вывод параметра
+                            print(f"{category:20} {param_name_clean:50} {param_value}")
+                    
+                    else:
+                        print("⚠️ Нет данных")
+                        
+                except json.JSONDecodeError as e:
+                    print(f"❌ Ошибка парсинга JSON: {e}")
+                    print(f"   Данные: {json_data_str[:100]}...")
+                
+                print()
+        
+        else:
+            print("\n📊 CAN-ДАННЫЕ: Нет записей")
+        
+        # Modbus данные
+        if data.get('modbusData'):
+            print(f"\n🔌 MODBUS-ДАННЫЕ ({len(data['modbusData'])} записей):")
+            for idx, record in enumerate(data['modbusData'], 1):
+                print(f"  {idx}. {record}")
+        else:
+            print(f"\n🔌 MODBUS-ДАННЫЕ: Нет записей")
+        
+        # Пользовательские параметры
+        if data.get('userParams'):
+            print(f"\n👤 ПОЛЬЗОВАТЕЛЬСКИЕ ПАРАМЕТРЫ ({len(data['userParams'])} записей):")
+            for idx, record in enumerate(data['userParams'], 1):
+                print(f"  {idx}. {record}")
+        else:
+            print(f"\n👤 ПОЛЬЗОВАТЕЛЬСКИЕ ПАРАМЕТРЫ: Нет записей")
+        
+        print("\n" + "="*80)
+        
     else:
         print(f"Ошибка: {response.status_code}")
         print(f"Тело ответа: {response.text}")
