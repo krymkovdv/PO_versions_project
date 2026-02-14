@@ -16,8 +16,8 @@ response = requests.post(url, json=data)
 jwt = response.json()["jwt"]
 headers={"Authorization": jwt}
 
-date_from = int(datetime(2024, 10, 10).timestamp() * 1000)  # 1760025600000
-date_to = int(datetime(2025, 10, 20).timestamp() * 1000) 
+date_from = int(datetime(2025, 10, 10).timestamp() * 1000)  # 1760025600000
+date_to = int(datetime(2026, 10, 20).timestamp() * 1000) 
 
 payload = {
     "vehicleId": 1279000004,

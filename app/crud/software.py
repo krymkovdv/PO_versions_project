@@ -157,89 +157,58 @@ def check_file_size(file: UploadFile, max_size: int) -> int:
 def assign_software_to_components(
     db: Session,
     file,
-    software_data: schemas.AssignSoftwareRequest
+    software_data: schemas.AssignSoftwareRequest,
+    filename: str,
+    base_name: str
 ) -> schemas.SoftwareResponse:
-    validate_file_type(file)
     check_file_size(file, config.MAX_FILE_SIZE)
     saved_filename = None
     try:
-        # Сохраняем файл
-        saved_filename = save_uploaded_file(file, file.filename)
+        # Сохраняем файл с оригинальным расширением
+        saved_filename = save_uploaded_file(file, filename)
         
-        # === ШАГ 2: Создание записи ПО ===
+        # Используем имя файла для name и inner_name
         fw = models.Software(
             path=saved_filename,
-            name=software_data.name,
-            inner_name=software_data.inner_name,
+            name=base_name,              # имя без расширения
+            inner_name=base_name,        # совпадает с именем
             release_date=software_data.release_date,
             description=software_data.description
         )
         db.add(fw)
-        db.flush()  # Получаем fw.id для дальнейшего использования
+        db.flush()
         
-        # === ШАГ 3: Валидация входных данных ===
         n_models = len(software_data.component_models)
         n_parts = len(software_data.part_type)
-        
         if n_models != n_parts:
             raise HTTPException(
-                status_code=400,
-                detail=f"Несоответствие: component_models ({n_models}) и part_type ({n_parts}) должны иметь одинаковую длину"
+                400,
+                f"Несоответствие: component_models ({n_models}) и part_type ({n_parts}) должны иметь одинаковую длину"
             )
         if n_models == 0:
-            raise HTTPException(status_code=400, detail="Должен быть указан хотя бы один компонент")
+            raise HTTPException(400, "Должен быть указан хотя бы один компонент")
         
-        # === ШАГ 4: Создание/получение служебного трактора ===
-        TEMPLATE_TRACTOR_VIN = "TEMPLATE_SOFTWARE_ASSIGNMENT"
-        template_tractor = db.query(models.Tractors).filter(
-            models.Tractors.vin == TEMPLATE_TRACTOR_VIN
-        ).first()
-        
-        if not template_tractor:
-            # Создаём служебный трактор с минимально необходимыми данными
-            template_tractor = models.Tractors(
-                vin=TEMPLATE_TRACTOR_VIN,
-                model="Template",
-                oh_hour=0,
-                last_activity=datetime.utcnow(),
-                assembly_date=datetime.utcnow().date(),  # ← Исправлено: .date()
-                region="System",
-                consumer="System",
-                serv_center="System"
-            )
-            db.add(template_tractor)
-            db.flush()  # Получаем ID трактора
-        
-        # === ШАГ 5: Обработка каждого компонента ===
         for i in range(n_models):
             comp_model = software_data.component_models[i]
             part_type = software_data.part_type[i]
-            
-            # Поиск компонента по модели (уникальное поле)
             component = db.query(models.Component).filter(
                 models.Component.model == comp_model
             ).first()
             if not component:
-                raise HTTPException(
-                    status_code=404, 
-                    detail=f"Component model '{comp_model}' not found"
-                )
+                raise HTTPException(404, f"Component model '{comp_model}' not found")
             
-            # Поиск или создание части компонента
             part = db.query(models.ComponentParts).filter(
                 models.ComponentParts.component == component.id,
                 models.ComponentParts.part_type == part_type
             ).first()
-            
             if not part:
                 part = models.ComponentParts(
                     component=component.id,
                     part_type=part_type
                 )
                 db.add(part)
-                db.flush()  # Получаем part.id
+                db.flush()
             
-            # Создание связи ПО с частью компонента
             link = models.Software2ComponentPart(
                 component_part_id=part.id,
                 software_id=fw.id,
@@ -249,45 +218,10 @@ def assign_software_to_components(
                 previous_sw_version=software_data.previous_sw_version
             )
             db.add(link)
-            
-            # === ШАГ 6: Создание "нулевой телеметрии" ===
-            # Проверяем существование записи для (служебный трактор, компонент)
-            existing_telemetry = db.query(models.TelemetryComponents).filter(
-                models.TelemetryComponents.tractor == template_tractor.id,
-                models.TelemetryComponents.component == component.id
-            ).first()
-            
-            # Формируем данные для телеметрии
-            telemetry_data = {
-                "current_sw_version": fw.id,
-                "recommend_sw_version": fw.id,  # Рекомендуемая версия = текущая
-                "comp_ser_num": f"TEMPLATE_{uuid.uuid4().hex[:12].upper()}",
-                "time_rec": datetime.utcnow(),
-                "mounting_date": (
-                    software_data.release_date  # ← Исправлено: убран .date()
-                    if software_data.release_date 
-                    else datetime.utcnow().date()
-                )
-            }
-            
-            if existing_telemetry:
-                # Обновляем существующую запись (избегаем дубликатов)
-                for key, value in telemetry_data.items():
-                    setattr(existing_telemetry, key, value)
-            else:
-                # Создаём новую запись
-                new_telemetry = models.TelemetryComponents(
-                    tractor=template_tractor.id,
-                    component=component.id,
-                    **telemetry_data
-                )
-                db.add(new_telemetry)
         
-        # === ШАГ 7: Фиксация изменений ===
         db.commit()
         db.refresh(fw)
         
-        # Возвращаем ответ
         return schemas.SoftwareResponse(
             id=fw.id,
             name=fw.name,
@@ -296,18 +230,12 @@ def assign_software_to_components(
             description=fw.description,
             download_url=f"/software/download/{fw.id}"
         )
-    
     except Exception as e:
-        # Откат транзакции при любой ошибке
         db.rollback()
-        
-        # Удаление сохранённого файла при ошибке
         if saved_filename:
             path = os.path.join(config.UPLOAD_DIR, saved_filename)
             if os.path.exists(path):
                 os.remove(path)
-        
-        # Пробрасываем исключение для обработки на уровне API
         raise
 
 def get_software_full(db: Session, software_id: int):
@@ -327,15 +255,16 @@ def get_software_full(db: Session, software_id: int):
 
 def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMetadata:
     fw, _ = get_software_full(db, software_id)
-    safe_name = re.sub(r'[<>:"/\\|?*]', '_', fw.name) if fw.name else fw.path
-    download_name = f"{safe_name}.bin" if fw.name else fw.path
-
+    # Используем оригинальное имя файла с расширением
+    # Извлекаем оригинальное имя из path (после UUID)
+    original_filename = fw.path.split('_', 1)[1] if '_' in fw.path else fw.path
+    
     return schemas.SoftwareMetadata(
         id=fw.id,
         name=fw.name,
         inner_name=fw.inner_name,
         filename_original=fw.path,
-        filename_for_download=download_name
+        filename_for_download=original_filename
     )
 
 def get_software_file_path(db: Session, software_id: int) -> str:
@@ -350,32 +279,32 @@ def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFil
         exists=True
     )
 
-ALLOWED_EXTENSIONS = {'.bin', '.zip', '.pdf'}
-ALLOWED_MIME_TYPES = {
-    'application/octet-stream',   # .bin
-    'application/zip',           # .zip
-    'application/pdf',           # .pdf
-}
+# ALLOWED_EXTENSIONS = {'.bin', '.zip', '.pdf'}
+# ALLOWED_MIME_TYPES = {
+#     'application/octet-stream',   # .bin
+#     'application/zip',           # .zip
+#     'application/pdf',           # .pdf
+# }
 
-def validate_file_type(file: UploadFile):
-    filename = file.filename or ""
-    ext = os.path.splitext(filename)[1].lower()
+# def validate_file_type(file: UploadFile):
+#     filename = file.filename or ""
+#     ext = os.path.splitext(filename)[1].lower()
 
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Недопустимое расширение файла. Разрешены: {', '.join(ALLOWED_EXTENSIONS)}"
-        )
+#     if ext not in ALLOWED_EXTENSIONS:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail=f"Недопустимое расширение файла. Разрешены: {', '.join(ALLOWED_EXTENSIONS)}"
+#         )
 
-    # Читаем первые 1024 байта для определения MIME
-    file.file.seek(0)
-    sample = file.file.read(1024)
-    file.file.seek(0)  # возвращаем указатель
+#     # Читаем первые 1024 байта для определения MIME
+#     file.file.seek(0)
+#     sample = file.file.read(1024)
+#     file.file.seek(0)  # возвращаем указатель
 
-    mime = magic.from_buffer(sample, mime=True)
+#     mime = magic.from_buffer(sample, mime=True)
 
-    if mime not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Недопустимый тип файла: {mime}. Разрешены: {', '.join(ALLOWED_MIME_TYPES)}"
-        )
+#     if mime not in ALLOWED_MIME_TYPES:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail=f"Недопустимый тип файла: {mime}. Разрешены: {', '.join(ALLOWED_MIME_TYPES)}"
+#         )
