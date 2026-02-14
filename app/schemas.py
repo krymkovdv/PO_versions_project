@@ -250,9 +250,7 @@ class SoftwareResponse(SoftwareBase):
     download_url: str
 
 class AssignSoftwareRequest(BaseModel):
-    name: str
     is_major: bool
-    inner_name: Optional[str] = None
     release_date: Optional[date] = None
     description: Optional[str] = None
     component_models: List[str] = Field(..., min_items=1)

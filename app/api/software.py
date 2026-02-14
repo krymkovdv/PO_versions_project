@@ -135,13 +135,10 @@ def delete_software_component_link(link_id: int, db: Session = Depends(get_sessi
     "/assign",
     response_model=schemas.SoftwareResponse,
     status_code=201,
-    
 )
 def assign_software_to_components_route(
     file: UploadFile = File(...),
-    name: str = Form(...),
     is_major: bool = Form(...),
-    inner_name: str = Form(...),
     release_date: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     component_models: List[str] = Form(...),
@@ -157,28 +154,37 @@ def assign_software_to_components_route(
         except ValueError:
             logger.error(f"[software/assign] неверный формат даты: {release_date} user={current_user.username} role={current_user.role}")
             raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
-
+    
     prev_sw_ver_int: Optional[int] = None
     if previous_sw_version_str is not None and previous_sw_version_str.strip() != "":
         try:
             prev_sw_ver_int = int(previous_sw_version_str)
         except ValueError:
-            raise HTTPException(400, f"previous_sw_version '{previous_sw_version_str}' is not a valid integer user={current_user.username} role={current_user.role}")
-
+            raise HTTPException(400, f"previous_sw_version '{previous_sw_version_str}' is not a valid integer")
+    
+    # Извлекаем имя из файла (без пути и расширения)
+    filename = file.filename or "unnamed"
+    # Убираем расширение для имени ПО
+    base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
+    
     software_data = schemas.AssignSoftwareRequest(
-        name=name,
         is_major=is_major,
-        inner_name=inner_name,
         release_date=rd,
         description=description,
         component_models=component_models,
         part_type=part_type,
         previous_sw_version=prev_sw_ver_int
     )
-
+    
     try:
-        logger.info(f"[software/assign] имя={name}, is_major={is_major} user={current_user.username} role={current_user.role}")
-        return crud.software.assign_software_to_components(db, file=file, software_data=software_data)
+        logger.info(f"[software/assign] файл={filename}, is_major={is_major} user={current_user.username} role={current_user.role}")
+        return crud.software.assign_software_to_components(
+            db, 
+            file=file, 
+            software_data=software_data,
+            filename=filename,
+            base_name=base_name
+        )
     except HTTPException:
         raise
     except Exception as e:
