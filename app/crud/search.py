@@ -26,7 +26,7 @@ def get_component_by_filters(
             models.Software.id.label("id_Firmwares"),
             models.Component.type.label("type_component"),
             models.Component.model.label("model_component"),
-            models.Software2ComponentPart.is_major.label("is_maj")
+            models.Software2ComponentPart.is_actual.label("is_actual")
         )
         .select_from(models.Component)
         .outerjoin(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
@@ -53,7 +53,7 @@ def get_component_by_filters(
             "release_date": r.release_date.isoformat() if r.release_date else None,
             "inner_version": r.inner_version,
             "producer_version": r.producer_version,
-            "is_maj": r.is_maj,
+            "is_maj": r.is_actual,
             "model_component": r.model_component,
             "id_Firmwares": r.id_Firmwares
         }
@@ -71,7 +71,7 @@ def search_components(db: Session, model_comp: str):
             models.Software.id.label("id_Firmwares"),
             models.Component.type.label("type_component"),
             models.Component.model.label("model_component"),
-            models.Software2ComponentPart.is_major.label("is_maj")
+            models.Software2ComponentPart.is_actual.label("is_actual")
         )
         .select_from(models.Component)
         .outerjoin(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
@@ -123,8 +123,8 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     ).join(
         models.Software2ComponentPart, models.ComponentParts.id == models.Software2ComponentPart.component_part_id
     ).where(
-        models.Software2ComponentPart.is_major == True,
-        models.Software2ComponentPart.date_change_major.isnot(None),
+        models.Software2ComponentPart.is_actual == True,
+        models.Software2ComponentPart.date_change_actual.isnot(None),
         models.Software2ComponentPart.software_id != models.TelemetryComponents.current_sw_version
     ).distinct(models.Tractors.id).subquery()
 
@@ -140,8 +140,8 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     ).select_from(models.Tractors)
 
     # Применяем фильтр по is_major
-    if filter.is_major is not None:
-        if filter.is_major:
+    if filter.is_actual is not None:
+        if filter.is_actual:
             query = query.filter(models.Tractors.id.in_(select(tractors_needing_major_update.c.id)))
         else:
             query = query.filter(~models.Tractors.id.in_(select(tractors_needing_major_update.c.id)))

@@ -138,12 +138,17 @@ def delete_software_component_link(link_id: int, db: Session = Depends(get_sessi
 )
 def assign_software_to_components_route(
     file: UploadFile = File(...),
-    is_major: bool = Form(...),
+    is_actual: bool = Form(...),
+    status: str = Form(...),
+    producer:str = Form(...),
     release_date: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     component_models: List[str] = Form(...),
     part_type: List[str] = Form(...),
     previous_sw_version_str: Optional[str] = Form(None),
+    tractor_id: Optional[int] = Form(None),
+    # tractor_model: Optional[str] = Form(None),
+    # tractor_vin: Optional[str] = Form(None),
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
@@ -168,22 +173,28 @@ def assign_software_to_components_route(
     base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
     
     software_data = schemas.AssignSoftwareRequest(
-        is_major=is_major,
+        is_actual=is_actual,
+        status=status,
         release_date=rd,
+        producer=producer,
         description=description,
         component_models=component_models,
         part_type=part_type,
-        previous_sw_version=prev_sw_ver_int
+        previous_sw_version=prev_sw_ver_int,
+        tractor_id=tractor_id,  
+        # tractor_model=tractor_model, 
+        # tractor_vin=tractor_vin  
     )
     
     try:
-        logger.info(f"[software/assign] файл={filename}, is_major={is_major} user={current_user.username} role={current_user.role}")
+        logger.info(f"[software/assign] файл={filename}, is_actual={is_actual} user={current_user.username} role={current_user.role}")
         return crud.software.assign_software_to_components(
             db, 
             file=file, 
             software_data=software_data,
             filename=filename,
-            base_name=base_name
+            base_name=base_name,
+
         )
     except HTTPException:
         raise
@@ -192,7 +203,7 @@ def assign_software_to_components_route(
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении ПО: {str(e)}")
 
 @router.get("/download/{id}", response_class=FileResponse)
-def download_software_file(
+def download_software_file( 
     id: int,
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)

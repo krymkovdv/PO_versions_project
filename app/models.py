@@ -29,6 +29,7 @@ class Tractors(Base):
     serv_center = Column(Text, nullable=False)
     
     tel_trac = relationship('TelemetryComponents', back_populates='tractors')
+    
 
 class TelemetryComponents(Base):
     __tablename__ = 'TelemetryComponents'
@@ -39,8 +40,8 @@ class TelemetryComponents(Base):
     time_rec = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     comp_ser_num = Column(Text, unique=True)
     mounting_date = Column(Date, nullable=False)
-    current_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False)
-    recommend_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=False) 
+    current_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=True)
+    recommend_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=True) 
 
     # Отношения
     components = relationship('Component', back_populates='tel_comp')
@@ -66,9 +67,9 @@ class Software2ComponentPart(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     component_part_id = Column(Integer, ForeignKey('ComponentParts.id'), nullable=False)
     software_id = Column(Integer, ForeignKey('Software.id'), nullable=False)
-    is_major = Column(Boolean, default=False)  # флаг Major обновления
-    status = Column(CHAR, nullable=False, default='S')
-    date_change_major = Column(Date)  # дата изменения Major
+    is_actual = Column(Boolean, default=False)  # флаг Major обновления
+    status = Column(CHAR, nullable=False, default='serial')
+    date_change_actual = Column(Date)  # дата изменения Major
     not_recom = Column(Text)
     date_change_record = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # дата изменения записи
     previous_sw_version = Column(Integer, ForeignKey('Software.id'))
@@ -79,16 +80,16 @@ class Software2ComponentPart(Base):
 
 @event.listens_for(Software2ComponentPart, 'before_update')
 def set_date_change_major_before_update(mapper, connection, target):
-    if target.is_major and hasattr(target, '_sa_instance_state'):
+    if target.is_actual and hasattr(target, '_sa_instance_state'):
         attr_state = target._sa_instance_state
-        hist = get_history(attr_state, 'is_major')
+        hist = get_history(attr_state, 'is_actual')
         if hist.has_changes() and hist.deleted == [False] and hist.added == [True]:
-            target.date_change_major = date.today()
+            target.actual = date.today()
 
 @event.listens_for(Software2ComponentPart, 'before_insert')
 def set_date_change_major_before_insert(mapper, connection, target):
-    if target.is_major:
-        target.date_change_major = date.today()
+    if target.is_actual:
+        target.date_change_actual = date.today()
 
 
 class ComponentParts(Base):
@@ -110,8 +111,16 @@ class Software(Base):
     inner_name = Column(Text, unique=True)
     release_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     description = Column(Text)
+    producer = Column(Text, nullable=False)
+    is_actual = Column(Boolean, default=True)
+    status = Column(Text, nullable=True)
+    tractor_id = Column(Integer, ForeignKey('Tractors.id'), nullable=True)  # Связь с трактором
+    tractor_model = Column(Text, nullable=True)  # Модель трактора (денормализованное поле)
+    tractor_vin = Column(Text, nullable=True)
+
 
     components_links = relationship("Software2ComponentPart", foreign_keys="[Software2ComponentPart.software_id]", back_populates="software")
     current_telemetry_versions = relationship('TelemetryComponents', foreign_keys="[TelemetryComponents.current_sw_version]", back_populates='current_soft')
     recommended_telemetry_versions = relationship('TelemetryComponents', foreign_keys="[TelemetryComponents.recommend_sw_version]", back_populates='recommended_soft')
     previous_in_links = relationship('Software2ComponentPart', foreign_keys="[Software2ComponentPart.previous_sw_version]", back_populates='previous_software')
+    tractor = relationship("Tractors", foreign_keys=[tractor_id])

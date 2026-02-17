@@ -71,9 +71,9 @@ def create_software_component_part(db: Session, link: schemas.SoftwareComponents
     db_link = models.Software2ComponentPart(
         component_part_id=link.component_part_id,
         software_id=link.software_id,
-        is_major=link.is_major,
+        is_actual=link.is_actual,
         status=link.status,
-        date_change_major=link.date_change_major,
+        date_change_actual=link.date_change_actual,
         not_recom=link.not_recom,
         date_change_record=link.date_change_record,
         previous_sw_version=link.previous_sw_version
@@ -173,7 +173,13 @@ def assign_software_to_components(
             name=base_name,              # имя без расширения
             inner_name=base_name,        # совпадает с именем
             release_date=software_data.release_date,
-            description=software_data.description
+            description=software_data.description,
+            is_actual=software_data.is_actual,
+            status=software_data.status,
+            producer=software_data.producer,
+            tractor_id=software_data.tractor_id,
+            # tractor_model=software_data.tractor_model,
+            # tractor_vin=software_data.tractor_vin
         )
         db.add(fw)
         db.flush()
@@ -212,9 +218,9 @@ def assign_software_to_components(
             link = models.Software2ComponentPart(
                 component_part_id=part.id,
                 software_id=fw.id,
-                is_major=software_data.is_major,
+                is_actual=software_data.is_actual,
                 status='s',
-                date_change_major=datetime.utcnow().date() if software_data.is_major else None,
+                date_change_actual=datetime.utcnow().date() if software_data.is_actual    else None,
                 previous_sw_version=software_data.previous_sw_version
             )
             db.add(link)
@@ -228,7 +234,8 @@ def assign_software_to_components(
             inner_name=fw.inner_name,
             release_date=fw.release_date,
             description=fw.description,
-            download_url=f"/software/download/{fw.id}"
+            download_url=f"/software/download/{fw.id}",
+            producer=fw.producer
         )
     except Exception as e:
         db.rollback()

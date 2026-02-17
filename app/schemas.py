@@ -96,8 +96,8 @@ class TelemetryComponentSchema(BaseModel):
     time_rec: Optional[datetime] = None
     comp_ser_num: Optional[str] = None
     mounting_date: date
-    current_sw_version: int
-    recommend_sw_version: int
+    current_sw_version: Optional[int] = None
+    recommend_sw_version: Optional[int] = None
     id: Optional[int] = None
 
 class SoftwareSchema(BaseModel):
@@ -116,9 +116,9 @@ class ComponentPartSchema(BaseModel):
 class SoftwareComponentsSchema(BaseModel):
     component_part_id: int
     software_id: int
-    is_major: bool
+    is_actual: bool
     status: str
-    date_change_major: Optional[date] = None 
+    date_change_actual: Optional[date] = None 
     not_recom: Optional[str] = None
     date_change_record: Optional[datetime] = None  
     previous_sw_version: Optional[int] = None 
@@ -127,8 +127,8 @@ class SoftwareComponentsSchema(BaseModel):
     @field_validator('status')
     @classmethod
     def validate_status(cls, v):
-        if v not in {'s', 't', 'b', 'o'}:
-            raise ValueError("Status must be one of: 's', 't', 'b', 'o'")
+        if v not in {'serial', 'experienced', 'in operation'}:
+            raise ValueError("Status must be one of: 'serial', 'experienced', 'in operation'")
         return v
 
 class UserCreate(BaseModel):
@@ -161,7 +161,7 @@ class TractorFilter(BaseModel):
     status: List[str] = []
     dealer: str = ''
     date_assemle: Optional[str] = None
-    is_major: Optional[bool] = None
+    is_actual: Optional[bool] = None
     date_assemle: Optional[date] = None
     date_start: Optional[date] = None
     date_end: Optional[date] = None
@@ -217,7 +217,7 @@ class ComponentSearchResponseItem(BaseModel):
     release_date: Optional[datetime] = None
     inner_version: Optional[str] = None
     producer_version: Optional[str] = None
-    is_maj: Optional[bool] = None
+    is_actual: Optional[bool] = None
     model_component: str
     id_Firmwares: Optional[int] = None
 
@@ -250,12 +250,17 @@ class SoftwareResponse(SoftwareBase):
     download_url: str
 
 class AssignSoftwareRequest(BaseModel):
-    is_major: bool
+    is_actual: bool
+    producer: str = None
     release_date: Optional[date] = None
+    status: str =None
     description: Optional[str] = None
     component_models: List[str] = Field(..., min_items=1)
     part_type: List[str] = Field(..., min_items=1)
     previous_sw_version: Optional[int] = None
+    tractor_id: Optional[int] = None
+    # tractor_model: Optional[str] = None
+    # tractor_vin: Optional[str] = None
 
 class SoftwareMetadata(BaseModel):
     id: int
@@ -323,7 +328,7 @@ class SoftwareUpdate(BaseModel):
     inner_name: Optional[str] = None
     release_date: Optional[datetime] = None
     description: Optional[str] = None
-    is_major: Optional[bool] = None
+    is_actual: Optional[bool] = None
 
 class ComponentPartUpdate(BaseModel):
     component: Optional[int] = None
@@ -332,9 +337,9 @@ class ComponentPartUpdate(BaseModel):
 class SoftwareComponentLinkUpdate(BaseModel):
     component_part_id: Optional[int] = None
     software_id: Optional[int] = None
-    is_major: Optional[bool] = None
+    is_actual: Optional[bool] = None
     status: Optional[str] = None
-    date_change_major: Optional[date] = None
+    date_change_actual: Optional[date] = None
     not_recom: Optional[str] = None
     date_change_record: Optional[datetime] = None
     previous_sw_version: Optional[int] = None
@@ -342,6 +347,6 @@ class SoftwareComponentLinkUpdate(BaseModel):
     @field_validator('status')
     @classmethod
     def validate_status(cls, v):
-        if v is not None and v not in {'s', 't', 'b', 'o'}:
-            raise ValueError("Status must be one of: 's', 't', 'b', 'o'")
+        if v is not None and v not in {'serial', 'experienced', 'in operation'}:
+            raise ValueError("Status must be one of: 'serial', 'experienced', 'in operation'")
         return v
