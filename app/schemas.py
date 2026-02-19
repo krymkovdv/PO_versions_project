@@ -107,6 +107,7 @@ class SoftwareSchema(BaseModel):
     release_date: Optional[datetime] = None
     description: Optional[str] = None
     id: Optional[int] = None
+    producer: str
 
 class ComponentPartSchema(BaseModel):
     component: int
