@@ -7,7 +7,7 @@ RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-CMD ["uvicorn", "app.main:app", "--host", "26.77.162.134", "--port", "8001"]
+CMD ["uvicorn", "app.main:app", "--host", "10.100.16.187", "--port", "8001"]
 
 
 # uvicorn app.main:app --host 26.77.162.134 --port 8000
