@@ -156,6 +156,7 @@ class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
     model_comp: List[str] = []
+    producers: List[str] = [] # добавил producers
 
 class TractorFilter(BaseModel):
     trac_model: List[str] = []
@@ -280,6 +281,7 @@ class SoftwareFileLocation(BaseModel):
 
 class RequestModel(BaseModel):
     trac_model: List[str] = []
+    producers: List[str] = []  # ← добавил producers
 
 class TractorSearchResponse2(BaseModel):
     vin: str

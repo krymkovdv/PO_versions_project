@@ -22,7 +22,8 @@ def get_component_by_filters(
             db,
             trac_model=filters.trac_model,
             type_comp=filters.type_comp,
-            model_comp=filters.model_comp
+            model_comp=filters.model_comp,
+            producers=filters.producers # добавил producers
         )
         logger.info(f"[component-info] успешно выполнена, найдено записей: {len(response)} user={current_user.username} role={current_user.role}")
         return response
@@ -130,7 +131,8 @@ def get_component_models(
         models_list = crud.components.get_agg_by_trac_and_comp(
             db,
             request.trac_model if request.trac_model else None,
-            None
+            None,
+            producers=request.producers if request.producers else None # добавил producers
         )
         logger.info(f"[component-models] найдено моделей: {len(models_list)} user={current_user.username} role={current_user.role}")
         return {"component_models": models_list}
