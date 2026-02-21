@@ -1,7 +1,7 @@
 *.log
 venv/
 ENV/
-.env
+*.env
 *py[cod]
 __pycache__/
 *.tmp
