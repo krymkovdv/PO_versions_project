@@ -14,7 +14,8 @@ def get_component_by_filters(
     db: Session,
     trac_model: List[str],
     type_comp: List[str],
-    model_comp: List[str]
+    model_comp: List[str],
+    producers: List[str] = None # ← ДОБАВЛЕН ФИЛЬТР ПО ПРОИЗВОДИТЕЛЯМ
 ):
     query = (
         db.query(
@@ -42,6 +43,8 @@ def get_component_by_filters(
         query = query.filter(models.Component.type.in_(type_comp))
     if model_comp:
         query = query.filter(models.Component.model.in_(model_comp))
+    if producers:  # ← ДОБАВЛЕН ФИЛЬТР ПО ПРОИЗВОДИТЕЛЯМ
+        query = query.filter(models.Component.producer_comp.in_(producers))
 
     query = query.distinct()
     results = query.all()
