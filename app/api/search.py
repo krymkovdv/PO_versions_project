@@ -23,7 +23,8 @@ def get_component_by_filters(
             trac_model=filters.trac_model,
             type_comp=filters.type_comp,
             model_comp=filters.model_comp,
-            producers=filters.producers # добавил producers
+            producers=filters.producers,
+            status=filters.status
         )
         logger.info(f"[component-info] успешно выполнена, найдено записей: {len(response)} user={current_user.username} role={current_user.role}")
         return response

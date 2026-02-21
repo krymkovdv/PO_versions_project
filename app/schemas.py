@@ -108,6 +108,7 @@ class SoftwareSchema(BaseModel):
     description: Optional[str] = None
     id: Optional[int] = None
     producer: str
+    status: str
 
 class ComponentPartSchema(BaseModel):
     component: int
@@ -156,7 +157,8 @@ class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
     model_comp: List[str] = []
-    producers: List[str] = [] # добавил producers
+    producers: List[str] = [] 
+    status: List[str] = []
 
 class TractorFilter(BaseModel):
     trac_model: List[str] = []
@@ -222,6 +224,7 @@ class ComponentSearchResponseItem(BaseModel):
     is_actual: Optional[bool] = None
     model_component: str
     id_Firmwares: Optional[int] = None
+    status: Optional[str] = None
 
     @field_validator('type_component', mode='before')
     @classmethod

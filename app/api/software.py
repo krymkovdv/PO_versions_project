@@ -145,6 +145,7 @@ def assign_software_to_components_route(
     description: Optional[str] = Form(None),
     component_models: List[str] = Form(...),
     part_type: List[str] = Form(...),
+
     previous_sw_version_str: Optional[str] = Form(None),
     tractor_id: Optional[int] = Form(None),
     # tractor_model: Optional[str] = Form(None),
@@ -152,6 +153,8 @@ def assign_software_to_components_route(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
+
+
     rd = None
     if release_date:
         try:

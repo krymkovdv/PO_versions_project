@@ -115,8 +115,7 @@ class Software(Base):
     is_actual = Column(Boolean, default=True)
     status = Column(Text, nullable=True)
     tractor_id = Column(Integer, ForeignKey('Tractors.id'), nullable=True)  # Связь с трактором
-    tractor_model = Column(Text, nullable=True)  # Модель трактора (денормализованное поле)
-    tractor_vin = Column(Text, nullable=True)
+
 
 
     components_links = relationship("Software2ComponentPart", foreign_keys="[Software2ComponentPart.software_id]", back_populates="software")

@@ -5,11 +5,13 @@ from fastapi import HTTPException, status, Depends, Form, File, UploadFile
 import uuid
 import re
 import os
-from datetime import datetime
+from datetime import datetime, date
 import logging
 import magic
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
+import random
+
 
 logger = logging.getLogger(__name__)
 
@@ -178,8 +180,6 @@ def assign_software_to_components(
             status=software_data.status,
             producer=software_data.producer,
             tractor_id=software_data.tractor_id,
-            # tractor_model=software_data.tractor_model,
-            # tractor_vin=software_data.tractor_vin
         )
         db.add(fw)
         db.flush()
@@ -223,7 +223,18 @@ def assign_software_to_components(
                 date_change_actual=datetime.utcnow().date() if software_data.is_actual    else None,
                 previous_sw_version=software_data.previous_sw_version
             )
+
             db.add(link)
+            tel_comp = models.TelemetryComponents(
+                tractor=software_data.tractor_id,
+                component=component.id,
+                comp_ser_num=str(random.randint(1,11111111)),  
+                mounting_date=date.today(),
+                current_sw_version=fw.id,
+                recommend_sw_version=fw.id  
+            )
+            db.add(tel_comp)
+
         
         db.commit()
         db.refresh(fw)

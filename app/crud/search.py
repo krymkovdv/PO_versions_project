@@ -15,7 +15,8 @@ def get_component_by_filters(
     trac_model: List[str],
     type_comp: List[str],
     model_comp: List[str],
-    producers: List[str] = None # ← ДОБАВЛЕН ФИЛЬТР ПО ПРОИЗВОДИТЕЛЯМ
+    producers: List[str] = None,
+    status: List[str] = None
 ):
     query = (
         db.query(
@@ -27,7 +28,8 @@ def get_component_by_filters(
             models.Software.id.label("id_Firmwares"),
             models.Component.type.label("type_component"),
             models.Component.model.label("model_component"),
-            models.Software2ComponentPart.is_actual.label("is_actual")
+            models.Software2ComponentPart.is_actual.label("is_actual"),
+            models.Software.status.label("status")
         )
         .select_from(models.Component)
         .outerjoin(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
@@ -45,6 +47,8 @@ def get_component_by_filters(
         query = query.filter(models.Component.model.in_(model_comp))
     if producers:  # ← ДОБАВЛЕН ФИЛЬТР ПО ПРОИЗВОДИТЕЛЯМ
         query = query.filter(models.Component.producer_comp.in_(producers))
+    if status:
+        query = query.filter(models.Software.status.in_(status))
 
     query = query.distinct()
     results = query.all()
@@ -58,7 +62,8 @@ def get_component_by_filters(
             "producer_version": r.producer_version,
             "is_maj": r.is_actual,
             "model_component": r.model_component,
-            "id_Firmwares": r.id_Firmwares
+            "id_Firmwares": r.id_Firmwares,
+            "status": r.status
         }
         for r in results
     ]
