@@ -284,7 +284,9 @@ class SoftwareFileLocation(BaseModel):
 
 class RequestModel(BaseModel):
     trac_model: List[str] = []
-    producers: List[str] = []  # ← добавил producers
+    type_comp: List[str] = []
+    producers: List[str] = []
+    status: List[str] = []
 
 class TractorSearchResponse2(BaseModel):
     vin: str

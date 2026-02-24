@@ -131,9 +131,10 @@ def get_component_models(
     try:
         models_list = crud.components.get_agg_by_trac_and_comp(
             db,
-            request.trac_model if request.trac_model else None,
-            None,
-            producers=request.producers if request.producers else None # добавил producers
+            trac_model=request.trac_model if request.trac_model else None,
+            type_comp=request.type_comp if request.type_comp else None,
+            producers=request.producers if request.producers else None,
+            status=request.status if request.status else None
         )
         logger.info(f"[component-models] найдено моделей: {len(models_list)} user={current_user.username} role={current_user.role}")
         return {"component_models": models_list}

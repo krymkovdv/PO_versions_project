@@ -92,7 +92,7 @@ def update_component_part(db: Session, part_id: int, part_update: schemas.Compon
         db.rollback()
         raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
     
-def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None, producers: List[str] = None):
+def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None, producers: List[str] = None, status: List[str] = None):
     query = db.query(models.Component.model).distinct()
 # producer dobavil
     if trac_model:
@@ -104,6 +104,9 @@ def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_com
         # 
     if producers:
         query = query.filter(models.Component.producer_comp.in_(producers))
+    if status:
+        query = query.join(models.Component.parts).join(models.ComponentParts.software_link)
+        query = query.filter(models.Software2ComponentPart.status.in_(status))
 # 
     results = query.all()
     return [r.model for r in results if r.model is not None]    
