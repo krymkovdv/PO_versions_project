@@ -149,7 +149,7 @@ class SoftwareSchema(BaseModel):
     is_actual: bool = True
     is_archive: bool = False  
     status: Optional[str] = None  
-    tractor_model: str  
+    tractor_model: List[str] = Field(default_factory=list) 
     previous_sw_version: Optional[int] = None
     path_instruction: str  
     
@@ -164,7 +164,7 @@ class SoftwareCreate(BaseModel):
     is_actual: bool = True
     is_archive: bool = False
     status: Optional[str] = None
-    tractor_model: str
+    tractor_model: List[str] = Field(default_factory=list)
     previous_sw_version: Optional[int] = None
     path_instruction: str
     
@@ -184,7 +184,7 @@ class SoftwareUpdate(BaseModel):
     is_actual: Optional[bool] = None
     is_archive: Optional[bool] = None
     status: Optional[str] = None
-    tractor_model: Optional[str] = None
+    tractor_model: List[str] = Field(default_factory=list)
     previous_sw_version: Optional[int] = None
     path_instruction: Optional[str] = None
 
@@ -260,7 +260,7 @@ class TractorSoftwareResponse(BaseModel):
 class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
-    model_comp: List[str] = []
+    name_comp: List[str] = []
     producers: List[str] = []
     status: List[str] = []
 
@@ -307,52 +307,22 @@ class RequestModel(BaseModel):
 # ============================================
 # Ответы для поиска
 # ============================================
-class TractorSearchResponse(BaseModel):
-    vin: str
-    model: str
-    consumer: str
-    assembly_date: Optional[datetime] = None
-    region: str
-    oh_hour: Optional[str] = None
-    last_activity: Optional[datetime] = None
-    sw_name: Optional[str] = None
-    description: Optional[str] = None
-    component_id: Optional[int] = None  
-    comp_model: Optional[str] = None
-    current_sw_version: Optional[int] = None
-    recommend_sw_version: Optional[str] = None
-    component_type: Optional[str] = None
-    
-    model_config = ConfigDict(from_attributes=True)
 
-class TractorSearchResponse2(BaseModel):
-    vin: str
-    model: str
-    consumer: str
-    assembly_date: Optional[datetime] = None
-    region: str
-    oh_hour: Optional[str] = None
-    last_activity: Optional[datetime] = None
-    sw_name: Optional[str] = None
-    description: Optional[str] = None
-    component_id: Optional[int] = None
-    comp_model: Optional[str] = None
-    current_sw_version: Optional[int] = None
-    recommend_sw_version: Optional[str] = None
-    component_type: Optional[str] = None
-    
-    model_config = ConfigDict(from_attributes=True)
-
-class ComponentSearchResponseItem(BaseModel):
+class  ComponentSearchResponseItem(BaseModel):
     download_link: Optional[str] = None
+    download_link_instruction: Optional[str] = None
     type_component: str
     release_date: Optional[datetime] = None
-    inner_version: Optional[str] = None
-    producer_version: Optional[str] = None
-    is_actual: Optional[bool] = None 
-    model_component: str
+    is_actual: Optional[bool] = None
+    is_archive: Optional[bool] = None
+    name_component: str
     id_Firmwares: Optional[int] = None
+    id_Component: Optional[int] = None
     status: Optional[str] = None
+    tractor_model: Optional[List[str]]
+
+
+    
     
     @field_validator('type_component', mode='before')
     @classmethod
@@ -365,16 +335,34 @@ class ComponentSearchResponseItem(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-class TractorComponentRequest(BaseModel):
-    vins: List[str]
-
-class TractorComponentResponse(BaseModel):
-    vin: str
+class SoftwareComponentInfoResponse(BaseModel):
+    """Полная информация о ПО и компоненте по ID"""
+    
+    # Информация о ПО
+    id_firmwares: int
+    software_path: str
+    software_release_date: Optional[datetime] = None
+    software_description: Optional[str] = None
+    software_producer: str
+    software_is_actual: bool
+    software_is_archive: bool
+    software_status: Optional[str] = None
+    software_tractor_models: List[str] = Field(default_factory=list)
+    software_previous_sw_version: Optional[int] = None
+    software_path_instruction: str
+    
+    # Информация о компоненте
+    id_component: int
     component_type: str
-    comp_model: str
+    component_name: str
+    component_producer: str
+    
+    # Информация о связи
+    link_id: int
+    is_recom: bool
     
     model_config = ConfigDict(from_attributes=True)
-
+    
 # ============================================
 # Загрузка ПО
 # ============================================

@@ -11,20 +11,42 @@ import magic
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 import random
-
+import json
 
 logger = logging.getLogger(__name__)
 
 #Software
+def _serialize_tractor_models(models_list: list) -> str:
+    """Сериализует список моделей в JSON-строку"""
+    return json.dumps(models_list, ensure_ascii=False)
+
+def _deserialize_tractor_models(models_str: str) -> list:
+    """Десериализует JSON-строку в список моделей"""
+    if not models_str:
+        return []
+    try:
+        return json.loads(models_str)
+    except (json.JSONDecodeError, TypeError):
+        # Для обратной совместимости - если старая строка
+        return [models_str] if models_str else []
+
 def get_software(db: Session):
+    """Получение всего ПО с десериализацией моделей"""
     stmt = select(models.Software)
     result = db.execute(stmt).scalars().all()
+    
+    # Десериализуем tractor_models для каждого результата
+    for software in result:
+        software.tractor_model = _deserialize_tractor_models(software.tractor_model)
+    
     return result
 
 def get_software_by_id(db: Session, id: int):
     return db.query(models.Software).filter(models.Software.id == id).first()
 
 def create_software(db: Session, software: schemas.SoftwareSchema):
+    tractor_models_json = _serialize_tractor_models(software.tractor_model)
+
     db_software = models.Software(
         path=software.path,
         release_date=software.release_date,
@@ -34,13 +56,15 @@ def create_software(db: Session, software: schemas.SoftwareSchema):
         is_actual=software.is_actual,
         is_archive=software.is_archive,
         status=software.status,
-        tractor_model=software.tractor_model,
+        tractor_model=tractor_models_json,
         previous_sw_version=software.previous_sw_version,
         path_instruction=software.path_instruction
     )
     db.add(db_software)
     db.commit()
     db.refresh(db_software)
+
+    db_software.tractor_model = _deserialize_tractor_models(db_software.tractor_model)
     return db_software
 
 def delete_software(db: Session, id: int):
