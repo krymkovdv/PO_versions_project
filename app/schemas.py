@@ -260,7 +260,7 @@ class TractorSoftwareResponse(BaseModel):
 class ComponentInfoRequest(BaseModel):
     trac_model: List[str] = []
     type_comp: List[str] = []
-    model_comp: List[str] = [] 
+    model_comp: List[str] = []
     producers: List[str] = []
     status: List[str] = []
 
@@ -269,7 +269,7 @@ class TractorFilter(BaseModel):
     status: List[str] = []
     dealer: str = ''
     date_assemle: Optional[date] = None
-    is_actual: Optional[bool] = None 
+    is_actual: Optional[bool] = None  
     date_start: Optional[date] = None
     date_end: Optional[date] = None
     query: Optional[str] = None
@@ -293,6 +293,20 @@ class TractorFilter(BaseModel):
             raise ValueError('date_end не может быть раньше date_start')
         return v
 
+class TractorInfoRequest(BaseModel):
+    trac_model: List[str] = []
+    status: List[str] = []
+    dealer: str
+
+class RequestModel(BaseModel):
+    trac_model: List[str] = []
+    type_comp: List[str] = []
+    producers: List[str] = []
+    status: List[str] = []
+
+# ============================================
+# Ответы для поиска
+# ============================================
 class TractorSearchResponse(BaseModel):
     vin: str
     model: str
@@ -303,7 +317,7 @@ class TractorSearchResponse(BaseModel):
     last_activity: Optional[datetime] = None
     sw_name: Optional[str] = None
     description: Optional[str] = None
-    component_id: Optional[int] = None
+    component_id: Optional[int] = None  
     comp_model: Optional[str] = None
     current_sw_version: Optional[int] = None
     recommend_sw_version: Optional[str] = None
@@ -335,11 +349,11 @@ class ComponentSearchResponseItem(BaseModel):
     release_date: Optional[datetime] = None
     inner_version: Optional[str] = None
     producer_version: Optional[str] = None
-    is_actual: Optional[bool] = None
+    is_actual: Optional[bool] = None 
     model_component: str
     id_Firmwares: Optional[int] = None
     status: Optional[str] = None
-
+    
     @field_validator('type_component', mode='before')
     @classmethod
     def normalize_component_types(cls, v):
@@ -361,25 +375,18 @@ class TractorComponentResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-class RequestModel(BaseModel):
-    trac_model: List[str] = []
-    type_comp: List[str] = []
-    producers: List[str] = []
-    status: List[str] = []
-
 # ============================================
 # Загрузка ПО
 # ============================================
 class AssignSoftwareRequest(BaseModel):
-    is_actual: bool = True
-    producer: str
+    name: str
+    is_major: bool
+    inner_name: Optional[str] = None
     release_date: Optional[date] = None
-    status: Optional[str] = None
     description: Optional[str] = None
     component_models: List[str] = Field(..., min_length=1)
+    part_type: List[str] = Field(..., min_length=1)
     previous_sw_version: Optional[int] = None
-    tractor_id: Optional[int] = None
-    tractor_model: Optional[str] = None
 
 class SoftwareMetadata(BaseModel):
     id: int
@@ -394,14 +401,3 @@ class SoftwareFileLocation(BaseModel):
     full_path: str
     size_bytes: int
     exists: bool
-
-# ============================================
-# Базовые классы
-# ============================================
-class SoftwareBase(BaseModel):
-    name: str
-    inner_name: Optional[str] = None
-    release_date: Optional[datetime] = None
-    description: Optional[str] = None
-    
-    model_config = ConfigDict(from_attributes=True)
