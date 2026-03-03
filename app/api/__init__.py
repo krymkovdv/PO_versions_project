@@ -1,1 +1,1 @@
-from . import software, tractors, components, telemetry, users, search, auth
+from . import software, tractors, components, users, search, auth

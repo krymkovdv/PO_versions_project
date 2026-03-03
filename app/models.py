@@ -72,6 +72,18 @@ class Software(Base):
     path_instruction = Column(Text, unique=True, nullable=False)
 
     soft2Component = relationship('Software_Component_Link', back_populates='software')
+    previous_version = relationship(
+        'Software', 
+        remote_side=[id],
+        foreign_keys=[previous_sw_version]
+    )
+
+    __table_args__ = (
+            CheckConstraint(
+                "status IN ('serial', 'in operation', 'experienced')",
+                name="check_valid_role"
+            ),
+        )
 
 class Software_Component_Link(Base):
     __tablename__ = 'software_component_links'
@@ -92,5 +104,5 @@ class Tractor_Software_And_Component_Link(Base):
     tractor_id = Column(Integer, ForeignKey('tractors.id'), nullable=False, index= True)
     soft_comp_link_id = Column(Integer, ForeignKey('software_component_links.id'), nullable=False, index= True)
 
-    software_Component_Link = relationship("Software_Component_Link", foreign_keys=[soft_comp_link_id], back_populates="soft_comp_to_tractor")
+    software_component_link = relationship("Software_Component_Link", foreign_keys=[soft_comp_link_id], back_populates="soft_comp_to_tractor")
     tractor = relationship("Tractor", foreign_keys=[tractor_id], back_populates="tractor2SoftAndComp")

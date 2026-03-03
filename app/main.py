@@ -5,8 +5,8 @@ from .models import Base
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import (
-    auth, users, tractors, components,
-    telemetry, software, search
+    auth, users, tractors, components, 
+    software, search
 )
 
 
@@ -32,7 +32,6 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(tractors.router)
 app.include_router(components.router)
-app.include_router(telemetry.router)
 app.include_router(software.router)
 app.include_router(search.router)
 

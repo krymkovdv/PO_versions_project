@@ -19,9 +19,8 @@ def get_component_by_id(db: Session, id: int):
 def create_component(db: Session, component: schemas.ComponentSchema):
     db_component = models.Component(
         type=component.type,
-        model=component.model,
-        number_of_parts=component.number_of_parts,
-        producer_comp=component.producer_comp
+        name=component.name,
+        producer=component.producer
     )
     db.add(db_component)
     db.commit()
@@ -51,47 +50,6 @@ def update_component(db: Session, component_id: int, component_update: schemas.C
         db.rollback()
         raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
 
-def get_component_parts(db: Session):
-    stmt = select(models.ComponentParts)
-    result = db.execute(stmt).scalars().all()
-    return result
-
-def get_component_part_by_id(db: Session, id: int):
-    return db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
-
-def create_component_part(db: Session, part: schemas.ComponentPartSchema):
-    db_part = models.ComponentParts(
-        component=part.component,
-        part_type=part.part_type
-    )
-    db.add(db_part)
-    db.commit()
-    db.refresh(db_part)
-    return db_part
-
-def delete_component_part(db: Session, id: int):
-    part = db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
-    if part is None:
-        return False
-    db.delete(part)
-    db.commit()
-    return True
-
-def update_component_part(db: Session, part_id: int, part_update: schemas.ComponentPartUpdate):
-    db_part = db.query(models.ComponentParts).filter(models.ComponentParts.id == part_id).first()
-    if not db_part:
-        raise HTTPException(status_code=404, detail="Component part not found")
-    for field, value in part_update.model_dump(exclude_unset=True).items():
-        if value is not None:
-            setattr(db_part, field, value)
-    try:
-        db.commit()
-        db.refresh(db_part)
-        return db_part
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
-    
 def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None, producers: List[str] = None, status: List[str] = None):
     query = db.query(models.Component.model).distinct()
 # producer dobavil

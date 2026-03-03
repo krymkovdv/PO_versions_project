@@ -27,10 +27,16 @@ def get_software_by_id(db: Session, id: int):
 def create_software(db: Session, software: schemas.SoftwareSchema):
     db_software = models.Software(
         path=software.path,
-        name=software.name,
-        inner_name=software.inner_name,
         release_date=software.release_date,
-        description=software.description
+        end_actuality=software.end_actuality,
+        description=software.description,
+        producer=software.producer,
+        is_actual=software.is_actual,
+        is_archive=software.is_archive,
+        status=software.status,
+        tractor_model=software.tractor_model,
+        previous_sw_version=software.previous_sw_version,
+        path_instruction=software.path_instruction
     )
     db.add(db_software)
     db.commit()
@@ -56,54 +62,6 @@ def update_software(db: Session, sw_id: int, software_update: schemas.SoftwareUp
         db.commit()
         db.refresh(db_sw)
         return db_sw
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
-    
-#Link Software and ComponentParts
-def get_software_component_parts(db: Session):
-    stmt = select(models.Software2ComponentPart)
-    result = db.execute(stmt).scalars().all()
-    return result
-
-def get_software_component_part_by_id(db: Session, id: int):
-    return db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == id).first()
-
-def create_software_component_part(db: Session, link: schemas.SoftwareComponentsSchema):
-    db_link = models.Software2ComponentPart(
-        component_part_id=link.component_part_id,
-        software_id=link.software_id,
-        is_actual=link.is_actual,
-        status=link.status,
-        date_change_actual=link.date_change_actual,
-        not_recom=link.not_recom,
-        date_change_record=link.date_change_record,
-        previous_sw_version=link.previous_sw_version
-    )
-    db.add(db_link)
-    db.commit()
-    db.refresh(db_link)
-    return db_link
-
-def delete_software_component_part(db: Session, id: int):
-    link = db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == id).first()
-    if link is None:
-        return False
-    db.delete(link)
-    db.commit()
-    return True
-
-def update_software_component_part(db: Session, link_id: int, link_update: schemas.SoftwareComponentLinkUpdate):
-    db_link = db.query(models.Software2ComponentPart).filter(models.Software2ComponentPart.id == link_id).first()
-    if not db_link:
-        raise HTTPException(status_code=404, detail="Software-component link not found")
-    for field, value in link_update.model_dump(exclude_unset=True).items():
-        if value is not None:
-            setattr(db_link, field, value)
-    try:
-        db.commit()
-        db.refresh(db_link)
-        return db_link
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")

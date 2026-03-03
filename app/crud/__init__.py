@@ -1,1 +1,1 @@
-from . import software, tractors, components, telemetry, users, search
+from . import software, tractors, components, users, search, software_component_link, tractor_software_component_link

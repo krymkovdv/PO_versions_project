@@ -37,7 +37,7 @@ def get_software(
 def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     # Проверка на дубликат name или path
     existing = db.query(models.Software).filter(
-        (models.Software.name == software.name) | (models.Software.path == software.path)
+        (models.Software.id == software.id)
     ).first()
     if existing:
         logger.warning(f"Software с id: {software.id} уже есть user={current_user.username} role={current_user.role}")
@@ -78,195 +78,261 @@ def update_software(
         raise HTTPException(status_code=403, detail="Only moderator can update software")
     return crud.software.update_software(db, sw_id, software_update)
 
-@router.get("/software-component-links/", response_model=List[schemas.SoftwareComponentsSchema])
-def get_software_component_links(session: Session = Depends(get_session)): 
-    try:
-        logger.info(f"[get_software-component-links] успешно выполнена user=anonymous role=anonymous")
-        return crud.software.get_software_component_parts(session)
-    except SQLAlchemyError as e:
-        logger.error(f"[get_software-component-links] ошибка SQLAlchemy: {str(e)} user=anonymous role=anonymous", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка базы данных при получении связей ПО и частей: {str(e)}"
-        )
-    except Exception as e:
-        logger.error(f"[get_software-component-links] неизвестная ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Неизвестная ошибка: {str(e)}"
-        )
-    
-@router.post("/software-component-links/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
-def create_software_component_link(link: schemas.SoftwareComponentsSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
-    # Проверка на дубликат связки component_part_id + software_id
-    existing = db.query(models.Software2ComponentPart).filter(
-        models.Software2ComponentPart.component_part_id == link.component_part_id,
-        models.Software2ComponentPart.software_id == link.software_id
-    ).first()
-    if existing:
-        logger.warning(f"[post_software-component-links] связь уже есть user={current_user.username} role={current_user.role}", exc_info=True)
-        raise HTTPException(status_code=400, detail="Link between this component part and software already exists")
-    try:
-        result = crud.software.create_software_component_part(db, link)
-        logger.info(f"[post_software-component-links] успешно выполнена user={current_user.username} role={current_user.role}")
-        return result
-    except SQLAlchemyError as e:
-        logger.error(f"[post_software-component-links] ошибка SQLAlchemy: {str(e)} user={current_user.username} role={current_user.role}",  exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка базы данных при создании связи ПО и части: {str(e)}"
-        )
-    except Exception as e:
-        logger.error(f"[post_software-component-links] неизвестная ошибка: {str(e)} user={current_user.username} role={current_user.role}",  exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Неизвестная ошибка: {str(e)}"
-        )
-
-@router.delete("/software-component-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
-def delete_software_component_link(link_id: int, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
-    success = crud.software.delete_software_component_part(db, link_id)
-    if not success:
-        logger.error(f"[delete_software_component_link] связь {link_id} не найдена user={current_user.username} role={current_user.role}")
-        raise HTTPException(status_code=404, detail="Software component link not found")
-    logger.info(f"[delete_software_component_link] связь {link_id} удалена user={current_user.username} role={current_user.role}")
-
-@router.post(
-    "/assign",
-    response_model=schemas.SoftwareResponse,
-    status_code=201,
-)
-def assign_software_to_components_route(
-    file: UploadFile = File(...),
-    is_actual: bool = Form(...),
-    status: str = Form(...),
-    producer:str = Form(...),
-    release_date: Optional[str] = Form(None),
-    description: Optional[str] = Form(None),
-    component_models: List[str] = Form(...),
-    part_type: List[str] = Form(...),
-
-    previous_sw_version_str: Optional[str] = Form(None),
-    tractor_id: Optional[int] = Form(None),
-    # tractor_model: Optional[str] = Form(None),
-    # tractor_vin: Optional[str] = Form(None),
+# ============================================
+# Связи ПО ↔ Компонент
+# ============================================
+@router.get("/{software_id}/components", response_model=list[schemas.ComponentSchema])
+def get_components_for_software(
+    software_id: int,
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
+    """Получить все компоненты для ПО"""
+    components = crud.software_component_link.get_components_for_software(
+        db, software_id
+    )
+    if not components:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No components found for this software"
+        )
+    return components
 
+@router.post("/{software_id}/components", status_code=201)
+def link_component_to_software(
+    software_id: int,
+    link_data: schemas.SoftwareComponentsSchema,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Связать компонент с ПО"""
+    
+    # Проверка прав (только engineer или moderator)
+    if current_user.role not in ['engineer', 'moderator']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only engineers or moderators can link components"
+        )
+    
+    # Проверка существования ПО
+    software = db.query(models.Software).filter(models.Software.id == software_id).first()
+    if not software:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Software not found"
+        )
+    
+    # Проверка существования компонента
+    component = db.query(models.Component).filter(
+        models.Component.id == link_data.component_id
+    ).first()
+    if not component:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Component not found"
+        )
+    
+    try:
+        # Принудительно устанавливаем software_id из URL
+        link_data.software_id = software_id
+        
+        db_link = crud.software_component_link.create_software_component_link(
+            db, link_data
+        )
+        logger.info(
+            f"[link_component_to_software] created link "
+            f"software_id={software_id}, component_id={link_data.component_id}"
+        )
+        return {"id": db_link.id, "component_id": db_link.component_id, "software_id": db_link.software_id}
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"[link_component_to_software] error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error linking component: {str(e)}"
+        )
 
-    rd = None
-    if release_date:
-        try:
-            rd = date.fromisoformat(release_date)
-        except ValueError:
-            logger.error(f"[software/assign] неверный формат даты: {release_date} user={current_user.username} role={current_user.role}")
-            raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+@router.delete("/{software_id}/components/{component_id}")
+def unlink_component_from_software(
+    software_id: int,
+    component_id: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Удалить связь компонента с ПО"""
     
-    prev_sw_ver_int: Optional[int] = None
-    if previous_sw_version_str is not None and previous_sw_version_str.strip() != "":
-        try:
-            prev_sw_ver_int = int(previous_sw_version_str)
-        except ValueError:
-            raise HTTPException(400, f"previous_sw_version '{previous_sw_version_str}' is not a valid integer")
+    # Проверка прав
+    if current_user.role not in ['engineer', 'moderator']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only engineers or moderators can unlink components"
+        )
     
-    # Извлекаем имя из файла (без пути и расширения)
-    filename = file.filename or "unnamed"
-    # Убираем расширение для имени ПО
-    base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
-    
-    software_data = schemas.AssignSoftwareRequest(
-        is_actual=is_actual,
-        status=status,
-        release_date=rd,
-        producer=producer,
-        description=description,
-        component_models=component_models,
-        part_type=part_type,
-        previous_sw_version=prev_sw_ver_int,
-        tractor_id=tractor_id,  
-        # tractor_model=tractor_model, 
-        # tractor_vin=tractor_vin  
+    success = crud.software_component_link.delete_software_component_link_by_ids(
+        db, component_id, software_id
     )
     
-    try:
-        logger.info(f"[software/assign] файл={filename}, is_actual={is_actual} user={current_user.username} role={current_user.role}")
-        return crud.software.assign_software_to_components(
-            db, 
-            file=file, 
-            software_data=software_data,
-            filename=filename,
-            base_name=base_name,
-
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Link not found"
         )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[software/assign] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении ПО: {str(e)}")
-
-@router.get("/download/{id}", response_class=FileResponse)
-def download_software_file( 
-    id: int,
-    db: Session = Depends(get_session),
-    current_user: models.UserDB = Depends(get_current_user)
-):
-    logger.info(f"[software/download] запрос на скачивание id={id} user={current_user.username} role={current_user.role}")
-    try:
-        metadata = crud.software.get_software_metadata(db, id)
-        file_path = crud.software.get_software_file_path(db, id)
-        return FileResponse(
-            path=file_path,
-            filename=metadata.filename_for_download,
-            media_type="application/octet-stream",
-            headers={
-                "Content-Disposition": f'attachment; filename="{metadata.filename_for_download}"',
-                "X-Software-ID": str(metadata.id),
-            }
-        )
-    except HTTPException:
-        logger.error(f"[software/download] HTTP ошибка при скачивании id={id} user={current_user.username} role={current_user.role}")
-        raise
-    except Exception as e:
-        logger.error(f"[software/download] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/{id}/metadata", response_model=schemas.SoftwareMetadata)
-def get_software_metadata(id: int, db: Session = Depends(get_session)):
-    try:
-        result = crud.software.get_software_metadata(db, id)
-        logger.info(f"[software/metadata] получены метаданные id={id} user=anonymous role=anonymous")
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[software/metadata] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.head("/download/{id}")
-def check_software_file(id: int, db: Session = Depends(get_session)):
-    logger.info(f"📥 [DEBUG] Запрос на скачивание id={id}")
-    try:
-        file_info = crud.software.get_software_file_info(db, id)
-        logger.info(f"[software/head] проверка файла id={id}, exists={file_info.exists} user=anonymous role=anonymous")
-        return {
-            "exists": file_info.exists,
-            "size": file_info.size_bytes,
-            "path": file_info.full_path
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[software/head] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
     
-@router.patch("/software-component-links/{link_id}", response_model=schemas.SoftwareComponentsSchema)
-def update_software_component_link(
-    link_id: int,
-    link_update: schemas.SoftwareComponentLinkUpdate,
+    logger.info(
+        f"[unlink_component_from_software] deleted link "
+        f"software_id={software_id}, component_id={component_id}"
+    )
+    return {"message": "Link deleted successfully"}
+
+@router.get("/links", response_model=list[schemas.SoftwareComponentsSchema])
+def get_all_software_component_links(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
-    if current_user.role != "moderator":
-        raise HTTPException(status_code=403, detail="Only moderator can update software-component links")
-    return crud.software.update_software_component_part(db, link_id, link_update)
+    """Получить все связи ПО ↔ Компонент"""
+    return crud.software_component_link.get_all_software_component_links(db)
+    
+# @router.post(
+#     "/assign",
+#     response_model=schemas.SoftwareResponse,
+#     status_code=201,
+# )
+# def assign_software_to_components_route(
+#     file: UploadFile = File(...),
+#     is_actual: bool = Form(...),
+#     status: str = Form(...),
+#     producer:str = Form(...),
+#     release_date: Optional[str] = Form(None),
+#     description: Optional[str] = Form(None),
+#     component_models: List[str] = Form(...),
+#     part_type: List[str] = Form(...),
+
+#     previous_sw_version_str: Optional[str] = Form(None),
+#     tractor_id: Optional[int] = Form(None),
+#     # tractor_model: Optional[str] = Form(None),
+#     # tractor_vin: Optional[str] = Form(None),
+#     db: Session = Depends(get_session),
+#     current_user: models.UserDB = Depends(get_current_user)
+# ):
+
+
+#     rd = None
+#     if release_date:
+#         try:
+#             rd = date.fromisoformat(release_date)
+#         except ValueError:
+#             logger.error(f"[software/assign] неверный формат даты: {release_date} user={current_user.username} role={current_user.role}")
+#             raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+    
+#     prev_sw_ver_int: Optional[int] = None
+#     if previous_sw_version_str is not None and previous_sw_version_str.strip() != "":
+#         try:
+#             prev_sw_ver_int = int(previous_sw_version_str)
+#         except ValueError:
+#             raise HTTPException(400, f"previous_sw_version '{previous_sw_version_str}' is not a valid integer")
+    
+#     # Извлекаем имя из файла (без пути и расширения)
+#     filename = file.filename or "unnamed"
+#     # Убираем расширение для имени ПО
+#     base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
+    
+#     software_data = schemas.AssignSoftwareRequest(
+#         is_actual=is_actual,
+#         status=status,
+#         release_date=rd,
+#         producer=producer,
+#         description=description,
+#         component_models=component_models,
+#         part_type=part_type,
+#         previous_sw_version=prev_sw_ver_int,
+#         tractor_id=tractor_id,  
+#         # tractor_model=tractor_model, 
+#         # tractor_vin=tractor_vin  
+#     )
+    
+#     try:
+#         logger.info(f"[software/assign] файл={filename}, is_actual={is_actual} user={current_user.username} role={current_user.role}")
+#         return crud.software.assign_software_to_components(
+#             db, 
+#             file=file, 
+#             software_data=software_data,
+#             filename=filename,
+#             base_name=base_name,
+
+#         )
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"[software/assign] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении ПО: {str(e)}")
+
+# @router.get("/download/{id}", response_class=FileResponse)
+# def download_software_file( 
+#     id: int,
+#     db: Session = Depends(get_session),
+#     current_user: models.UserDB = Depends(get_current_user)
+# ):
+#     logger.info(f"[software/download] запрос на скачивание id={id} user={current_user.username} role={current_user.role}")
+#     try:
+#         metadata = crud.software.get_software_metadata(db, id)
+#         file_path = crud.software.get_software_file_path(db, id)
+#         return FileResponse(
+#             path=file_path,
+#             filename=metadata.filename_for_download,
+#             media_type="application/octet-stream",
+#             headers={
+#                 "Content-Disposition": f'attachment; filename="{metadata.filename_for_download}"',
+#                 "X-Software-ID": str(metadata.id),
+#             }
+#         )
+#     except HTTPException:
+#         logger.error(f"[software/download] HTTP ошибка при скачивании id={id} user={current_user.username} role={current_user.role}")
+#         raise
+#     except Exception as e:
+#         logger.error(f"[software/download] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
+
+# @router.get("/{id}/metadata", response_model=schemas.SoftwareMetadata)
+# def get_software_metadata(id: int, db: Session = Depends(get_session)):
+#     try:
+#         result = crud.software.get_software_metadata(db, id)
+#         logger.info(f"[software/metadata] получены метаданные id={id} user=anonymous role=anonymous")
+#         return result
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"[software/metadata] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
+
+# @router.head("/download/{id}")
+# def check_software_file(id: int, db: Session = Depends(get_session)):
+#     logger.info(f"📥 [DEBUG] Запрос на скачивание id={id}")
+#     try:
+#         file_info = crud.software.get_software_file_info(db, id)
+#         logger.info(f"[software/head] проверка файла id={id}, exists={file_info.exists} user=anonymous role=anonymous")
+#         return {
+#             "exists": file_info.exists,
+#             "size": file_info.size_bytes,
+#             "path": file_info.full_path
+#         }
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"[software/head] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
+    
+# @router.patch("/software-component-links/{link_id}", response_model=schemas.SoftwareComponentsSchema)
+# def update_software_component_link(
+#     link_id: int,
+#     link_update: schemas.SoftwareComponentLinkUpdate,
+#     db: Session = Depends(get_session),
+#     current_user: models.UserDB = Depends(get_current_user)
+# ):
+#     if current_user.role != "moderator":
+#         raise HTTPException(status_code=403, detail="Only moderator can update software-component links")
+#     return crud.software.update_software_component_part(db, link_id, link_update)

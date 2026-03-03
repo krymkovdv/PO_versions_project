@@ -9,12 +9,12 @@ from fastapi import HTTPException
 logger = logging.getLogger(__name__)
 
 def get_tractors(db: Session):
-    stmt = select(models.Tractors)
+    stmt = select(models.Tractor)
     result = db.execute(stmt).scalars().all()
     return result
 
 def create_tractor(db: Session, tractor: schemas.TractorsSchema):
-    db_tractor = models.Tractors(
+    db_tractor = models.Tractor(
         model=tractor.model,
         vin=tractor.vin,
         oh_hour=tractor.oh_hour,
@@ -22,7 +22,7 @@ def create_tractor(db: Session, tractor: schemas.TractorsSchema):
         assembly_date=tractor.assembly_date,
         region=tractor.region,
         consumer=tractor.consumer,
-        serv_center=tractor.serv_center
+        dealer=tractor.dealer
     )
     db.add(db_tractor)
     db.commit()
@@ -30,10 +30,10 @@ def create_tractor(db: Session, tractor: schemas.TractorsSchema):
     return db_tractor
 
 def get_tractor_by_id(db: Session, id: int):
-    return db.query(models.Tractors).filter(models.Tractors.id == id).first()
+    return db.query(models.Tractor).filter(models.Tractor.id == id).first()
 
 def delete_tractor(db: Session, id: int):
-    tractor = db.query(models.Tractors).filter(models.Tractors.id == id).first()
+    tractor = db.query(models.Tractor).filter(models.Tractor.id == id).first()
     if tractor is None:
         return False
     db.delete(tractor)
@@ -41,7 +41,7 @@ def delete_tractor(db: Session, id: int):
     return True
 
 def update_tractor(db: Session, vin: str, tractor_update: schemas.TractorUpdate):
-    db_tractor = db.query(models.Tractors).filter(models.Tractors.vin == vin).first()
+    db_tractor = db.query(models.Tractor).filter(models.Tractor.vin == vin).first()
     if not db_tractor:
         raise HTTPException(status_code=404, detail="Tractor not found")
     for field, value in tractor_update.model_dump(exclude_unset=True).items():
