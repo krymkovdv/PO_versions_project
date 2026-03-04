@@ -200,10 +200,10 @@ class SoftwareUpdate(BaseModel):
     
 class SoftwareResponse(BaseModel):
     id: int
-    path: str
     release_date: Optional[datetime] = None
     description: Optional[str] = None
-    
+    producer: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 # ============================================
@@ -372,14 +372,21 @@ class SoftwareComponentInfoResponse(BaseModel):
 # Загрузка ПО
 # ============================================
 class AssignSoftwareRequest(BaseModel):
-    name: str
-    is_major: bool
-    inner_name: Optional[str] = None
-    release_date: Optional[date] = None
-    description: Optional[str] = None
+      # Поля ПО
+    software_release_date: Optional[datetime] = None
+    software_description: Optional[str] = None
+    software_is_actual: bool = True
+    software_is_archive: bool = False
+    software_is_critical: bool = False
+    software_status: str
+    software_tractor_models: List[str] = Field(..., min_length=1)  # Массив моделей тракторов
+    software_producer: str = Field(..., min_length=1)
+    software_previous_version: Optional[str] = None
+    
+    # Информация о компоненте
     component_models: List[str] = Field(..., min_length=1)
-    part_type: List[str] = Field(..., min_length=1)
-    previous_sw_version: Optional[int] = None
+    component_types: List[str] = Field(..., min_length=1)
+    component_producers: List[str] = Field(..., min_length=1)
 
 class SoftwareMetadata(BaseModel):
     id: int
@@ -387,10 +394,32 @@ class SoftwareMetadata(BaseModel):
     inner_name: Optional[str] = None
     filename_original: str
     filename_for_download: str
+    has_instruction: bool = False  # ← Добавлено
+    instruction_filename: Optional[str] = None  # ← Добавлено
     
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
+
 
 class SoftwareFileLocation(BaseModel):
     full_path: str
     size_bytes: int
     exists: bool
+
+
+class SoftwareInstructionLocation(BaseModel):
+    full_path: str
+    size_bytes: int
+    exists: bool
+    filename: str
+
+
+class UploadInstructionResponse(BaseModel):
+    id: int
+    instruction_path: str
+    filename: str
+    size_bytes: int
+    message: str
+    
+    class Config:
+        from_attributes = True

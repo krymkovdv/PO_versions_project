@@ -8,7 +8,8 @@ from ..log import logger
 from typing import List, Optional
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import FileResponse
-from datetime import date
+from datetime import datetime
+import os
 
 router = APIRouter(prefix="/software", tags=["Software"])
 
@@ -197,124 +198,237 @@ def get_all_software_component_links(
     """Получить все связи ПО ↔ Компонент"""
     return crud.software_component_link.get_all_software_component_links(db)
     
-# @router.post(
-#     "/assign",
-#     response_model=schemas.SoftwareResponse,
-#     status_code=201,
-# )
-# def assign_software_to_components_route(
-#     file: UploadFile = File(...),
-#     is_actual: bool = Form(...),
-#     status: str = Form(...),
-#     producer:str = Form(...),
-#     release_date: Optional[str] = Form(None),
-#     description: Optional[str] = Form(None),
-#     component_models: List[str] = Form(...),
-#     part_type: List[str] = Form(...),
-
-#     previous_sw_version_str: Optional[str] = Form(None),
-#     tractor_id: Optional[int] = Form(None),
-#     # tractor_model: Optional[str] = Form(None),
-#     # tractor_vin: Optional[str] = Form(None),
-#     db: Session = Depends(get_session),
-#     current_user: models.UserDB = Depends(get_current_user)
-# ):
-
-
-#     rd = None
-#     if release_date:
-#         try:
-#             rd = date.fromisoformat(release_date)
-#         except ValueError:
-#             logger.error(f"[software/assign] неверный формат даты: {release_date} user={current_user.username} role={current_user.role}")
-#             raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+@router.post(
+    "/assign",
+    response_model=schemas.SoftwareResponse,
+    status_code=201,
+)
+def assign_software_to_components_route(
+    file: UploadFile = File(..., description="Файл ПО"),
+    instruction_file: UploadFile = File(..., description="Файл инструкции"),
+    software_release_date: Optional[str] = Form(None),
+    software_description: Optional[str] = Form(None),
+    software_is_actual: bool = Form(True),
+    software_is_archive: bool = Form(False),
+    software_is_critical: bool = Form(False),
+    software_status: str = Form("serial"),
+    software_tractor_models: str = Form(...),  # Может быть строкой или JSON
+    software_producer: str = Form(...),
+    previous_sw_version: Optional[str] = Form(default=None),
+    component_models: str = Form(...),  # Может быть строкой или JSON
+    component_types: str = Form(...),  # Может быть строкой или JSON
+    component_producers: str = Form(...),  # Может быть строкой или JSON
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """
+    Назначение ПО нескольким компонентам и тракторам
+    """
+    import json
     
-#     prev_sw_ver_int: Optional[int] = None
-#     if previous_sw_version_str is not None and previous_sw_version_str.strip() != "":
-#         try:
-#             prev_sw_ver_int = int(previous_sw_version_str)
-#         except ValueError:
-#             raise HTTPException(400, f"previous_sw_version '{previous_sw_version_str}' is not a valid integer")
+    # Парсинг дат
+    rd = None
+    if software_release_date:
+        try:
+            rd = datetime.fromisoformat(software_release_date)
+        except ValueError:
+            logger.error(f"[software/assign] неверный формат даты: {software_release_date}")
+            raise HTTPException(400, "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)")
     
-#     # Извлекаем имя из файла (без пути и расширения)
-#     filename = file.filename or "unnamed"
-#     # Убираем расширение для имени ПО
-#     base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
+    # Парсинг JSON массивов с авто-конвертацией из строки
+    def parse_json_or_string(value: str) -> List[str]:
+        """Парсит JSON или возвращает строку как список из одного элемента"""
+        if not value or not value.strip():
+            return []
+        value = value.strip()
+        # Проверяем, начинается ли с [ (JSON массив)
+        if value.startswith('['):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                # Если не валидный JSON, возвращаем как список из одного элемента
+                return [value]
+        else:
+            # Просто строка - возвращаем как список
+            return [value]
     
-#     software_data = schemas.AssignSoftwareRequest(
-#         is_actual=is_actual,
-#         status=status,
-#         release_date=rd,
-#         producer=producer,
-#         description=description,
-#         component_models=component_models,
-#         part_type=part_type,
-#         previous_sw_version=prev_sw_ver_int,
-#         tractor_id=tractor_id,  
-#         # tractor_model=tractor_model, 
-#         # tractor_vin=tractor_vin  
-#     )
+    try:
+        tractor_models_list = parse_json_or_string(software_tractor_models)
+        component_models_list = parse_json_or_string(component_models)
+        component_types_list = parse_json_or_string(component_types)
+        component_producers_list = parse_json_or_string(component_producers)
+        
+        # Валидация что списки не пустые
+        if not tractor_models_list:
+            raise HTTPException(400, "software_tractor_models is required")
+        if not component_models_list:
+            raise HTTPException(400, "component_models is required")
+        if not component_types_list:
+            raise HTTPException(400, "component_types is required")
+        if not component_producers_list:
+            raise HTTPException(400, "component_producers is required")
+            
+    except Exception as e:
+        logger.error(f"[software/assign] ошибка парсинга: {str(e)}")
+        raise HTTPException(400, f"Invalid format: {str(e)}")
     
-#     try:
-#         logger.info(f"[software/assign] файл={filename}, is_actual={is_actual} user={current_user.username} role={current_user.role}")
-#         return crud.software.assign_software_to_components(
-#             db, 
-#             file=file, 
-#             software_data=software_data,
-#             filename=filename,
-#             base_name=base_name,
-
-#         )
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"[software/assign] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении ПО: {str(e)}")
-
+    # Валидация статуса
+    if software_status not in ["serial", "in operation", "experienced"]:
+        raise HTTPException(400, "Invalid status. Must be: 'serial', 'in operation', 'experienced'")
+    
+    # Парсинг previous_sw_version - корректная обработка пустой строки
+    prev_sw_ver_int: Optional[int] = None
+    if previous_sw_version is not None and previous_sw_version.strip() != "":
+        try:
+            prev_sw_ver_int = int(previous_sw_version.strip())
+        except ValueError:
+            logger.error(f"[software/assign] Неверный previous_sw_version: '{previous_sw_version}'")
+            raise HTTPException(
+                400, 
+                detail=f"previous_sw_version должен быть целым числом, получено: '{previous_sw_version}'"
+            )
+    
+    # Создание схемы данных
+    software_data = schemas.AssignSoftwareRequest(
+        software_release_date=rd,
+        software_description=software_description,
+        software_is_actual=software_is_actual,
+        software_is_archive=software_is_archive,
+        software_is_critical=software_is_critical,
+        software_status=software_status,
+        software_tractor_models=tractor_models_list,
+        software_producer=software_producer,
+        software_previous_version=prev_sw_ver_int,  # ← Используем правильное имя поля из схемы
+        component_models=component_models_list,
+        component_types=component_types_list,
+        component_producers=component_producers_list
+    )
+    
+    try:
+        logger.info(
+            f"[software/assign] producer={software_producer}, "
+            f"components={len(component_models_list)}, "
+            f"user={current_user.username}"
+        )
+        
+        # Извлекаем базовое имя из файла
+        base_name = os.path.splitext(file.filename)[0] if file.filename else "unknown"
+        
+        return crud.software.assign_software_to_components(
+            db,
+            file=file,
+            software_data=software_data,
+            instruction_file=instruction_file,
+            base_name=base_name
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/assign] ошибка: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении ПО: {str(e)}")
+    
 # @router.get("/download/{id}", response_class=FileResponse)
-# def download_software_file( 
+# def download_software_file(
 #     id: int,
 #     db: Session = Depends(get_session),
 #     current_user: models.UserDB = Depends(get_current_user)
 # ):
-#     logger.info(f"[software/download] запрос на скачивание id={id} user={current_user.username} role={current_user.role}")
+#     """Скачать файл ПО"""
+#     logger.info(f"[software/download] запрос на скачивание id={id} user={current_user.username}")
 #     try:
-#         metadata = crud.software.get_software_metadata(db, id)
-#         file_path = crud.software.get_software_file_path(db, id)
+#         file_info = crud.software.download_software_file(db, id)
 #         return FileResponse(
-#             path=file_path,
-#             filename=metadata.filename_for_download,
+#             path=file_info["file_path"],
+#             filename=file_info["filename"],
 #             media_type="application/octet-stream",
 #             headers={
-#                 "Content-Disposition": f'attachment; filename="{metadata.filename_for_download}"',
-#                 "X-Software-ID": str(metadata.id),
+#                 "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
+#                 "X-Software-ID": str(file_info["software_id"]),
 #             }
 #         )
 #     except HTTPException:
-#         logger.error(f"[software/download] HTTP ошибка при скачивании id={id} user={current_user.username} role={current_user.role}")
 #         raise
 #     except Exception as e:
-#         logger.error(f"[software/download] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+#         logger.error(f"[software/download] ошибка: {str(e)}", exc_info=True)
 #         raise HTTPException(status_code=500, detail=str(e))
 
-# @router.get("/{id}/metadata", response_model=schemas.SoftwareMetadata)
-# def get_software_metadata(id: int, db: Session = Depends(get_session)):
+
+# @router.get("/download/{id}/instruction", response_class=FileResponse)
+# def download_instruction_file(
+#     id: int,
+#     db: Session = Depends(get_session),
+#     current_user: models.UserDB = Depends(get_current_user)
+# ):
+#     """Скачать файл инструкции"""
+#     logger.info(f"[software/download/instruction] запрос на скачивание инструкции id={id} user={current_user.username}")
 #     try:
-#         result = crud.software.get_software_metadata(db, id)
-#         logger.info(f"[software/metadata] получены метаданные id={id} user=anonymous role=anonymous")
+#         file_info = crud.software.download_instruction_file(db, id)
+#         return FileResponse(
+#             path=file_info["file_path"],
+#             filename=file_info["filename"],
+#             media_type="application/pdf",
+#             headers={
+#                 "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
+#                 "X-Software-ID": str(file_info["software_id"]),
+#             }
+#         )
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"[software/download/instruction] ошибка: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+# @router.post("/upload-instruction/{id}", response_model=schemas.SoftwareMetadata, dependencies=[Depends(require_role("moderator"))])
+# def upload_instruction(
+#     id: int,
+#     instruction_file: UploadFile = File(...),
+#     db: Session = Depends(get_session),
+#     current_user: models.UserDB = Depends(get_current_user)
+# ):
+#     """Загрузить/обновить инструкцию для существующего ПО"""
+#     logger.info(f"[software/upload-instruction] загрузка инструкции для id={id} user={current_user.username}")
+#     try:
+#         result = crud.software.update_software_instruction(
+#             db=db,
+#             software_id=id,
+#             instruction_file=instruction_file
+#         )
+#         logger.info(f"[software/upload-instruction] успешно загружено user={current_user.username}")
 #         return result
 #     except HTTPException:
 #         raise
 #     except Exception as e:
-#         logger.error(f"[software/metadata] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
+#         logger.error(f"[software/upload-instruction] ошибка: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=f"Ошибка при загрузке инструкции: {str(e)}")
+
+# @router.get("/{id}/metadata", response_model=schemas.SoftwareMetadata)
+# def get_software_metadata(
+#     id: int,
+#     db: Session = Depends(get_session)
+# ):
+#     """Получить метаданные ПО включая информацию об инструкции"""
+#     try:
+#         result = crud.software.get_software_metadata(db, id)
+#         logger.info(f"[software/metadata] получены метаданные id={id}")
+#         return result
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"[software/metadata] ошибка: {str(e)}", exc_info=True)
 #         raise HTTPException(status_code=500, detail=str(e))
 
+
 # @router.head("/download/{id}")
-# def check_software_file(id: int, db: Session = Depends(get_session)):
-#     logger.info(f"📥 [DEBUG] Запрос на скачивание id={id}")
+# def check_software_file(
+#     id: int,
+#     db: Session = Depends(get_session)
+# ):
+#     """Проверить существование файла ПО"""
 #     try:
 #         file_info = crud.software.get_software_file_info(db, id)
-#         logger.info(f"[software/head] проверка файла id={id}, exists={file_info.exists} user=anonymous role=anonymous")
+#         logger.info(f"[software/head] проверка файла id={id}, exists={file_info.exists}")
 #         return {
 #             "exists": file_info.exists,
 #             "size": file_info.size_bytes,
@@ -323,16 +437,27 @@ def get_all_software_component_links(
 #     except HTTPException:
 #         raise
 #     except Exception as e:
-#         logger.error(f"[software/head] ошибка: {str(e)} user=anonymous role=anonymous", exc_info=True)
+#         logger.error(f"[software/head] ошибка: {str(e)}", exc_info=True)
 #         raise HTTPException(status_code=500, detail=str(e))
-    
-# @router.patch("/software-component-links/{link_id}", response_model=schemas.SoftwareComponentsSchema)
-# def update_software_component_link(
-#     link_id: int,
-#     link_update: schemas.SoftwareComponentLinkUpdate,
-#     db: Session = Depends(get_session),
-#     current_user: models.UserDB = Depends(get_current_user)
+
+
+# @router.head("/download/{id}/instruction")
+# def check_instruction_file(
+#     id: int,
+#     db: Session = Depends(get_session)
 # ):
-#     if current_user.role != "moderator":
-#         raise HTTPException(status_code=403, detail="Only moderator can update software-component links")
-#     return crud.software.update_software_component_part(db, link_id, link_update)
+#     """Проверить существование файла инструкции"""
+#     try:
+#         file_info = crud.software.get_instruction_file_info(db, id)
+#         logger.info(f"[software/head/instruction] проверка файла id={id}, exists={file_info.exists}")
+#         return {
+#             "exists": file_info.exists,
+#             "size": file_info.size_bytes,
+#             "path": file_info.full_path,
+#             "filename": file_info.filename
+#         }
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"[software/head/instruction] ошибка: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
