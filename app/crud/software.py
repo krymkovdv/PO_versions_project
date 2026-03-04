@@ -55,6 +55,7 @@ def create_software(db: Session, software: schemas.SoftwareSchema):
         producer=software.producer,
         is_actual=software.is_actual,
         is_archive=software.is_archive,
+        is_critical=software.is_critical,
         status=software.status,
         tractor_model=tractor_models_json,
         previous_sw_version=software.previous_sw_version,

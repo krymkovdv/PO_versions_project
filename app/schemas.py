@@ -147,7 +147,8 @@ class SoftwareSchema(BaseModel):
     description: Optional[str] = None
     producer: str
     is_actual: bool = True
-    is_archive: bool = False  
+    is_archive: bool = False 
+    is_critical: bool = False 
     status: Optional[str] = None  
     tractor_model: List[str] = Field(default_factory=list) 
     previous_sw_version: Optional[int] = None
@@ -163,6 +164,7 @@ class SoftwareCreate(BaseModel):
     producer: str
     is_actual: bool = True
     is_archive: bool = False
+    is_critical: bool = False 
     status: Optional[str] = None
     tractor_model: List[str] = Field(default_factory=list)
     previous_sw_version: Optional[int] = None
@@ -183,6 +185,7 @@ class SoftwareUpdate(BaseModel):
     producer: Optional[str] = None
     is_actual: Optional[bool] = None
     is_archive: Optional[bool] = None
+    is_critical: bool = False 
     status: Optional[str] = None
     tractor_model: List[str] = Field(default_factory=list)
     previous_sw_version: Optional[int] = None
@@ -315,6 +318,7 @@ class  ComponentSearchResponseItem(BaseModel):
     release_date: Optional[datetime] = None
     is_actual: Optional[bool] = None
     is_archive: Optional[bool] = None
+    is_critical: Optional[bool] = None 
     name_component: str
     id_Firmwares: Optional[int] = None
     id_Component: Optional[int] = None
@@ -346,6 +350,7 @@ class SoftwareComponentInfoResponse(BaseModel):
     software_producer: str
     software_is_actual: bool
     software_is_archive: bool
+    software_is_critical:bool
     software_status: Optional[str] = None
     software_tractor_models: List[str] = Field(default_factory=list)
     software_previous_sw_version: Optional[int] = None

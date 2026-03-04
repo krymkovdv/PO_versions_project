@@ -66,6 +66,7 @@ class Software(Base):
     producer = Column(Text, nullable=False)
     is_actual = Column(Boolean, default=True)
     is_archive = Column(Boolean, default=False)
+    is_critical = Column(Boolean, default=False)
     status = Column(Text, nullable=True)
     tractor_model = Column(Text, nullable=False) 
     previous_sw_version = Column(Integer, ForeignKey('softwares.id'))
