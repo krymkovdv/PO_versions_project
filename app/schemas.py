@@ -394,3 +394,7 @@ class SoftwareFileLocation(BaseModel):
     full_path: str
     size_bytes: int
     exists: bool
+
+
+class ArchiveChangeRequest(BaseModel):
+    is_archive: bool

@@ -206,3 +206,89 @@ def get_software_component_by_ids(
 #     except Exception as e:
 #         logger.error(f"[software/metadata] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
 #         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/archive-component-info", response_model=List[schemas.ComponentSearchResponseItem])
+def get_archive_component_by_filters(
+    filters: schemas.ComponentInfoRequest,
+    current_user: models.UserDB = Depends(get_current_user),
+    db: Session = Depends(get_session)
+):
+    logger.info(f"[component-info] запрос filters={filters.dict()} user={current_user.username} role={current_user.role}")
+    try:
+        response = crud.search.get_archive_component_by_filters(
+            db,
+            trac_model=filters.trac_model,
+            type_comp=filters.type_comp,
+            name_comp=filters.name_comp,
+            producers=filters.producers,
+            status=filters.status
+        )
+        logger.info(f"[component-info] успешно выполнена, найдено записей: {len(response)} user={current_user.username} role={current_user.role}")
+        return response
+    except Exception as e:
+        logger.error(f"[component-info] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+@router.patch("/firmware/{firmware_id}/archive")
+def change_firmware_archive_status(
+    firmware_id: int,
+    request: schemas.ArchiveChangeRequest,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """
+    Изменение статуса архивации ПО
+    
+    - **firmware_id**: ID программного обеспечения
+    - **is_archive**: true - переместить в архив, false - восстановить из архива
+    """
+    logger.info(f"[change_archive] запрос firmware_id={firmware_id} is_archive={request.is_archive} user={current_user.username} role={current_user.role}")
+    
+    try:
+        # Проверяем права доступа (только engineer или moderator)
+        if current_user.role not in ['moderator']:
+            raise HTTPException(
+                status_code=403,
+                detail="Недостаточно прав для изменения статуса архивации"
+            )
+        
+        # Находим ПО
+        firmware = db.query(models.Software).filter(models.Software.id == firmware_id).first()
+        
+        if not firmware:
+            logger.warning(f"[change_archive] ПО не найдено id={firmware_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"ПО с ID {firmware_id} не найдено"
+            )
+        
+        # Изменяем статус архивации
+        old_status = firmware.is_archive
+        firmware.is_archive = request.is_archive
+        
+        # Если перемещаем в архив, возможно также меняем is_actual
+        if request.is_archive:
+            firmware.is_actual = False
+        else:
+            firmware.is_archive = True
+        
+        db.commit()
+        db.refresh(firmware)
+        
+        logger.info(f"[change_archive] успешно изменен статус: {old_status} -> {firmware.is_archive}")
+        
+        return {
+            "id": firmware.id,
+            "is_archive": firmware.is_archive,
+            "is_actual": firmware.is_actual,
+            "message": f"ПО успешно {'перемещено в архив' if request.is_archive else 'восстановлено из архива'}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[change_archive] ошибка: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
