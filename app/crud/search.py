@@ -48,6 +48,90 @@ def get_component_by_filters(
         .join(
             models.Component,
             models.Software_Component_Link.component_id == models.Component.id
+        ).filter(
+            models.Software.is_archive == False
+        )
+    )    
+    if type_comp:
+        query = query.filter(models.Component.type.in_(type_comp))
+    
+    if name_comp:
+        query = query.filter(models.Component.name.in_(name_comp))
+    
+    if producers:
+        query = query.filter(models.Component.producer.in_(producers))
+    
+    if status:
+        query = query.filter(models.Software.status.in_(status))
+    
+    query = query.distinct()
+    results = query.all()
+
+    if trac_model:
+        filtered_results = []
+        for r in results:
+            models_list = software._deserialize_tractor_models(r.tractor_model)
+            # Проверяем пересечение: хотя бы одна модель из запроса есть в ПО
+            if any(model in models_list for model in trac_model):
+                filtered_results.append(r)
+        results = filtered_results
+
+    return [
+        {
+            "download_link": r.download_link,
+            "download_link_instruction": getattr(r, 'download_link_instruction', None),
+            "type_component": r.type,
+            "release_date": r.release_date.isoformat() if r.release_date else None,
+            "is_archive": r.is_archive,
+            "is_actual": r.is_actual,
+            "is_critical": r.is_critical,
+            "name_component": r.name,
+            "id_Firmwares": r.id_Firmwares,
+            "id_Component":r.id_Component,
+            "status": r.status,
+            "tractor_model": software._deserialize_tractor_models(r.tractor_model)
+        }
+        for r in results
+    ]
+
+def get_archive_component_by_filters(
+    db: Session,
+    trac_model: list = None,
+    type_comp: list = None,
+    name_comp: list = None,
+    producers: list = None,
+    status: list = None
+):
+    """
+    Получение ПО по фильтрам с поддержкой множественных моделей тракторов
+    """
+    from sqlalchemy import or_
+    
+    query = (
+        db.query(
+            models.Software.id.label("id_Firmwares"),
+            models.Software.path.label("download_link"),
+            models.Software.path_instruction.label("download_link_instruction"),
+            models.Software.release_date,
+            models.Software.is_actual,
+            models.Software.is_archive,
+            models.Software.is_critical,
+            models.Software.status,
+            models.Software.tractor_model,
+            models.Component.type,
+            models.Component.name,
+            models.Component.id.label("id_Component")
+        )
+        .select_from(models.Software)
+        .join(
+            models.Software_Component_Link,
+            models.Software.id == models.Software_Component_Link.software_id
+        )
+        .join(
+            models.Component,
+            models.Software_Component_Link.component_id == models.Component.id
+        ).filter(
+            models.Software.is_archive == True
         )
     )    
     if type_comp:
@@ -217,7 +301,8 @@ def get_software_component_by_ids(
         )
         .filter(
             models.Software.id == id_firmwares,
-            models.Component.id == id_component
+            models.Component.id == id_component,
+            models.Software.is_archive == False
         )
     )
     
@@ -518,6 +603,108 @@ def get_software_component_by_ids(
 # ============================================
 # Вспомогательные функции
 # ============================================
+def get_archive_software_component_by_ids(
+    db: Session,
+    id_firmwares: int,
+    id_component: int
+):
+    """
+    Получение полной информации о ПО и компоненте по их ID.
+    
+    Args:
+        db: Сессия базы данных
+        id_firmwares: ID программного обеспечения (Software.id)
+        id_component: ID компонента (Component.id)
+    
+    Returns:
+        Список словарей с информацией о ПО, компоненте и их связи
+    """
+    
+    # ← 1. Базовый запрос с джойнами через таблицу связей
+    query = (
+        db.query(
+            # ПО
+            models.Software.id.label("id_firmwares"),
+            models.Software.path.label("software_path"),
+            models.Software.release_date.label("software_release_date"),
+            models.Software.description.label("software_description"),
+            models.Software.producer.label("software_producer"),
+            models.Software.is_actual.label("software_is_actual"),
+            models.Software.is_archive.label("software_is_archive"),
+            models.Software.is_critical.label("software_is_critical"),
+            models.Software.status.label("software_status"),
+            models.Software.tractor_model.label("software_tractor_model"),
+            models.Software.previous_sw_version.label("software_previous_sw_version"),
+            models.Software.path_instruction.label("software_path_instruction"),
+            
+            # Компонент
+            models.Component.id.label("id_component"),
+            models.Component.type.label("component_type"),
+            models.Component.name.label("component_name"),
+            models.Component.producer.label("component_producer"),
+            
+            # Связь Software_Component_Link
+            models.Software_Component_Link.id.label("link_id"),
+            
+            # Связь Tractor_Software_And_Component_Link (берём первую запись)
+            models.Tractor_Software_And_Component_Link.is_recom.label("is_recom")
+        )
+        .select_from(models.Software)
+        .join(
+            models.Software_Component_Link,
+            models.Software.id == models.Software_Component_Link.software_id
+        )
+        .join(
+            models.Component,
+            models.Software_Component_Link.component_id == models.Component.id
+        )
+        .outerjoin(
+            models.Tractor_Software_And_Component_Link,
+            models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
+        )
+        .filter(
+            models.Software.id == id_firmwares,
+            models.Component.id == id_component,
+            models.Software.is_archive == True
+        )
+    )
+    
+    results = query.all()
+    
+    if not results:
+        return []
+    
+    # ← 2. Формируем ответ
+    return [
+        {
+            # ПО
+            "id_firmwares": r.id_firmwares,
+            "software_path": r.software_path,
+            "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
+            "software_description": r.software_description,
+            "software_producer": r.software_producer,
+            "software_is_actual": r.software_is_actual,
+            "software_is_archive": r.software_is_archive,
+            "software_is_critical": r.software_is_critical,
+            "software_status": r.software_status,
+            "software_tractor_models": software._deserialize_tractor_models(r.software_tractor_model) if r.software_tractor_model else [],
+            "software_previous_sw_version": r.software_previous_sw_version,
+            "software_path_instruction": r.software_path_instruction,
+            
+            # Компонент
+            "id_component": r.id_component,
+            "component_type": r.component_type,
+            "component_name": r.component_name,
+            "component_producer": r.component_producer,
+            
+            # Связь
+            "link_id": r.link_id,
+            "is_recom": r.is_recom if r.is_recom is not None else True,
+        }
+        for r in results
+    ]
+
+
 def _similar_chars(regex_pattern: str) -> str:
     """Замена кириллических символов на латинские аналоги для поиска"""
     
@@ -541,3 +728,8 @@ def _similar_chars(regex_pattern: str) -> str:
         else:
             result.append(char)
     return ''.join(result)
+
+
+
+'хз куда эту функцию надо запихать максим пусть решит'
+

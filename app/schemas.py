@@ -423,3 +423,7 @@ class UploadInstructionResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class ArchiveChangeRequest(BaseModel):
+    is_archive: bool
