@@ -51,20 +51,21 @@ def update_component(db: Session, component_id: int, component_update: schemas.C
         raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
 
 def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None, producers: List[str] = None, status: List[str] = None):
-    query = db.query(models.Component.model).distinct()
+    query = db.query(models.Component.name).distinct()
 # producer dobavil
     if trac_model:
-        query = query.join(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
-        query = query.join(models.Tractors, models.TelemetryComponents.tractor == models.Tractors.id)
+        query = query.join(models.Component, models.Component.id == models.Software_Component_Link.component)
+        query = query.join(models.Tractor_Software_And_Component_Link, models.Tractor_Software_And_Component_Link.tractor == models.Tractor.id)
         query = query.filter(models.Tractors.model.in_(trac_model))
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
         # 
     if producers:
-        query = query.filter(models.Component.producer_comp.in_(producers))
+        query = query.filter(models.Component.producer.in_(producers))
     if status:
-        query = query.join(models.Component.parts).join(models.ComponentParts.software_link)
-        query = query.filter(models.Software2ComponentPart.status.in_(status))
+        query = query.join(models.Component, models.Component.id == models.Software_Component_Link.component)
+        query = query.join(models.Software, models.Software.id == models.Software_Component_Link.software)
+        query = query.filter(models.Software.status.in_(status))
 # 
     results = query.all()
     return [r.model for r in results if r.model is not None]    
