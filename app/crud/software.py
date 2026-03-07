@@ -272,170 +272,84 @@ def assign_software_to_components(
             detail=f"Ошибка при сохранении ПО: {str(e)}"
         )
 
-# def update_software_instruction(
-#     db: Session,
-#     software_id: int,
-#     instruction_file: UploadFile
-# ) -> schemas.SoftwareMetadata:
-#     """
-#     Обновляет файл инструкции для существующего ПО
+def get_software_full(db: Session, software_id: int):
+    """Получает ПО и проверяет существование файла"""
+    fw = db.query(models.Software).filter(models.Software.id == software_id).first()
+    if not fw:
+        raise HTTPException(404, "Software not found")
     
-#     Args:
-#         db: Сессия базы данных
-#         software_id: ID ПО
-#         instruction_file: Новый файл инструкции
+    full_path = os.path.join(config.UPLOAD_DIR, fw.path)
+    if not os.path.exists(full_path):
+        raise HTTPException(404, f"File '{fw.path}' not found on disk")
     
-#     Returns:
-#         schemas.SoftwareMetadata: Метаданные ПО
-#     """
-#     fw = db.query(models.Software).filter(models.Software.id == software_id).first()
-#     if not fw:
-#         raise HTTPException(404, f"Software with id {software_id} not found")
-    
-#     # Удаляем старую инструкцию если есть
-#     if fw.path_instruction:
-#         old_path = os.path.join(config.UPLOAD_DIR, fw.path_instruction)
-#         if os.path.exists(old_path):
-#             try:
-#                 os.remove(old_path)
-#                 logger.info(f"[update_instruction] Удалена старая инструкция: {old_path}")
-#             except Exception as e:
-#                 logger.warning(f"[update_instruction] Не удалось удалить старую инструкцию: {str(e)}")
-    
-#     # Сохраняем новую инструкцию
-#     check_file_size(instruction_file, config.MAX_FILE_SIZE)
-#     saved_instruction_filename = save_uploaded_file(instruction_file, instruction_file.filename)
-    
-#     # Обновляем путь в БД
-#     fw.path_instruction = saved_instruction_filename
-#     db.commit()
-#     db.refresh(fw)
-    
-#     logger.info(f"[update_instruction] Обновлена инструкция для ПО id={software_id}")
-    
-#     return get_software_metadata(db, software_id)
+    return fw, full_path
 
-# def get_software_full(db: Session, software_id: int):
-#     """Получает ПО и проверяет существование файла"""
-#     fw = db.query(models.Software).filter(models.Software.id == software_id).first()
-#     if not fw:
-#         raise HTTPException(404, "Software not found")
-    
-#     full_path = os.path.join(config.UPLOAD_DIR, fw.path)
-#     if not os.path.exists(full_path):
-#         raise HTTPException(404, f"File '{fw.path}' not found on disk")
-    
-#     return fw, full_path
+def extract_original_filename(stored_name: str) -> str:
+    """
+    Извлекает оригинальное имя файла из сохранённого формата UUID_оригинал.
+    Формат: 32 hex символа (UUID) + '_' + оригинальное_имя
+    Пример: '4d4fad61562743fd871a7a62429b77a6_photo_2026-03-02.jpg' → 'photo_2026-03-02.jpg'
+    """
+    # UUID без дефисов = 32 hex символа, затем '_' и оригинальное имя
+    match = re.match(r'^[0-9a-f]{32}_(.+)$', stored_name, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    # Если формат не совпадает, возвращаем как есть
+    return stored_name
 
+def download_software_file(db: Session, software_id: int):
+    """Подготавливает файл ПО для скачивания с оригинальным именем"""
+    fw, file_path = get_software_full(db, software_id)
+    
+    # Извлекаем оригинальное имя файла (с расширением)
+    original_filename = extract_original_filename(os.path.basename(fw.path))
+    
+    return {
+        "file_path": file_path,
+        "filename": original_filename,  # ← оригинальное имя, например "firmware_v2.bin"
+        "software_id": fw.id
+    }
+    
+def download_instruction_file(db: Session, software_id: int):
+    """Подготавливает файл инструкции для скачивания с оригинальным именем"""
+    fw = db.query(models.Software).filter(models.Software.id == software_id).first()
+    if not fw:
+        raise HTTPException(404, "Software not found")
+    
+    if not fw.path_instruction:
+        raise HTTPException(404, "Instruction file not found for this software")
+    
+    full_path = os.path.join(config.UPLOAD_DIR, fw.path_instruction)
+    if not os.path.exists(full_path):
+        raise HTTPException(404, f"Instruction file not found on disk")
+    
+    # Извлекаем оригинальное имя инструкции
+    original_filename = extract_original_filename(os.path.basename(fw.path_instruction))
+    
+    return {
+        "file_path": full_path,
+        "filename": original_filename,  # ← оригинальное имя, например "manual.pdf"
+        "software_id": fw.id
+    }
 
-# def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMetadata:
-#     """Получает метаданные ПО включая информацию об инструкции"""
-#     fw, _ = get_software_full(db, software_id)
+def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMetadata:
+    """Получает метаданные ПО с оригинальными именами файлов"""
+    fw, _ = get_software_full(db, software_id)
     
-#     # ← ИСПРАВЛЕНО: используем producer вместо name
-#     safe_name = re.sub(r'[<>:"/\\|?*]', '_', fw.producer) if fw.producer else fw.path
-#     download_name = f"{safe_name}.bin"
+    # Оригинальное имя файла ПО
+    original_filename = extract_original_filename(os.path.basename(fw.path))
     
-#     has_instruction = bool(fw.path_instruction)
-#     instruction_filename = None
-#     if has_instruction:
-#         instruction_filename = os.path.basename(fw.path_instruction)
+    has_instruction = bool(fw.path_instruction)
+    instruction_filename = None
+    if has_instruction:
+        instruction_filename = extract_original_filename(os.path.basename(fw.path_instruction))
     
-#     return schemas.SoftwareMetadata(
-#         id=fw.id,
-#         name=fw.producer,
-#         filename_original=fw.path,
-#         filename_for_download=download_name,
-#         has_instruction=has_instruction,
-#         instruction_filename=instruction_filename
-#     )
-
-
-# def get_software_file_path(db: Session, software_id: int) -> str:
-#     """Получает полный путь к файлу ПО"""
-#     _, file_path = get_software_full(db, software_id)
-#     return file_path
-
-
-# def get_software_file_info(db: Session, software_id: int) -> schemas.SoftwareFileLocation:
-#     """Получает информацию о файле ПО"""
-#     _, file_path = get_software_full(db, software_id)
-    
-#     return schemas.SoftwareFileLocation(
-#         full_path=file_path,
-#         size_bytes=os.path.getsize(file_path),
-#         exists=True
-#     )
-
-
-# def get_instruction_file_path(db: Session, software_id: int) -> str:
-#     """Получает полный путь к файлу инструкции"""
-#     fw = db.query(models.Software).filter(models.Software.id == software_id).first()
-#     if not fw:
-#         raise HTTPException(404, "Software not found")
-    
-#     if not fw.path_instruction:
-#         raise HTTPException(404, "Instruction file not found for this software")
-    
-#     full_path = os.path.join(config.UPLOAD_DIR, fw.path_instruction)
-#     if not os.path.exists(full_path):
-#         raise HTTPException(404, f"Instruction file '{fw.path_instruction}' not found on disk")
-    
-#     return full_path
-
-
-# def get_instruction_file_info(db: Session, software_id: int) -> schemas.SoftwareInstructionLocation:
-#     """Получает информацию о файле инструкции"""
-#     fw = db.query(models.Software).filter(models.Software.id == software_id).first()
-#     if not fw:
-#         raise HTTPException(404, "Software not found")
-    
-#     if not fw.path_instruction:
-#         raise HTTPException(404, "Instruction file not found for this software")
-    
-#     full_path = os.path.join(config.UPLOAD_DIR, fw.path_instruction)
-#     if not os.path.exists(full_path):
-#         raise HTTPException(404, f"Instruction file '{fw.path_instruction}' not found on disk")
-    
-#     return schemas.SoftwareInstructionLocation(
-#         full_path=full_path,
-#         size_bytes=os.path.getsize(full_path),
-#         exists=True,
-#         filename=os.path.basename(fw.path_instruction)
-#     )
-
-
-# def download_software_file(db: Session, software_id: int):
-#     """Подготавливает файл ПО для скачивания"""
-#     fw, file_path = get_software_full(db, software_id)
-    
-#     safe_name = re.sub(r'[<>:"/\\|?*]', '_', fw.name) if fw.name else fw.path
-#     download_name = f"{safe_name}.bin" if fw.name else fw.path
-    
-#     return {
-#         "file_path": file_path,
-#         "filename": download_name,
-#         "software_id": fw.id
-#     }
-
-
-# def download_instruction_file(db: Session, software_id: int):
-#     """Подготавливает файл инструкции для скачивания"""
-#     fw = db.query(models.Software).filter(models.Software.id == software_id).first()
-#     if not fw:
-#         raise HTTPException(404, "Software not found")
-    
-#     if not fw.path_instruction:
-#         raise HTTPException(404, "Instruction file not found for this software")
-    
-#     full_path = os.path.join(config.UPLOAD_DIR, fw.path_instruction)
-#     if not os.path.exists(full_path):
-#         raise HTTPException(404, f"Instruction file not found on disk")
-    
-#     download_name = os.path.basename(fw.path_instruction)
-    
-#     return {
-#         "file_path": full_path,
-#         "filename": download_name,
-#         "software_id": fw.id
-#     }
+    return schemas.SoftwareMetadata(
+        id=fw.id,
+        name=fw.producer,  # producer как name для совместимости
+        inner_name=None,
+        filename_original=original_filename,  # ← оригинальное имя
+        filename_for_download=original_filename,  # ← для скачивания
+        has_instruction=has_instruction,
+        instruction_filename=instruction_filename
+    )

@@ -328,136 +328,136 @@ def assign_software_to_components_route(
         logger.error(f"[software/assign] ошибка: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении ПО: {str(e)}")
     
-# @router.get("/download/{id}", response_class=FileResponse)
-# def download_software_file(
-#     id: int,
-#     db: Session = Depends(get_session),
-#     current_user: models.UserDB = Depends(get_current_user)
-# ):
-#     """Скачать файл ПО"""
-#     logger.info(f"[software/download] запрос на скачивание id={id} user={current_user.username}")
-#     try:
-#         file_info = crud.software.download_software_file(db, id)
-#         return FileResponse(
-#             path=file_info["file_path"],
-#             filename=file_info["filename"],
-#             media_type="application/octet-stream",
-#             headers={
-#                 "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
-#                 "X-Software-ID": str(file_info["software_id"]),
-#             }
-#         )
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"[software/download] ошибка: {str(e)}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=str(e))
+@router.get("/download/{id}", response_class=FileResponse)
+def download_software_file(
+    id: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Скачать файл ПО"""
+    logger.info(f"[software/download] запрос на скачивание id={id} user={current_user.username}")
+    try:
+        file_info = crud.software.download_software_file(db, id)
+        return FileResponse(
+            path=file_info["file_path"],
+            filename=file_info["filename"],
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
+                "X-Software-ID": str(file_info["software_id"]),
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/download] ошибка: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# @router.get("/download/{id}/instruction", response_class=FileResponse)
-# def download_instruction_file(
-#     id: int,
-#     db: Session = Depends(get_session),
-#     current_user: models.UserDB = Depends(get_current_user)
-# ):
-#     """Скачать файл инструкции"""
-#     logger.info(f"[software/download/instruction] запрос на скачивание инструкции id={id} user={current_user.username}")
-#     try:
-#         file_info = crud.software.download_instruction_file(db, id)
-#         return FileResponse(
-#             path=file_info["file_path"],
-#             filename=file_info["filename"],
-#             media_type="application/pdf",
-#             headers={
-#                 "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
-#                 "X-Software-ID": str(file_info["software_id"]),
-#             }
-#         )
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"[software/download/instruction] ошибка: {str(e)}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=str(e))
+@router.get("/download/{id}/instruction", response_class=FileResponse)
+def download_instruction_file(
+    id: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Скачать файл инструкции"""
+    logger.info(f"[software/download/instruction] запрос на скачивание инструкции id={id} user={current_user.username}")
+    try:
+        file_info = crud.software.download_instruction_file(db, id)
+        return FileResponse(
+            path=file_info["file_path"],
+            filename=file_info["filename"],
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
+                "X-Software-ID": str(file_info["software_id"]),
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/download/instruction] ошибка: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# @router.post("/upload-instruction/{id}", response_model=schemas.SoftwareMetadata, dependencies=[Depends(require_role("moderator"))])
-# def upload_instruction(
-#     id: int,
-#     instruction_file: UploadFile = File(...),
-#     db: Session = Depends(get_session),
-#     current_user: models.UserDB = Depends(get_current_user)
-# ):
-#     """Загрузить/обновить инструкцию для существующего ПО"""
-#     logger.info(f"[software/upload-instruction] загрузка инструкции для id={id} user={current_user.username}")
-#     try:
-#         result = crud.software.update_software_instruction(
-#             db=db,
-#             software_id=id,
-#             instruction_file=instruction_file
-#         )
-#         logger.info(f"[software/upload-instruction] успешно загружено user={current_user.username}")
-#         return result
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"[software/upload-instruction] ошибка: {str(e)}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=f"Ошибка при загрузке инструкции: {str(e)}")
+@router.post("/upload-instruction/{id}", response_model=schemas.SoftwareMetadata, dependencies=[Depends(require_role("moderator"))])
+def upload_instruction(
+    id: int,
+    instruction_file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Загрузить/обновить инструкцию для существующего ПО"""
+    logger.info(f"[software/upload-instruction] загрузка инструкции для id={id} user={current_user.username}")
+    try:
+        result = crud.software.update_software_instruction(
+            db=db,
+            software_id=id,
+            instruction_file=instruction_file
+        )
+        logger.info(f"[software/upload-instruction] успешно загружено user={current_user.username}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/upload-instruction] ошибка: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке инструкции: {str(e)}")
 
-# @router.get("/{id}/metadata", response_model=schemas.SoftwareMetadata)
-# def get_software_metadata(
-#     id: int,
-#     db: Session = Depends(get_session)
-# ):
-#     """Получить метаданные ПО включая информацию об инструкции"""
-#     try:
-#         result = crud.software.get_software_metadata(db, id)
-#         logger.info(f"[software/metadata] получены метаданные id={id}")
-#         return result
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"[software/metadata] ошибка: {str(e)}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# @router.head("/download/{id}")
-# def check_software_file(
-#     id: int,
-#     db: Session = Depends(get_session)
-# ):
-#     """Проверить существование файла ПО"""
-#     try:
-#         file_info = crud.software.get_software_file_info(db, id)
-#         logger.info(f"[software/head] проверка файла id={id}, exists={file_info.exists}")
-#         return {
-#             "exists": file_info.exists,
-#             "size": file_info.size_bytes,
-#             "path": file_info.full_path
-#         }
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"[software/head] ошибка: {str(e)}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=str(e))
+@router.get("/{id}/metadata", response_model=schemas.SoftwareMetadata)
+def get_software_metadata(
+    id: int,
+    db: Session = Depends(get_session)
+):
+    """Получить метаданные ПО включая информацию об инструкции"""
+    try:
+        result = crud.software.get_software_metadata(db, id)
+        logger.info(f"[software/metadata] получены метаданные id={id}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/metadata] ошибка: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# @router.head("/download/{id}/instruction")
-# def check_instruction_file(
-#     id: int,
-#     db: Session = Depends(get_session)
-# ):
-#     """Проверить существование файла инструкции"""
-#     try:
-#         file_info = crud.software.get_instruction_file_info(db, id)
-#         logger.info(f"[software/head/instruction] проверка файла id={id}, exists={file_info.exists}")
-#         return {
-#             "exists": file_info.exists,
-#             "size": file_info.size_bytes,
-#             "path": file_info.full_path,
-#             "filename": file_info.filename
-#         }
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"[software/head/instruction] ошибка: {str(e)}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=str(e))
+@router.head("/download/{id}")
+def check_software_file(
+    id: int,
+    db: Session = Depends(get_session)
+):
+    """Проверить существование файла ПО"""
+    try:
+        file_info = crud.software.get_software_file_info(db, id)
+        logger.info(f"[software/head] проверка файла id={id}, exists={file_info.exists}")
+        return {
+            "exists": file_info.exists,
+            "size": file_info.size_bytes,
+            "path": file_info.full_path
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/head] ошибка: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.head("/download/{id}/instruction")
+def check_instruction_file(
+    id: int,
+    db: Session = Depends(get_session)
+):
+    """Проверить существование файла инструкции"""
+    try:
+        file_info = crud.software.get_instruction_file_info(db, id)
+        logger.info(f"[software/head/instruction] проверка файла id={id}, exists={file_info.exists}")
+        return {
+            "exists": file_info.exists,
+            "size": file_info.size_bytes,
+            "path": file_info.full_path,
+            "filename": file_info.filename
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/head/instruction] ошибка: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
