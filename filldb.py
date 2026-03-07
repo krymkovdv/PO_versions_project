@@ -1,7 +1,7 @@
 # fill_realistic_data.py
 from datetime import datetime, date, timezone, timedelta
 from app.database import get_session
-from app.models import Tractors, Component, ComponentParts, TelemetryComponents, Software, Software2ComponentPart
+from app.models import Tractor, Component, Software, Software_Component_Link, Tractor_Software_And_Component_Link
 from sqlalchemy.orm import Session
 import random
 
@@ -13,44 +13,45 @@ def fill_realistic_data():
 
         # --- 1. Добавляем 50 тракторов ---
         tractors_data = []
-        models_pool = ["K-7", "K-525", "K-742МСТ"]
+        models_pool = ["K-7", "K-525", "K-742МСТ", "K-5", "K-700", "K-744", "K-530T", "K-730M", "K-714"]
         regions = ["RU-MOS", "RU-SPE", "RU-KRA", "RU-ROS", "RU-TAT", "RU-BAS"]
         dealers = ["АгроТехСервис", "Кировец-Центр", "СельхозМаш", "АгроИнвест", 
                    "ТехноАгро", "РосАгроМаш", "АгроКомплект", "Механизатор",
                    "АгроСервисПлюс", "ТракторныйДом"]
-        serv_centers = ["СЦ-Москва", "СЦ-СПб", "СЦ-Краснодар", "СЦ-Ростов", 
-                        "СЦ-Казань", "СЦ-Уфа", "СЦ-Воронеж", "СЦ-Саратов"]
+        dealers_for_consumer = dealers.copy()
+        dealers_for_dealer = dealers.copy()
 
+        # Обычные тракторы
         for i in range(1, 51):
-            model = models_pool[(i - 1) % 3]
-            tractor = Tractors(
+            model = random.choice(models_pool)
+            tractor = Tractor(
                 model=model,
-                vin=f"VIN_{i:05d}",  # Обычные: VIN_00001...VIN_00050
+                vin=f"VIN_{i:05d}",  # VIN_00001...VIN_00050
                 oh_hour=random.randint(50, 5000),
                 last_activity=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 60)),
                 assembly_date=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 1500)),
                 region=random.choice(regions),
-                consumer=random.choice(dealers),
-                serv_center=random.choice(serv_centers)
+                consumer=random.choice(dealers_for_consumer),
+                dealer=random.choice(dealers_for_dealer)
             )
             session.add(tractor)
             tractors_data.append(tractor)
 
         session.flush()
-        print("✅ Добавлено 50 тракторов.")
+        print("✅ Добавлено 50 обычных тракторов.")
 
         # --- 1.1. Добавляем 8 СИСТЕМНЫХ тракторов с НЕОБЫЧНЫМ VIN ---
         system_models = ["K-7", "K-5", "K-700", "K-744", "K-525", "K-530T", "K-730M", "K-714"]
         for i, model in enumerate(system_models, start=1):
-            tractor = Tractors(
+            tractor = Tractor(
                 model=model,
-                vin=f"VIN_system_{i}",  # 🔹 НЕОБЫЧНЫЙ формат: VIN_system_1, VIN_system_2...
+                vin=f"VIN_system_{i}",  # VIN_system_1, VIN_system_2...
                 oh_hour=random.randint(0, 100),
                 last_activity=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 5)),
                 assembly_date=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 365)),
                 region="RU-SYS",
                 consumer="Системный трактор",
-                serv_center="СЦ-Системный"
+                dealer="СЦ-Системный"
             )
             session.add(tractor)
             tractors_data.append(tractor)
@@ -58,187 +59,332 @@ def fill_realistic_data():
         session.flush()
         print(f"✅ Добавлено {len(system_models)} системных тракторов (VIN_system_*).")
 
-        # --- 2. Компоненты: ОДИН на ТИП ---
+        # --- 2. Компоненты ---
         components_data = [
-            {"type": "ДВС", "model": "ДВС Weichai WP12", "number_of_parts": 3, "producer_comp": "Weichai"},
-            {"type": "КПП", "model": "КПП-728", "number_of_parts": 2, "producer_comp": "Кировец"},
-            {"type": "Гидравлика", "model": "Гидрораспределитель Р-80", "number_of_parts": 2, "producer_comp": "Гидросила"},
-            {"type": "Рулевое", "model": "Рулевая колонка РК-7", "number_of_parts": 2, "producer_comp": "Кировец"},
-            {"type": "Тормоза", "model": "Тормоз дисковый ТД-400", "number_of_parts": 4, "producer_comp": "Knorr-Bremse"},
-            {"type": "БК", "model": "БК-Агро v2", "number_of_parts": 1, "producer_comp": "АгроЭлектроника"},
-            {"type": "Подвеска", "model": "Амортизатор А-500", "number_of_parts": 2, "producer_comp": "Sachs"},
+            {"type": "DVS", "name": "ДВС Weichai WP12", "producer": "Weichai"},
+            {"type": "KPP", "name": "КПП-728", "producer": "Кировец"},
+            {"type": "HR", "name": "Гидрораспределитель Р-80", "producer": "Гидросила"},
+            {"type": "RK", "name": "Рулевая колонка РК-7", "producer": "Кировец"},
+            {"type": "DVS", "name": "ДВС Cummins X12", "producer": "Cummins"},
+            {"type": "KPP", "name": "КПП-730", "producer": "Кировец"},
+            {"type": "BK", "name": "БК-Агро v2", "producer": "АгроЭлектроника"},
+            {"type": "HR", "name": "Гидронасос НШ-50", "producer": "Гидросила"},
+            {"type": "RK", "name": "Рулевой механизм РМ-7", "producer": "Кировец"},
+            {"type": "BK", "name": "БК-Агро v3", "producer": "АгроЭлектроника"},
         ]
 
         components = []
         for c_data in components_data:
-            comp = Component(**c_data)
-            session.add(comp)
-            components.append(comp)
+            # Проверяем, существует ли уже такой компонент
+            existing = session.query(Component).filter_by(name=c_data["name"]).first()
+            if not existing:
+                comp = Component(**c_data)
+                session.add(comp)
+                components.append(comp)
+            else:
+                components.append(existing)
 
         session.flush()
-        print(f"✅ Добавлено {len(components)} компонентов (по 1 на тип).")
+        print(f"✅ Добавлено/обновлено {len(components)} компонентов.")
 
         # --- 3. ПО ---
         softwares_data = [
-            {"path": "weichai_v1.0.bin", "name": "Weichai-ECU-1.0", "inner_name": "WECU10", 
-             "release_date": datetime(2023, 1, 15), "description": "Базовая прошивка ДВС Weichai", 
-             "producer": "Weichai", "is_actual": False, "status": "s"},
-            {"path": "weichai_v2.0.bin", "name": "Weichai-ECU-2.0", "inner_name": "WECU20", 
-             "release_date": datetime(2024, 1, 10), "description": "Major обновление экологии Euro-5", 
-             "producer": "Weichai", "is_actual": True, "status": "s"},
-            {"path": "kpp728_v1.0.bin", "name": "KPP-728-1.0", "inner_name": "K72810", 
-             "release_date": datetime(2023, 5, 1), "description": "Базовая прошивка КПП-728", 
-             "producer": "Кировец", "is_actual": False, "status": "s"},
-            {"path": "kpp728_v2.0.bin", "name": "KPP-728-2.0", "inner_name": "K72820", 
-             "release_date": datetime(2024, 2, 1), "description": "Major обновление КПП-728", 
-             "producer": "Кировец", "is_actual": True, "status": "s"},
-            {"path": "hydro_v1.0.bin", "name": "HydroCtrl-1.0", "inner_name": "HC10", 
-             "release_date": datetime(2023, 3, 15), "description": "Базовая прошивка гидравлики", 
-             "producer": "Гидросила", "is_actual": False, "status": "s"},
-            {"path": "hydro_v2.0.bin", "name": "HydroCtrl-2.0", "inner_name": "HC20", 
-             "release_date": datetime(2024, 4, 1), "description": "Major обновление гидравлики", 
-             "producer": "Гидросила", "is_actual": True, "status": "s"},
-            {"path": "steer_v1.0.bin", "name": "SteerCtrl-1.0", "inner_name": "SC10", 
-             "release_date": datetime(2023, 6, 1), "description": "Базовая прошивка рулевого", 
-             "producer": "Кировец", "is_actual": True, "status": "s"},
-            {"path": "brake_v1.0.bin", "name": "BrakeCtrl-1.0", "inner_name": "BC10", 
-             "release_date": datetime(2023, 7, 1), "description": "Базовая прошивка тормозов", 
-             "producer": "Knorr-Bremse", "is_actual": False, "status": "s"},
-            {"path": "brake_v2.0.bin", "name": "BrakeCtrl-2.0", "inner_name": "BC20", 
-             "release_date": datetime(2024, 3, 15), "description": "Major обновление тормозов", 
-             "producer": "Knorr-Bremse", "is_actual": True, "status": "s"},
-            {"path": "bk_v1.5.bin", "name": "BK-Agro-1.5", "inner_name": "BKA15", 
-             "release_date": datetime(2024, 1, 1), "description": "Minor обновление БК", 
-             "producer": "АгроЭлектроника", "is_actual": False, "status": "t"},
-            {"path": "bk_v2.0.bin", "name": "BK-Agro-2.0", "inner_name": "BKA20", 
-             "release_date": datetime(2024, 5, 1), "description": "Major обновление БК", 
-             "producer": "АгроЭлектроника", "is_actual": True, "status": "s"},
-            {"path": "susp_v1.0.bin", "name": "SuspCtrl-1.0", "inner_name": "SUSP10", 
-             "release_date": datetime(2023, 9, 1), "description": "Базовая прошивка подвески", 
-             "producer": "Sachs", "is_actual": True, "status": "o"},
+            # Для ДВС Weichai
+            {"path": "weichai/weichai_v1.0.bin", "path_instruction": "weichai/weichai_v1.0.pdf",
+             "release_date": datetime(2023, 1, 15), "end_actuality": datetime(2024, 1, 1),
+             "description": "Базовая прошивка ДВС Weichai", "producer": "Weichai", 
+             "is_actual": False, "is_archive": True, "is_critical": False, 
+             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
+             
+            {"path": "weichai/weichai_v2.0.bin", "path_instruction": "weichai/weichai_v2.0.pdf",
+             "release_date": datetime(2024, 1, 10), "end_actuality": None,
+             "description": "Major обновление экологии Euro-5", "producer": "Weichai", 
+             "is_actual": True, "is_archive": False, "is_critical": True, 
+             "status": "serial", "tractor_model": "K-7", "previous_sw_version": 1},
+             
+            # Для ДВС Cummins
+            {"path": "cummins/cummins_v1.0.bin", "path_instruction": "cummins/cummins_v1.0.pdf",
+             "release_date": datetime(2023, 3, 20), "end_actuality": datetime(2024, 2, 1),
+             "description": "Базовая прошивка ДВС Cummins", "producer": "Cummins", 
+             "is_actual": False, "is_archive": True, "is_critical": False, 
+             "status": "serial", "tractor_model": "K-525", "previous_sw_version": None},
+             
+            {"path": "cummins/cummins_v2.0.bin", "path_instruction": "cummins/cummins_v2.0.pdf",
+             "release_date": datetime(2024, 2, 15), "end_actuality": None,
+             "description": "Обновление ДВС Cummins", "producer": "Cummins", 
+             "is_actual": True, "is_archive": False, "is_critical": False, 
+             "status": "serial", "tractor_model": "K-525", "previous_sw_version": 3},
+             
+            # Для КПП-728
+            {"path": "kpp/kpp728_v1.0.bin", "path_instruction": "kpp/kpp728_v1.0.pdf",
+             "release_date": datetime(2023, 5, 1), "end_actuality": datetime(2024, 1, 1),
+             "description": "Базовая прошивка КПП-728", "producer": "Кировец", 
+             "is_actual": False, "is_archive": True, "is_critical": False, 
+             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
+             
+            {"path": "kpp/kpp728_v2.0.bin", "path_instruction": "kpp/kpp728_v2.0.pdf",
+             "release_date": datetime(2024, 2, 1), "end_actuality": None,
+             "description": "Major обновление КПП-728", "producer": "Кировец", 
+             "is_actual": True, "is_archive": False, "is_critical": True, 
+             "status": "serial", "tractor_model": "K-7", "previous_sw_version": 5},
+             
+            # Для КПП-730
+            {"path": "kpp/kpp730_v1.0.bin", "path_instruction": "kpp/kpp730_v1.0.pdf",
+             "release_date": datetime(2023, 6, 1), "end_actuality": None,
+             "description": "Базовая прошивка КПП-730", "producer": "Кировец", 
+             "is_actual": True, "is_archive": False, "is_critical": False, 
+             "status": "in operation", "tractor_model": "K-742МСТ", "previous_sw_version": None},
+             
+            # Для гидравлики
+            {"path": "hydro/hydro_v1.0.bin", "path_instruction": "hydro/hydro_v1.0.pdf",
+             "release_date": datetime(2023, 3, 15), "end_actuality": datetime(2024, 3, 1),
+             "description": "Базовая прошивка гидравлики", "producer": "Гидросила", 
+             "is_actual": False, "is_archive": True, "is_critical": False, 
+             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
+             
+            {"path": "hydro/hydro_v2.0.bin", "path_instruction": "hydro/hydro_v2.0.pdf",
+             "release_date": datetime(2024, 4, 1), "end_actuality": None,
+             "description": "Major обновление гидравлики", "producer": "Гидросила", 
+             "is_actual": True, "is_archive": False, "is_critical": True, 
+             "status": "experienced", "tractor_model": "K-7", "previous_sw_version": 8},
+             
+            # Для рулевого управления
+            {"path": "steer/steer_v1.0.bin", "path_instruction": "steer/steer_v1.0.pdf",
+             "release_date": datetime(2023, 6, 1), "end_actuality": None,
+             "description": "Базовая прошивка рулевого", "producer": "Кировец", 
+             "is_actual": True, "is_archive": False, "is_critical": True, 
+             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
+             
+            # Для БК-Агро v2
+            {"path": "bk/bk_v1.5.bin", "path_instruction": "bk/bk_v1.5.pdf",
+             "release_date": datetime(2024, 1, 1), "end_actuality": datetime(2024, 4, 1),
+             "description": "Minor обновление БК", "producer": "АгроЭлектроника", 
+             "is_actual": False, "is_archive": True, "is_critical": False, 
+             "status": "experienced", "tractor_model": "K-5", "previous_sw_version": None},
+             
+            {"path": "bk/bk_v2.0.bin", "path_instruction": "bk/bk_v2.0.pdf",
+             "release_date": datetime(2024, 5, 1), "end_actuality": None,
+             "description": "Major обновление БК", "producer": "АгроЭлектроника", 
+             "is_actual": True, "is_archive": False, "is_critical": True, 
+             "status": "serial", "tractor_model": "K-5", "previous_sw_version": 11},
         ]
 
         softwares = []
+        sw_by_name = {}  # Для быстрого поиска ПО по описанию
+
         for s_data in softwares_data:
-            sw = Software(**s_data)
-            session.add(sw)
-            softwares.append(sw)
+            # Проверяем существование ПО
+            existing = session.query(Software).filter_by(path=s_data["path"]).first()
+            if not existing:
+                sw = Software(**s_data)
+                session.add(sw)
+                session.flush()  # Чтобы получить id
+                softwares.append(sw)
+                # Сохраняем в словарь для последующего использования
+                if "Базовая прошивка ДВС Weichai" in s_data["description"]:
+                    sw_by_name["Weichai-ECU-1.0"] = sw
+                elif "Major обновление экологии Euro-5" in s_data["description"]:
+                    sw_by_name["Weichai-ECU-2.0"] = sw
+                elif "Базовая прошивка ДВС Cummins" in s_data["description"]:
+                    sw_by_name["Cummins-ECU-1.0"] = sw
+                elif "Обновление ДВС Cummins" in s_data["description"]:
+                    sw_by_name["Cummins-ECU-2.0"] = sw
+                elif "Базовая прошивка КПП-728" in s_data["description"]:
+                    sw_by_name["KPP-728-1.0"] = sw
+                elif "Major обновление КПП-728" in s_data["description"]:
+                    sw_by_name["KPP-728-2.0"] = sw
+                elif "Базовая прошивка КПП-730" in s_data["description"]:
+                    sw_by_name["KPP-730-1.0"] = sw
+                elif "Базовая прошивка гидравлики" in s_data["description"]:
+                    sw_by_name["HydroCtrl-1.0"] = sw
+                elif "Major обновление гидравлики" in s_data["description"]:
+                    sw_by_name["HydroCtrl-2.0"] = sw
+                elif "Базовая прошивка рулевого" in s_data["description"]:
+                    sw_by_name["SteerCtrl-1.0"] = sw
+                elif "Minor обновление БК" in s_data["description"]:
+                    sw_by_name["BK-Agro-1.5"] = sw
+                elif "Major обновление БК" in s_data["description"]:
+                    sw_by_name["BK-Agro-2.0"] = sw
+            else:
+                softwares.append(existing)
+                # Добавляем в словарь существующее ПО
+                sw_by_name[existing.description[:20]] = existing
 
         session.flush()
-        print(f"✅ Добавлено {len(softwares)} ПО.")
+        print(f"✅ Добавлено/обновлено {len(softwares)} ПО.")
 
-        # --- 4. Детали компонентов ---
-        component_parts = []
-        for comp in components:
-            for part_num in range(comp.number_of_parts):
-                part_types = {
-                    "ДВС": ["ЭБУ", "ТНВД", "Форсунки"],
-                    "КПП": ["Основной блок", "Доп. модуль"],
-                    "Гидравлика": ["Клапан", "Датчик"],
-                    "Рулевое": ["Колонка", "Цилиндр"],
-                    "Тормоза": ["Диск", "Колодка", "Суппорт", "Датчик"],
-                    "БК": ["Основной модуль"],
-                    "Подвеска": ["Амортизатор", "Датчик положения"],
-                }
-                types = part_types.get(comp.type, [f"Часть_{part_num+1}"])
-                part_type = types[part_num] if part_num < len(types) else f"Часть_{part_num+1}"
-                part = ComponentParts(component=comp.id, part_type=part_type)
-                session.add(part)
-                component_parts.append(part)
+        # Если словарь пуст, заполняем его из существующих записей
+        if not sw_by_name:
+            for sw in softwares:
+                if "Weichai" in sw.path:
+                    if "v1.0" in sw.path:
+                        sw_by_name["Weichai-ECU-1.0"] = sw
+                    elif "v2.0" in sw.path:
+                        sw_by_name["Weichai-ECU-2.0"] = sw
+                elif "cummins" in sw.path.lower():
+                    if "v1.0" in sw.path:
+                        sw_by_name["Cummins-ECU-1.0"] = sw
+                    elif "v2.0" in sw.path:
+                        sw_by_name["Cummins-ECU-2.0"] = sw
+                elif "kpp728" in sw.path.lower():
+                    if "v1.0" in sw.path:
+                        sw_by_name["KPP-728-1.0"] = sw
+                    elif "v2.0" in sw.path:
+                        sw_by_name["KPP-728-2.0"] = sw
+                elif "kpp730" in sw.path.lower():
+                    sw_by_name["KPP-730-1.0"] = sw
+                elif "hydro" in sw.path.lower():
+                    if "v1.0" in sw.path:
+                        sw_by_name["HydroCtrl-1.0"] = sw
+                    elif "v2.0" in sw.path:
+                        sw_by_name["HydroCtrl-2.0"] = sw
+                elif "steer" in sw.path.lower():
+                    sw_by_name["SteerCtrl-1.0"] = sw
+                elif "bk" in sw.path.lower():
+                    if "v1.5" in sw.path:
+                        sw_by_name["BK-Agro-1.5"] = sw
+                    elif "v2.0" in sw.path:
+                        sw_by_name["BK-Agro-2.0"] = sw
 
-        session.flush()
-        print(f"✅ Добавлено {len(component_parts)} деталей компонентов.")
-
-        # --- 5. Связи ПО <-> Детали ---
-        sw_map = {sw.name: sw for sw in softwares}
-        comp_sw_mapping = {
-            "ДВС Weichai WP12": ("Weichai-ECU-1.0", "Weichai-ECU-2.0"),
-            "КПП-728": ("KPP-728-1.0", "KPP-728-2.0"),
-            "Гидрораспределитель Р-80": ("HydroCtrl-1.0", "HydroCtrl-2.0"),
-            "Рулевая колонка РК-7": ("SteerCtrl-1.0", "SteerCtrl-1.0"),
-            "Тормоз дисковый ТД-400": ("BrakeCtrl-1.0", "BrakeCtrl-2.0"),
-            "БК-Агро v2": ("BK-Agro-1.5", "BK-Agro-2.0"),
-            "Амортизатор А-500": ("SuspCtrl-1.0", "SuspCtrl-1.0"),
+        # --- 4. Связи ПО и Компонентов (Software_Component_Link) ---
+        component_sw_mapping = {
+            "ДВС Weichai WP12": [
+                ("Weichai-ECU-1.0", "Weichai-ECU-2.0")
+            ],
+            "ДВС Cummins X12": [
+                ("Cummins-ECU-1.0", "Cummins-ECU-2.0")
+            ],
+            "КПП-728": [
+                ("KPP-728-1.0", "KPP-728-2.0")
+            ],
+            "КПП-730": [
+                ("KPP-730-1.0", None)
+            ],
+            "Гидрораспределитель Р-80": [
+                ("HydroCtrl-1.0", "HydroCtrl-2.0")
+            ],
+            "Гидронасос НШ-50": [
+                ("HydroCtrl-1.0", "HydroCtrl-2.0")
+            ],
+            "Рулевая колонка РК-7": [
+                ("SteerCtrl-1.0", None)
+            ],
+            "Рулевой механизм РМ-7": [
+                ("SteerCtrl-1.0", None)
+            ],
+            "БК-Агро v2": [
+                ("BK-Agro-1.5", "BK-Agro-2.0")
+            ],
+            "БК-Агро v3": [
+                ("BK-Agro-2.0", None)
+            ],
         }
-        status_pool = ['s', 't', 'o']
 
+        software_component_links = []
+        
         for comp in components:
-            comp_parts = [p for p in component_parts if p.component == comp.id]
-            sw_names = comp_sw_mapping.get(comp.model, (None, None))
-            if sw_names[0]:
-                current_sw = sw_map.get(sw_names[0])
+            sw_names_list = component_sw_mapping.get(comp.name, [])
+            for sw_names in sw_names_list:
+                current_sw_name, next_sw_name = sw_names
+                
+                current_sw = sw_by_name.get(current_sw_name)
+                if not current_sw:
+                    # Пытаемся найти по части имени
+                    for key, sw in sw_by_name.items():
+                        if current_sw_name.lower() in key.lower():
+                            current_sw = sw
+                            break
+                
                 if current_sw:
-                    for idx, part in enumerate(comp_parts):
-                        status = status_pool[idx % len(status_pool)]
-                        link = Software2ComponentPart(
-                            component_part_id=part.id,
-                            software_id=current_sw.id,
-                            is_actual=sw_names[0] != sw_names[1],
-                            status=status,
-                            date_change_actual=date.today() if current_sw.is_actual else None,
-                            previous_sw_version=None,
-                            not_recom=None
+                    # Создаем связь для текущей версии ПО
+                    link = Software_Component_Link(
+                        component_id=comp.id,
+                        software_id=current_sw.id
+                    )
+                    session.add(link)
+                    software_component_links.append(link)
+                    
+                if next_sw_name and next_sw_name != current_sw_name:
+                    next_sw = sw_by_name.get(next_sw_name)
+                    if next_sw and next_sw.id != current_sw.id:
+                        link = Software_Component_Link(
+                            component_id=comp.id,
+                            software_id=next_sw.id
                         )
                         session.add(link)
+                        software_component_links.append(link)
 
         session.flush()
-        print("✅ Добавлены связи ПО с деталями компонентов.")
+        print(f"✅ Добавлено {len(software_component_links)} связей ПО-Компоненты.")
 
-        # --- 6. Телеметрия: ТОЛЬКО для обычных тракторов (первые 50) ---
-        telemetry_count = 0
-        for i, tractor in enumerate(tractors_data[:50]):  # Исключаем системные (индексы 50-57)
+        # --- 5. Связи Тракторов с ПО и Компонентами (Tractor_Software_And_Component_Link) ---
+        tractor_links_count = 0
+        
+        # Для обычных тракторов (первые 50)
+        for i, tractor in enumerate(tractors_data[:50]):
+            # Для каждого компонента выбираем подходящее ПО
             for comp in components:
-                sw_names = comp_sw_mapping.get(comp.model, (None, None))
-                if not sw_names[0]:
+                # Определяем, какое ПО должно быть установлено
+                sw_links_for_comp = [link for link in software_component_links if link.component_id == comp.id]
+                
+                if not sw_links_for_comp:
                     continue
-
-                if i < 15:
-                    current_sw_name = sw_names[0]
-                    recommend_sw_name = sw_names[1] if sw_names[1] != sw_names[0] else sw_names[0]
-                elif i < 30:
-                    if "Weichai" in comp.model:
-                        current_sw_name = "Weichai-ECU-1.2" if any("Weichai-ECU-1.2" in s.name for s in softwares) else sw_names[0]
-                        recommend_sw_name = sw_names[1]
-                    elif "Гидро" in comp.model:
-                        current_sw_name = "HydroCtrl-1.3" if any("HydroCtrl-1.3" in s.name for s in softwares) else sw_names[0]
-                        recommend_sw_name = sw_names[1]
-                    elif "БК" in comp.model:
-                        current_sw_name, recommend_sw_name = "BK-Agro-1.5", "BK-Agro-2.0"
+                
+                # Выбираем ПО в зависимости от группы трактора
+                if i < 15:  # Первая группа - старая версия
+                    sw_link = sw_links_for_comp[0]  # Первая связь (обычно старая версия)
+                    is_recom = len(sw_links_for_comp) > 1  # Рекомендуется если есть новая версия
+                elif i < 30:  # Вторая группа - смешанная
+                    if len(sw_links_for_comp) > 1:
+                        # 50% на 50% старая/новая
+                        sw_link = random.choice(sw_links_for_comp)
                     else:
-                        current_sw_name, recommend_sw_name = sw_names
-                else:
-                    current_sw_name = sw_names[1] if sw_names[1] else sw_names[0]
-                    recommend_sw_name = current_sw_name
-
-                current_sw = sw_map.get(current_sw_name)
-                recommend_sw = sw_map.get(recommend_sw_name) if recommend_sw_name else current_sw
-
-                if not current_sw:
-                    continue
-
-                tc = TelemetryComponents(
-                    tractor=tractor.id,
-                    component=comp.id,
-                    mounting_date=date.today() - timedelta(days=random.randint(30, 730)),
-                    current_sw_version=current_sw.id,
-                    recommend_sw_version=recommend_sw.id if recommend_sw else current_sw.id,
-                    comp_ser_num=f"SER_{tractor.id}_{comp.id}_{random.randint(10000, 99999)}",
-                    time_rec=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 30))
+                        sw_link = sw_links_for_comp[0]
+                    is_recom = len(sw_links_for_comp) > 1
+                else:  # Третья группа - новая версия
+                    if len(sw_links_for_comp) > 1:
+                        sw_link = sw_links_for_comp[-1]  # Последняя связь (обычно новая версия)
+                    else:
+                        sw_link = sw_links_for_comp[0]
+                    is_recom = True
+                
+                # Создаем связь трактора с ПО и компонентом
+                tractor_link = Tractor_Software_And_Component_Link(
+                    is_recom=is_recom,
+                    tractor_id=tractor.id,
+                    soft_comp_link_id=sw_link.id
                 )
-                session.add(tc)
-                telemetry_count += 1
+                session.add(tractor_link)
+                tractor_links_count += 1
 
-                if i < 3:
-                    print(f"  - {tractor.vin} ({tractor.model}) -> {comp.type}: {comp.model}")
+        # Для системных тракторов (индексы 50-57) - добавляем только несколько связей
+        for i, tractor in enumerate(tractors_data[50:], start=50):
+            # Добавляем только 2-3 компонента для каждого системного трактора
+            for comp in random.sample(components, min(3, len(components))):
+                sw_links_for_comp = [link for link in software_component_links if link.component_id == comp.id]
+                if sw_links_for_comp:
+                    sw_link = random.choice(sw_links_for_comp)
+                    tractor_link = Tractor_Software_And_Component_Link(
+                        is_recom=True,
+                        tractor_id=tractor.id,
+                        soft_comp_link_id=sw_link.id
+                    )
+                    session.add(tractor_link)
+                    tractor_links_count += 1
 
-        print(f"✅ Добавлено {telemetry_count} записей телеметрии.")
+        session.flush()
+        print(f"✅ Добавлено {tractor_links_count} связей Трактор-ПО-Компоненты.")
 
-        # --- 7. Обновляем ПО для некоторых тракторов ---
-        for i, tractor in enumerate(tractors_data[:10]):
-            for sw in softwares[:5]:
-                sw.tractor_id = tractor.id
-                sw.tractor_model = tractor.model
-                sw.tractor_vin = tractor.vin
+        # --- 6. Вывод статистики для первых нескольких тракторов ---
+        print("\n📊 Примеры созданных связей:")
+        for i, tractor in enumerate(tractors_data[:5]):
+            links = session.query(Tractor_Software_And_Component_Link).filter_by(tractor_id=tractor.id).all()
+            print(f"\n  Трактор {tractor.vin} ({tractor.model}):")
+            for link in links[:3]:  # Показываем первые 3 связи
+                soft_comp_link = link.software_component_link
+                component = soft_comp_link.component
+                software = soft_comp_link.software
+                print(f"    • {component.type}: {component.name} -> ПО: {software.path.split('/')[-1]} (рекоменд: {link.is_recom})")
 
         session.commit()
         
@@ -247,29 +393,31 @@ def fill_realistic_data():
         print("="*70)
         print(f"\n📊 Итоговая статистика:")
         print(f"   • Тракторов: {len(tractors_data)} (50 обычных + 8 системных)")
-        print(f"   • Компонентов: {len(components)} (по 1 на тип)")
+        print(f"   • Компонентов: {len(components)}")
         print(f"   • ПО: {len(softwares)}")
-        print(f"   • Деталей: {len(component_parts)}")
-        print(f"   • Связей ПО-компоненты: {session.query(Software2ComponentPart).count()}")
-        print(f"   • Записей телеметрии: {session.query(TelemetryComponents).count()}")
+        print(f"   • Связей ПО-Компоненты: {len(software_component_links)}")
+        print(f"   • Связей Трактор-ПО-Компоненты: {tractor_links_count}")
         
-        print(f"\n🔧 Компоненты (по 1 на тип):")
-        for comp in components:
-            print(f"   • {comp.type}: {comp.model} ({comp.producer_comp})")
+        print(f"\n🔧 Типы компонентов (согласно ограничениям БД):")
+        print("   • DVS (Двигатели)")
+        print("   • KPP (Коробки передач)")
+        print("   • RK (Рулевое управление)")
+        print("   • HR (Гидравлика)")
+        print("   • BK (Бортовые компьютеры)")
         
         print(f"\n📈 Группы тракторов:")
-        print("   • VIN_00001-00050: Обычные тракторы (с телеметрией)")
-        print("   • VIN_system_1-8: СИСТЕМНЫЕ (без телеметрии, необычный VIN)")
+        print("   • VIN_00001-00050: Обычные тракторы (с полным набором связей)")
+        print("   • VIN_system_1-8: СИСТЕМНЫЕ (с ограниченным набором связей)")
         
-        print(f"\n🔰 Системные тракторы (нулевая телеметрия):")
+        print(f"\n🔰 Системные тракторы:")
         for i, model in enumerate(system_models, start=1):
             print(f"   • VIN_system_{i} ({model})")
         
         print(f"\n🔍 Доступные фильтры для тестирования:")
-        print("   • trac_model: K-7, K-5, K-525, K-700, K-744, K-530T, K-730M, K-714, K-742МСТ")
-        print("   • type_comp: ДВС, КПП, Гидравлика, Рулевое, Тормоза, БК, Подвеска")
-        print("   • query: Поиск по VIN (VIN_00001...VIN_00050, VIN_system_1...VIN_system_8)")
-        print("   • region: RU-SYS — для фильтрации системных тракторов")
+        print("   • Модели тракторов: K-7, K-525, K-742МСТ, K-5, K-700, K-744, K-530T, K-730M, K-714")
+        print("   • Типы компонентов: DVS, KPP, RK, HR, BK")
+        print("   • VIN: VIN_00001...VIN_00050, VIN_system_1...VIN_system_8")
+        print("   • Регион: RU-SYS — для фильтрации системных тракторов")
         print("="*70)
 
     except Exception as e:

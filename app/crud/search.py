@@ -78,7 +78,7 @@ def get_component_by_filters(
 
     return [
         {
-            "download_link": r.download_link,
+            "download_link": r.download_link[33:],
             "download_link_instruction": getattr(r, 'download_link_instruction', None),
             "type_component": r.type,
             "release_date": r.release_date.isoformat() if r.release_date else None,
@@ -160,7 +160,7 @@ def get_archive_component_by_filters(
 
     return [
         {
-            "download_link": r.download_link,
+            "download_link": r.download_link[33:],
             "download_link_instruction": getattr(r, 'download_link_instruction', None),
             "type_component": r.type,
             "release_date": r.release_date.isoformat() if r.release_date else None,
