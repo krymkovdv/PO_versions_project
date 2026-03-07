@@ -212,12 +212,12 @@ def assign_software_to_components_route(
     software_is_archive: bool = Form(False),
     software_is_critical: bool = Form(False),
     software_status: str = Form("serial"),
-    software_tractor_models: str = Form(...),  # Может быть строкой или JSON
+    software_tractor_models: str = Form(...),
     software_producer: str = Form(...),
-    previous_sw_version: Optional[str] = Form(default=None),
-    component_models: str = Form(...),  # Может быть строкой или JSON
-    component_types: str = Form(...),  # Может быть строкой или JSON
-    component_producers: str = Form(...),  # Может быть строкой или JSON
+    previous_sw_version: Optional[str] = Form(default=None),  # ← str, не int!
+    component_models: str = Form(...),
+    component_types: str = Form(...),
+    component_producers: str = Form(...),
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
@@ -226,8 +226,8 @@ def assign_software_to_components_route(
     """
     import json
     
-    # Парсинг дат
-    rd = None
+    # 1. Парсинг даты
+    rd: Optional[datetime] = None
     if software_release_date:
         try:
             rd = datetime.fromisoformat(software_release_date)
@@ -235,22 +235,17 @@ def assign_software_to_components_route(
             logger.error(f"[software/assign] неверный формат даты: {software_release_date}")
             raise HTTPException(400, "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)")
     
-    # Парсинг JSON массивов с авто-конвертацией из строки
+    # 2. Helper для парсинга JSON-массивов
     def parse_json_or_string(value: str) -> List[str]:
-        """Парсит JSON или возвращает строку как список из одного элемента"""
         if not value or not value.strip():
             return []
         value = value.strip()
-        # Проверяем, начинается ли с [ (JSON массив)
         if value.startswith('['):
             try:
                 return json.loads(value)
             except json.JSONDecodeError:
-                # Если не валидный JSON, возвращаем как список из одного элемента
                 return [value]
-        else:
-            # Просто строка - возвращаем как список
-            return [value]
+        return [value]
     
     try:
         tractor_models_list = parse_json_or_string(software_tractor_models)
@@ -258,7 +253,6 @@ def assign_software_to_components_route(
         component_types_list = parse_json_or_string(component_types)
         component_producers_list = parse_json_or_string(component_producers)
         
-        # Валидация что списки не пустые
         if not tractor_models_list:
             raise HTTPException(400, "software_tractor_models is required")
         if not component_models_list:
@@ -267,28 +261,30 @@ def assign_software_to_components_route(
             raise HTTPException(400, "component_types is required")
         if not component_producers_list:
             raise HTTPException(400, "component_producers is required")
-            
     except Exception as e:
         logger.error(f"[software/assign] ошибка парсинга: {str(e)}")
         raise HTTPException(400, f"Invalid format: {str(e)}")
     
-    # Валидация статуса
+    # 3. Валидация статуса
     if software_status not in ["serial", "in operation", "experienced"]:
         raise HTTPException(400, "Invalid status. Must be: 'serial', 'in operation', 'experienced'")
     
-    # Парсинг previous_sw_version - корректная обработка пустой строки
+    # 4. Парсинг previous_sw_version - БЕЗОПАСНАЯ ОБРАБОТКА
     prev_sw_ver_int: Optional[int] = None
-    if previous_sw_version is not None and previous_sw_version.strip() != "":
-        try:
-            prev_sw_ver_int = int(previous_sw_version.strip())
-        except ValueError:
-            logger.error(f"[software/assign] Неверный previous_sw_version: '{previous_sw_version}'")
-            raise HTTPException(
-                400, 
-                detail=f"previous_sw_version должен быть целым числом, получено: '{previous_sw_version}'"
-            )
+    if previous_sw_version and isinstance(previous_sw_version, str):
+        stripped = previous_sw_version.strip()
+        if stripped:
+            try:
+                prev_sw_ver_int = int(stripped)
+            except ValueError:
+                logger.error(f"[software/assign] Неверный previous_sw_version: '{previous_sw_version}'")
+                raise HTTPException(
+                    400, 
+                    detail=f"previous_sw_version должен быть целым числом, получено: '{previous_sw_version}'"
+                )
+    # Если previous_sw_version == None или "" → prev_sw_ver_int = None ✓
     
-    # Создание схемы данных
+    # 5. Создание схемы данных
     software_data = schemas.AssignSoftwareRequest(
         software_release_date=rd,
         software_description=software_description,
@@ -298,12 +294,13 @@ def assign_software_to_components_route(
         software_status=software_status,
         software_tractor_models=tractor_models_list,
         software_producer=software_producer,
-        software_previous_version=prev_sw_ver_int,  # ← Используем правильное имя поля из схемы
+        software_previous_version=prev_sw_ver_int,  
         component_models=component_models_list,
         component_types=component_types_list,
         component_producers=component_producers_list
     )
     
+    # 6. Вызов CRUD
     try:
         logger.info(
             f"[software/assign] producer={software_producer}, "
@@ -311,7 +308,6 @@ def assign_software_to_components_route(
             f"user={current_user.username}"
         )
         
-        # Извлекаем базовое имя из файла
         base_name = os.path.splitext(file.filename)[0] if file.filename else "unknown"
         
         return crud.software.assign_software_to_components(

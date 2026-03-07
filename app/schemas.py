@@ -423,7 +423,7 @@ class AssignSoftwareRequest(BaseModel):
     software_status: str
     software_tractor_models: List[str] = Field(..., min_length=1)  # Массив моделей тракторов
     software_producer: str = Field(..., min_length=1)
-    software_previous_version: Optional[str] = None
+    software_previous_version: Optional[int] = None
     
     # Информация о компоненте
     component_models: List[str] = Field(..., min_length=1)
