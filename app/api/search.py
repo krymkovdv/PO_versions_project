@@ -181,22 +181,15 @@ def get_archive_component_by_filters(
 
 
 @router.patch("/firmware/{firmware_id}/archive")
-def change_firmware_archive_status(
+def toggle_firmware_archive_status(
     firmware_id: int,
-    request: schemas.ArchiveChangeRequest,
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
-    """
-    Изменение статуса архивации ПО
-    
-    - **firmware_id**: ID программного обеспечения
-    - **is_archive**: true - переместить в архив, false - восстановить из архива
-    """
-    logger.info(f"[change_archive] запрос firmware_id={firmware_id} is_archive={request.is_archive} user={current_user.username} role={current_user.role}")
+    logger.info(f"[toggle_archive] запрос firmware_id={firmware_id} user={current_user.username} role={current_user.role}")
     
     try:
-        # Проверяем права доступа (только engineer или moderator)
+        # Проверяем права доступа (только moderator)
         if current_user.role not in ['moderator']:
             raise HTTPException(
                 status_code=403,
@@ -207,37 +200,37 @@ def change_firmware_archive_status(
         firmware = db.query(models.Software).filter(models.Software.id == firmware_id).first()
         
         if not firmware:
-            logger.warning(f"[change_archive] ПО не найдено id={firmware_id}")
+            logger.warning(f"[toggle_archive] ПО не найдено id={firmware_id}")
             raise HTTPException(
                 status_code=404,
                 detail=f"ПО с ID {firmware_id} не найдено"
             )
         
-        # Изменяем статус архивации
+        # Переключаем статус архивации (toggle)
         old_status = firmware.is_archive
-        firmware.is_archive = request.is_archive
+        firmware.is_archive = not firmware.is_archive
         
-        # Если перемещаем в архив, возможно также меняем is_actual
-        if request.is_archive:
-            firmware.is_actual = False
-        else:
-            firmware.is_archive = True
+        # Дополнительная логика: если достаем из архива, может быть нужно что-то еще
+        # if not firmware.is_archive and old_status:
+        #     # Действия при восстановлении из архива
+        #     pass
         
         db.commit()
         db.refresh(firmware)
         
-        logger.info(f"[change_archive] успешно изменен статус: {old_status} -> {firmware.is_archive}")
+        action = "перемещено в архив" if firmware.is_archive else "восстановлено из архива"
+        logger.info(f"[toggle_archive] успешно изменен статус: {old_status} -> {firmware.is_archive}")
         
         return {
             "id": firmware.id,
             "is_archive": firmware.is_archive,
             "is_actual": firmware.is_actual,
-            "message": f"ПО успешно {'перемещено в архив' if request.is_archive else 'восстановлено из архива'}"
+            "message": f"ПО успешно {action}"
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[change_archive] ошибка: {str(e)}", exc_info=True)
+        logger.error(f"[toggle_archive] ошибка: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

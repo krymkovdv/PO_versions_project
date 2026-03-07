@@ -334,12 +334,14 @@ def download_software_file(
     logger.info(f"[software/download] запрос на скачивание id={id} user={current_user.username}")
     try:
         file_info = crud.software.download_software_file(db, id)
+        logger.info(f"file_info: {file_info}")  # ДОБАВЬТЕ ЭТО
+        logger.info(f"filename: {file_info['filename']}")  # И ЭТО
         return FileResponse(
             path=file_info["file_path"],
             filename=file_info["filename"],
             media_type="application/octet-stream",
             headers={
-                "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
+                # "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
                 "X-Software-ID": str(file_info["software_id"]),
             }
         )
