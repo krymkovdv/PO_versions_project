@@ -345,7 +345,7 @@ def download_software_file(
             filename=file_info["filename"],
             media_type="application/octet-stream",
             headers={
-                # "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
+                "Content-Disposition": f'attachment; filename="{file_info["filename"]}"',
                 "X-Software-ID": str(file_info["software_id"]),
             }
         )

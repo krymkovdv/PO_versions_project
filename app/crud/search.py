@@ -6,6 +6,8 @@ from datetime import timedelta, datetime
 import re
 import logging
 from . import software
+import os
+from .software import extract_original_filename 
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +304,7 @@ def get_software_component_by_ids(
         .filter(
             models.Software.id == id_firmwares,
             models.Component.id == id_component,
-            models.Software.is_archive == False
+            # models.Software.is_archive == False
         )
     )
     
@@ -566,29 +568,29 @@ def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponent
         ]
 
 def get_tractor_by_vin(db: Session, vin: str):
-    """Получить информацию о тракторе по VIN (обновлено для новой схемы)"""
+    """Получить информацию о тракторе по VIN (исправленная версия)"""
     
     tractor = db.query(models.Tractor).filter(models.Tractor.vin == vin).first()
-    
     if not tractor:
-        return []
+        return []  # или поднять 404, но в эндпоинте ожидается список
     
+    # Запрос для получения связанных компонентов и ПО
     query = (
         db.query(
             models.Tractor.vin,
             models.Tractor.model,
             models.Tractor.consumer,
-            models.Tractor.dealer,
             models.Tractor.assembly_date,
             models.Tractor.region,
             models.Tractor.oh_hour,
             models.Tractor.last_activity,
             models.Software.description,
+            models.Software.path.label("software_path"),  # добавили путь к файлу ПО
             models.Component.id.label("component_id"),
             models.Component.name.label("comp_model"),
             models.Software.id.label("current_sw_version"),
             models.Software.id.label("recommend_sw_version"),
-            models.Component.type
+            models.Component.type.label("component_type")
         )
         .select_from(models.Tractor)
         .join(
@@ -613,27 +615,28 @@ def get_tractor_by_vin(db: Session, vin: str):
     results = query.all()
 
     if results:
+        # Формируем ответ со всеми компонентами
         return [
             {
                 "vin": r.vin,
                 "model": r.model,
                 "consumer": r.consumer,
-                "dealer": r.dealer,
                 "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
                 "region": r.region,
                 "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
                 "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-                "sw_name": software.extract_original_filename(os.path.basename(r.software_path)) if r.software_path else None,
+                "sw_name": extract_original_filename(os.path.basename(r.software_path)) if r.software_path else None,
                 "description": r.description,
                 "component_id": r.component_id,
                 "comp_model": r.comp_model,
                 "current_sw_version": r.current_sw_version,
                 "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-                "component_type": r.type
+                "component_type": r.component_type
             }
             for r in results
         ]
     else:
+        # Если у трактора нет связанных компонентов, возвращаем только основную информацию
         return [{
             "vin": tractor.vin,
             "model": tractor.model,
@@ -650,7 +653,6 @@ def get_tractor_by_vin(db: Session, vin: str):
             "recommend_sw_version": None,
             "component_type": None
         }]
-
 # ============================================
 # Вспомогательные функции
 # ============================================
