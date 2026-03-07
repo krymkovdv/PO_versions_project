@@ -268,11 +268,13 @@ class ComponentInfoRequest(BaseModel):
     status: List[str] = []
 
 class TractorFilter(BaseModel):
+    component_type: Optional[str] = None  # 'DVS', 'KPP', 'RK', 'HR', 'BK'
+    
+    software_filter: Optional[str] = Field(None, pattern="^(actual|critical|old)$")
+    
     trac_model: List[str] = []
-    status: List[str] = []
     dealer: str = ''
     date_assemle: Optional[date] = None
-    is_actual: Optional[bool] = None  
     date_start: Optional[date] = None
     date_end: Optional[date] = None
     query: Optional[str] = None
@@ -307,6 +309,15 @@ class RequestModel(BaseModel):
     producers: List[str] = []
     status: List[str] = []
 
+class TractorComponentRequest(BaseModel):
+    vins: List[str]
+
+class TractorComponentResponse(BaseModel):
+    vin: str
+    component_type: str
+    comp_model: str
+
+    
 # ============================================
 # Ответы для поиска
 # ============================================
@@ -325,9 +336,6 @@ class  ComponentSearchResponseItem(BaseModel):
     status: Optional[str] = None
     tractor_model: Optional[List[str]]
 
-
-    
-    
     @field_validator('type_component', mode='before')
     @classmethod
     def normalize_component_types(cls, v):
@@ -367,7 +375,41 @@ class SoftwareComponentInfoResponse(BaseModel):
     is_recom: bool
     
     model_config = ConfigDict(from_attributes=True)
-    
+
+class TractorSearchResponse(BaseModel):
+    vin: str
+    model: str
+    consumer: str
+    assembly_date: Optional[datetime] = None
+    region: str
+    oh_hour: Optional[str] = None
+    last_activity: Optional[datetime] = None
+    sw_name: Optional[str] = None
+    description: Optional[str] = None
+
+
+    class Config:
+        from_attributes = True 
+
+class TractorSearchResponse2(BaseModel):
+    vin: str
+    model: str
+    consumer: str
+    assembly_date: Optional[datetime] = None
+    region: str
+    oh_hour: Optional[str] = None
+    last_activity: Optional[datetime] = None
+    sw_name: Optional[str] = None
+    description: Optional[str] = None
+    componentParts_id: Optional[int] = None
+    component_id: Optional[int] = None
+    comp_model: Optional[str] = None
+    current_sw_version: Optional[int] = None
+    recommend_sw_version: Optional[str] = None
+    component_type: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 # ============================================
 # Загрузка ПО
 # ============================================
