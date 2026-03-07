@@ -1,7 +1,8 @@
-from pydantic import BaseModel, field_validator, Field, ConfigDict
+from pydantic import BaseModel, field_validator, Field, ConfigDict, computed_field
 from datetime import datetime, date
 from typing import Optional, List
 import re
+from pathlib import Path
 
 # ============================================
 # Вспомогательные функции для regex-поиска
@@ -155,7 +156,20 @@ class SoftwareSchema(BaseModel):
     path_instruction: str  
     
     model_config = ConfigDict(from_attributes=True)
-
+    @computed_field
+    @property
+    def name(self) -> str:
+        """Извлекает имя файла из поля path (НЕ из БД!)"""
+        if not self.path:
+            return ""
+        return Path(self.path).name
+    
+    @computed_field
+    @property
+    def filename(self) -> str:
+        """Псевдоним для name (для совместимости)"""
+        return self.name
+    
 class SoftwareCreate(BaseModel):
     path: str
     release_date: Optional[datetime] = None
@@ -375,6 +389,20 @@ class SoftwareComponentInfoResponse(BaseModel):
     is_recom: bool
     
     model_config = ConfigDict(from_attributes=True)
+    
+    @computed_field
+    @property
+    def name(self) -> str:
+        """Извлекает имя файла из software_path (НЕ из БД!)"""
+        if not self.software_path:
+            return ""
+        return Path(self.software_path).name
+    
+    @computed_field
+    @property
+    def filename(self) -> str:
+        """Псевдоним для name (для совместимости)"""
+        return self.name
 
 class TractorSearchResponse(BaseModel):
     vin: str
