@@ -134,26 +134,26 @@ def get_search_tractors_vin(
         logger.error(f"[search-tractor-vin] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-# @router.post("/component-models")
-# def get_component_models(
-#     request: schemas.RequestModel,
-#     db: Session = Depends(get_session),
-#     current_user: models.UserDB = Depends(get_current_user)
-# ):
-#     logger.info(f"[component-models] запрос={request.dict()} user={current_user.username} role={current_user.role}")
-#     try:
-#         models_list = crud.components.get_agg_by_trac_and_comp(
-#             db,
-#             trac_model=request.trac_model if request.trac_model else None,
-#             type_comp=request.type_comp if request.type_comp else None,
-#             producers=request.producers if request.producers else None,
-#             status=request.status if request.status else None
-#         )
-#         logger.info(f"[component-models] найдено моделей: {len(models_list)} user={current_user.username} role={current_user.role}")
-#         return {"component_models": models_list}
-#     except Exception as e:
-#         logger.error(f"[component-models] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=str(e))
+@router.post("/component-models")
+def get_component_models(
+    request: schemas.RequestModel,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    logger.info(f"[component-models] запрос={request.dict()} user={current_user.username} role={current_user.role}")
+    try:
+        models_list = crud.components.get_agg_by_trac_and_comp(
+            db,
+            trac_model=request.trac_model if request.trac_model else None,
+            type_comp=request.type_comp if request.type_comp else None,
+            producers=request.producers if request.producers else None,
+            status=request.status if request.status else None
+        )
+        logger.info(f"[component-models] найдено моделей: {len(models_list)} user={current_user.username} role={current_user.role}")
+        return {"component_models": models_list}
+    except Exception as e:
+        logger.error(f"[component-models] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/archive-component-info", response_model=List[schemas.ComponentSearchResponseItem])
