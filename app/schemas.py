@@ -323,6 +323,27 @@ class RequestModel(BaseModel):
     producers: List[str] = []
     status: List[str] = []
 
+class ComponentFilterRequest(BaseModel):
+    """Запрос для фильтрации производителей/моделей компонентов"""
+    trac_model: List[str] = Field(default_factory=list)  # Модели тракторов
+    type_comp: List[str] = Field(default_factory=list)   # Типы компонентов
+    component_models: List[str] = Field(default_factory=list)  # Модели компонентов
+    software_status: List[str] = Field(default_factory=list)   # Статусы ПО
+    
+    class Config:
+        from_attributes = True
+
+
+class TractorFilterRequest(BaseModel):
+    """Запрос для фильтрации моделей тракторов"""
+    component_types: List[str] = Field(default_factory=list)     # Типы компонентов
+    component_models: List[str] = Field(default_factory=list)    # Модели компонентов
+    component_producers: List[str] = Field(default_factory=list) # Производители компонентов
+    software_status: List[str] = Field(default_factory=list)     # Статусы ПО
+    
+    class Config:
+        from_attributes = True
+        
 class TractorComponentRequest(BaseModel):
     vins: List[str]
 

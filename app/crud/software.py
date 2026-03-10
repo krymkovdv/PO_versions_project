@@ -205,6 +205,8 @@ def assign_software_to_components(
         
         logger.info(f"[assign_software] Создано ПО id={fw.id}, producer={fw.producer}")
         
+        processed_components = []
+
         # 4. Создаём связи с компонентами
         for i in range(n_models):
             comp_model = software_data.component_models[i]
@@ -237,6 +239,42 @@ def assign_software_to_components(
             db.flush()
             
             logger.info(f"[assign_software] Создана связь ПО-Компонент link_id={link.id}")
+            
+            processed_components.append({
+                    'type': comp_type,
+                    'name': comp_model,
+                    'producer': comp_producer,
+                    'component_id': component.id
+                })
+        
+        # Находим все ПО, которые связаны с этими компонентами (кроме текущего fw.id)
+        # и устанавливаем им is_actual=False
+        if processed_components and software_data.software_is_actual and not(software_data.software_is_critical): 
+            component_ids = [c['component_id'] for c in processed_components]
+            
+            # Находим все связи (кроме текущей) для этих компонентов
+            old_links = db.query(models.Software_Component_Link).filter(
+                models.Software_Component_Link.component_id.in_(component_ids),
+                models.Software_Component_Link.software_id != fw.id
+            ).all()
+            
+            if old_links:
+                # Собираем уникальные software_id для обновления
+                old_software_ids = list({link.software_id for link in old_links})
+                
+                # Обновляем is_actual=False для всех найденных записей ПО
+                db.query(models.Software).filter(
+                    models.Software.id.in_(old_software_ids)
+                ).update(
+                    {"is_actual": False},
+                    synchronize_session=False  # Важно для производительности при bulk update
+                )
+                
+                logger.info(
+                    f"[assign_software] Деактивировано {len(old_software_ids)} "
+                    f"предыдущих версий ПО для компонентов: {[c['name'] for c in processed_components]}"
+                )
+
         # 5. Коммитим все изменения
         db.commit()
         db.refresh(fw)
