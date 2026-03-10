@@ -5,7 +5,7 @@ from .. import schemas, crud, models
 from ..database import get_session
 from ..authorization import require_role, get_password_hash, get_current_user
 from ..log import logger
-from typing import List
+from typing import List, Dict
 from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter(prefix="/search", tags=["Search"])
@@ -134,28 +134,6 @@ def get_search_tractors_vin(
         logger.error(f"[search-tractor-vin] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-# @router.post("/component-models")
-# def get_component_models(
-#     request: schemas.RequestModel,
-#     db: Session = Depends(get_session),
-#     current_user: models.UserDB = Depends(get_current_user)
-# ):
-#     logger.info(f"[component-models] запрос={request.dict()} user={current_user.username} role={current_user.role}")
-#     try:
-#         models_list = crud.components.get_agg_by_trac_and_comp(
-#             db,
-#             trac_model=request.trac_model if request.trac_model else None,
-#             type_comp=request.type_comp if request.type_comp else None,
-#             producers=request.producers if request.producers else None,
-#             status=request.status if request.status else None
-#         )
-#         logger.info(f"[component-models] найдено моделей: {len(models_list)} user={current_user.username} role={current_user.role}")
-#         return {"component_models": models_list}
-#     except Exception as e:
-#         logger.error(f"[component-models] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("/archive-component-info", response_model=List[schemas.ComponentSearchResponseItem])
 def get_archive_component_by_filters(
     filters: schemas.ComponentInfoRequest,
@@ -233,4 +211,90 @@ def toggle_firmware_archive_status(
     except Exception as e:
         logger.error(f"[toggle_archive] ошибка: {str(e)}", exc_info=True)
         db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/component-models")
+def get_filtered_models(
+    request: schemas.RequestModel,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    logger.info(f"[component-models] запрос={request.dict()} user={current_user.username} role={current_user.role}")
+    try:
+        models_list = crud.components.get_agg_by_trac_and_comp(
+            db,
+            trac_model=request.trac_model if request.trac_model else None,
+            type_comp=request.type_comp if request.type_comp else None,
+            producers=request.producers if request.producers else None,
+            status=request.status if request.status else None
+        )
+        logger.info(f"[component-models] найдено моделей: {len(models_list)} user={current_user.username} role={current_user.role}")
+        return {"component_models": models_list}
+    except Exception as e:
+        logger.error(f"[component-models] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/component-producers", response_model=List[Dict[str, str]])
+def get_filtered_producers(
+    filters: schemas.ComponentFilterRequest,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получение производителей компонентов с фильтрами"""
+    logger.info(
+        f"[component-producers] запрос фильтров={filters.dict()} "
+        f"user={current_user.username} role={current_user.role}"
+    )
+    try:
+        producers = crud.components.get_component_producers(
+            db,
+            trac_model=filters.trac_model,
+            type_comp=filters.type_comp,
+            component_models=filters.component_models,
+            status=filters.software_status
+        )
+        logger.info(
+            f"[component-producers] успешно, найдено производителей: {len(producers)} "
+            f"user={current_user.username} role={current_user.role}"
+        )
+        return producers
+    except Exception as e:
+        logger.error(
+            f"[component-producers] ошибка: {str(e)} "
+            f"user={current_user.username} role={current_user.role}",
+            exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tractor-models", response_model=List[Dict[str, str]])
+def get_filtered_tractor_models(
+    filters: schemas.TractorFilterRequest,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получение моделей тракторов с фильтрами"""
+    logger.info(
+        f"[tractor-models] запрос фильтров={filters.dict()} "
+        f"user={current_user.username} role={current_user.role}"
+    )
+    try:
+        tractor_models = crud.tractors.get_tractor_models(
+            db,
+            component_types=filters.component_types,
+            component_models=filters.component_models,
+            component_producers=filters.component_producers,
+            software_status=filters.software_status
+        )
+        logger.info(
+            f"[tractor-models] успешно, найдено моделей: {len(tractor_models)} "
+            f"user={current_user.username} role={current_user.role}"
+        )
+        return tractor_models
+    except Exception as e:
+        logger.error(
+            f"[tractor-models] ошибка: {str(e)} "
+            f"user={current_user.username} role={current_user.role}",
+            exc_info=True
+        )
         raise HTTPException(status_code=500, detail=str(e))

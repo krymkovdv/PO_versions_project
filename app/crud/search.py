@@ -6,6 +6,8 @@ from datetime import timedelta, datetime
 import re
 import logging
 from . import software
+import os
+from .software import extract_original_filename 
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +304,7 @@ def get_software_component_by_ids(
         .filter(
             models.Software.id == id_firmwares,
             models.Component.id == id_component,
-            models.Software.is_archive == False
+            # models.Software.is_archive == False
         )
     )
     
@@ -401,205 +403,182 @@ def get_software_component_by_ids(
 #         layout_regex = _similar_chars(dealer_pattern)
 #         query = query.filter(models.Tractor.consumer.op('~*')(layout_regex))
 
-#     if filter.query:
-#         q = filter.query.strip()
-#         if q:
-#             try:
-#                 regex_pattern = schemas.wildcard_to_psql_regex(q)
-#                 if not schemas.is_safe_regex(regex_pattern):
-#                     raise ValueError("Слишком сложный поисковый запрос")
-#                 layout_regex = _similar_chars(regex_pattern)
-#                 or_conditions = [
-#                     models.Tractor.vin.op('~*')(layout_regex),
-#                     models.Tractor.model.op('~*')(layout_regex),
-#                 ]
-#                 query = query.filter(or_(*or_conditions))
-#             except Exception as e:
-#                 raise ValueError(f"Ошибка поиска: {str(e)}")
-
-#     # Даты
-#     if filter.date_assemle:
-#         try:
-#             if isinstance(filter.date_assemle, str):
-#                 filter_date = datetime.strptime(filter.date_assemle, '%Y-%m-%d').date()
-#             else:
-#                 filter_date = filter.date_assemle
-#             next_day = filter_date + timedelta(days=1)
-#             query = query.filter(
-#                 models.Tractor.assembly_date >= filter_date,
-#                 models.Tractor.assembly_date < next_day
-#             )
-#         except (ValueError, TypeError) as e:
-#             logger.error(f"Ошибка преобразования даты: {e}")
-#     elif filter.date_start or filter.date_end:
-#         if filter.date_start and not filter.date_end:
-#             query = query.filter(models.Tractor.assembly_date >= filter.date_start)
-#         elif filter.date_end and not filter.date_start:
-#             query = query.filter(models.Tractor.assembly_date <= filter.date_end)
-#         elif filter.date_start and filter.date_end:
-#             query = query.filter(
-#                 models.Tractor.assembly_date >= filter.date_start,
-#                 models.Tractor.assembly_date <= filter.date_end
-#             )
-
-#     # Статус
-#     if filter.status:
-#         exists_condition = (
-#             select(1)
-#             .select_from(models.Tractor_Software_And_Component_Link)
-#             .join(
-#                 models.Software_Component_Link,
-#                 models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
-#             )
-#             .join(
-#                 models.Software,
-#                 models.Software_Component_Link.software_id == models.Software.id
-#             )
-#             .where(
-#                 models.Tractor_Software_And_Component_Link.tractor_id == models.Tractor.id,
-#                 models.Software.status.in_(filter.status)
-#             )
-#         )
-#         query = query.filter(exists(exists_condition))
-
-#     query = query.distinct()
-#     results = query.all()
+    if filter.query:
+        q = filter.query.strip()
+        if q:
+            try:
+                regex_pattern = schemas.wildcard_to_psql_regex(q)
+                if not schemas.is_safe_regex(regex_pattern):
+                    raise ValueError("Слишком сложный поисковый запрос")
+                layout_regex = _similar_chars(regex_pattern)
+                or_conditions = [
+                    models.Tractor.vin.op('~*')(layout_regex),
+                    models.Tractor.model.op('~*')(layout_regex),
+                ]
+                query = query.filter(or_(*or_conditions))
+            except Exception as e:
+                raise ValueError(f"Ошибка поиска: {str(e)}")
+            
+    # Даты
+    if filter.date_assemle:
+        try:
+            if isinstance(filter.date_assemle, str):
+                filter_date = datetime.strptime(filter.date_assemle, '%Y-%m-%d').date()
+            else:
+                filter_date = filter.date_assemle
+            next_day = filter_date + timedelta(days=1)
+            query = query.filter(
+                models.Tractor.assembly_date >= filter_date,
+                models.Tractor.assembly_date < next_day
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Ошибка преобразования даты: {e}")
+    elif filter.date_start or filter.date_end:
+        if filter.date_start and not filter.date_end:
+            query = query.filter(models.Tractor.assembly_date >= filter.date_start)
+        elif filter.date_end and not filter.date_start:
+            query = query.filter(models.Tractor.assembly_date <= filter.date_end)
+        elif filter.date_start and filter.date_end:
+            query = query.filter(
+                models.Tractor.assembly_date >= filter.date_start,
+                models.Tractor.assembly_date <= filter.date_end
+            )
+    query = query.distinct()
+    results = query.all()
     
-#     return [
-#         {
-#             "vin": r.vin,
-#             "model": r.model,
-#             "consumer": r.dealer,
-#             "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
-#             "region": r.region,
-#             "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
-#             "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-#         }
-#         for r in results
-#     ]
+    return [
+        {
+            "vin": r.vin,
+            "model": r.model,
+            "consumer": r.dealer,
+            "dealer": r.dealer if hasattr(r, 'dealer') else r.consumer,
+            "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+            "region": r.region,
+            "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
+            "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+        }
+        for r in results
+    ]
 
+def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponentRequest)-> List[schemas.TractorComponentResponse]:
+    # Основной запрос с правильными joins
+        query = db.query(
+            models.Tractor.vin,
+            models.Component.type.label("component_type"),
+            models.Component.name.label("comp_model")
+        ).select_from(models.Tractor)\
+         .join(
+             models.Tractor_Software_And_Component_Link,
+             models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
+         )\
+         .join(
+             models.Software_Component_Link,
+             models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
+         )\
+         .join(
+             models.Component,
+             models.Software_Component_Link.component_id == models.Component.id
+         )\
+         .filter(models.Tractor.vin.in_(request.vins))
+        
+        results = query.all()
+        
+        # Формируем ответ
+        return [
+            schemas.TractorComponentResponse( 
+                vin=r.vin,
+                component_type=r.component_type,
+                comp_model=r.comp_model
+            )
+            for r in results
+        ]
 
-# def get_tractor_by_vin(db: Session, vin: str):
-#     """Получить информацию о тракторе по VIN (обновлено для новой схемы)"""
+def get_tractor_by_vin(db: Session, vin: str):
+    """Получить информацию о тракторе по VIN (исправленная версия)"""
     
-#     tractor = db.query(models.Tractor).filter(models.Tractor.vin == vin).first()
+    tractor = db.query(models.Tractor).filter(models.Tractor.vin == vin).first()
+    if not tractor:
+        return []  # или поднять 404, но в эндпоинте ожидается список
     
-#     if not tractor:
-#         return []
-    
-#     query = (
-#         db.query(
-#             models.Tractor.vin,
-#             models.Tractor.model,
-#             models.Tractor.consumer,
-#             models.Tractor.assembly_date,
-#             models.Tractor.region,
-#             models.Tractor.oh_hour,
-#             models.Tractor.last_activity,
-#             models.Software.name.label("sw_name"),
-#             models.Software.description,
-#             models.Component.id.label("component_id"),
-#             models.Component.name.label("comp_model"),
-#             models.Software.id.label("current_sw_version"),
-#             models.Software.id.label("recommend_sw_version"),
-#             models.Component.type
-#         )
-#         .select_from(models.Tractor)
-#         .join(
-#             models.Tractor_Software_And_Component_Link,
-#             models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-#         )
-#         .join(
-#             models.Software_Component_Link,
-#             models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
-#         )
-#         .join(
-#             models.Component,
-#             models.Software_Component_Link.component_id == models.Component.id
-#         )
-#         .join(
-#             models.Software,
-#             models.Software_Component_Link.software_id == models.Software.id
-#         )
-#         .filter(models.Tractor.vin == vin)
-#     )
-
-#     results = query.all()
-
-#     if results:
-#         return [
-#             {
-#                 "vin": r.vin,
-#                 "model": r.model,
-#                 "consumer": r.consumer,
-#                 "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
-#                 "region": r.region,
-#                 "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
-#                 "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-#                 "sw_name": r.sw_name,
-#                 "description": r.description,
-#                 "component_id": r.component_id,
-#                 "comp_model": r.comp_model,
-#                 "current_sw_version": r.current_sw_version,
-#                 "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-#                 "component_type": r.type
-#             }
-#             for r in results
-#         ]
-#     else:
-#         return [{
-#             "vin": tractor.vin,
-#             "model": tractor.model,
-#             "consumer": tractor.consumer,
-#             "assembly_date": tractor.assembly_date.isoformat() if tractor.assembly_date else None,
-#             "region": tractor.region,
-#             "oh_hour": str(tractor.oh_hour) if tractor.oh_hour is not None else "",
-#             "last_activity": tractor.last_activity.isoformat() if tractor.last_activity else None,
-#             "sw_name": None,
-#             "description": None,
-#             "component_id": None,
-#             "comp_model": None,
-#             "current_sw_version": None,
-#             "recommend_sw_version": None,
-#             "component_type": None
-#         }]
-
-# def get_component_models(
-#     db: Session,
-#     trac_model: List[str] = None,
-#     type_comp: List[str] = None
-# ):
-#     """Получить модели компонентов по фильтрам"""
-    
-#     query = db.query(
-#         models.Component.name
-#     ).select_from(models.Component).distinct()
-
-#     if type_comp:
-#         query = query.filter(models.Component.type.in_(type_comp))
-
-#     if trac_model:
-#         query = (
-#             query
-#             .join(
-#                 models.Software_Component_Link,
-#                 models.Component.id == models.Software_Component_Link.component_id
-#             )
-#             .join(
-#                 models.Tractor_Software_And_Component_Link,
-#                 models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
-#             )
-#             .join(
-#                 models.Tractor,
-#                 models.Tractor_Software_And_Component_Link.tractor_id == models.Tractor.id
-#             )
-#             .filter(models.Tractor.model.in_(trac_model))
-#         )
+    # Запрос для получения связанных компонентов и ПО
+    query = (
+        db.query(
+            models.Tractor.vin,
+            models.Tractor.model,
+            models.Tractor.consumer,
+            models.Tractor.assembly_date,
+            models.Tractor.region,
+            models.Tractor.oh_hour,
+            models.Tractor.last_activity,
+            models.Software.description,
+            models.Software.path.label("software_path"),  # добавили путь к файлу ПО
+            models.Component.id.label("component_id"),
+            models.Component.name.label("comp_model"),
+            models.Software.id.label("current_sw_version"),
+            models.Software.id.label("recommend_sw_version"),
+            models.Component.type.label("component_type")
+        )
+        .select_from(models.Tractor)
+        .join(
+            models.Tractor_Software_And_Component_Link,
+            models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
+        )
+        .join(
+            models.Software_Component_Link,
+            models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
+        )
+        .join(
+            models.Component,
+            models.Software_Component_Link.component_id == models.Component.id
+        )
+        .join(
+            models.Software,
+            models.Software_Component_Link.software_id == models.Software.id
+        )
+        .filter(models.Tractor.vin == vin)
+    )
 
 #     results = query.all()
-#     return [r.name for r in results if r.name is not None]
 
-
+    if results:
+        # Формируем ответ со всеми компонентами
+        return [
+            {
+                "vin": r.vin,
+                "model": r.model,
+                "consumer": r.consumer,
+                "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
+                "region": r.region,
+                "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
+                "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+                "sw_name": extract_original_filename(os.path.basename(r.software_path)) if r.software_path else None,
+                "description": r.description,
+                "component_id": r.component_id,
+                "comp_model": r.comp_model,
+                "current_sw_version": r.current_sw_version,
+                "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
+                "component_type": r.component_type
+            }
+            for r in results
+        ]
+    else:
+        # Если у трактора нет связанных компонентов, возвращаем только основную информацию
+        return [{
+            "vin": tractor.vin,
+            "model": tractor.model,
+            "consumer": tractor.consumer,
+            "assembly_date": tractor.assembly_date.isoformat() if tractor.assembly_date else None,
+            "region": tractor.region,
+            "oh_hour": str(tractor.oh_hour) if tractor.oh_hour is not None else "",
+            "last_activity": tractor.last_activity.isoformat() if tractor.last_activity else None,
+            "sw_name": None,
+            "description": None,
+            "component_id": None,
+            "comp_model": None,
+            "current_sw_version": None,
+            "recommend_sw_version": None,
+            "component_type": None
+        }]
 # ============================================
 # Вспомогательные функции
 # ============================================

@@ -1,7 +1,8 @@
-from pydantic import BaseModel, field_validator, Field, ConfigDict
+from pydantic import BaseModel, field_validator, Field, ConfigDict, computed_field
 from datetime import datetime, date
 from typing import Optional, List
 import re
+from pathlib import Path
 
 # ============================================
 # Вспомогательные функции для regex-поиска
@@ -155,7 +156,20 @@ class SoftwareSchema(BaseModel):
     path_instruction: str  
     
     model_config = ConfigDict(from_attributes=True)
-
+    @computed_field
+    @property
+    def name(self) -> str:
+        """Извлекает имя файла из поля path (НЕ из БД!)"""
+        if not self.path:
+            return ""
+        return Path(self.path).name
+    
+    @computed_field
+    @property
+    def filename(self) -> str:
+        """Псевдоним для name (для совместимости)"""
+        return self.name
+    
 class SoftwareCreate(BaseModel):
     path: str
     release_date: Optional[datetime] = None
@@ -309,6 +323,27 @@ class RequestModel(BaseModel):
     producers: List[str] = []
     status: List[str] = []
 
+class ComponentFilterRequest(BaseModel):
+    """Запрос для фильтрации производителей/моделей компонентов"""
+    trac_model: List[str] = Field(default_factory=list)  # Модели тракторов
+    type_comp: List[str] = Field(default_factory=list)   # Типы компонентов
+    component_models: List[str] = Field(default_factory=list)  # Модели компонентов
+    software_status: List[str] = Field(default_factory=list)   # Статусы ПО
+    
+    class Config:
+        from_attributes = True
+
+
+class TractorFilterRequest(BaseModel):
+    """Запрос для фильтрации моделей тракторов"""
+    component_types: List[str] = Field(default_factory=list)     # Типы компонентов
+    component_models: List[str] = Field(default_factory=list)    # Модели компонентов
+    component_producers: List[str] = Field(default_factory=list) # Производители компонентов
+    software_status: List[str] = Field(default_factory=list)     # Статусы ПО
+    
+    class Config:
+        from_attributes = True
+        
 class TractorComponentRequest(BaseModel):
     vins: List[str]
 
@@ -375,6 +410,20 @@ class SoftwareComponentInfoResponse(BaseModel):
     is_recom: bool
     
     model_config = ConfigDict(from_attributes=True)
+    
+    @computed_field
+    @property
+    def name(self) -> str:
+        """Извлекает имя файла из software_path (НЕ из БД!)"""
+        if not self.software_path:
+            return ""
+        return Path(self.software_path).name
+    
+    @computed_field
+    @property
+    def filename(self) -> str:
+        """Псевдоним для name (для совместимости)"""
+        return self.name
 
 class TractorSearchResponse(BaseModel):
     vin: str
@@ -438,6 +487,7 @@ class SoftwareMetadata(BaseModel):
     filename_for_download: str
     has_instruction: bool = False  # ← Добавлено
     instruction_filename: Optional[str] = None  # ← Добавлено
+    release_date: Optional[datetime] = None
     
     class Config:
         from_attributes = True

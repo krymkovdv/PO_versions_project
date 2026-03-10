@@ -9,6 +9,7 @@ from app.models import (
 from sqlalchemy.orm import Session
 import random
 
+
 def fill_realistic_data():
     session: Session = next(get_session())
 
@@ -74,10 +75,10 @@ def fill_realistic_data():
                 dealer="СЦ-Системный"
             )
             session.add(tractor)
-            tractors_data.append(tractor)
+            tractors.append(tractor)
 
         session.flush()
-        print(f"✅ Добавлено {len(system_models)} системных тракторов (VIN_system_*).")
+        print(f"✅ Добавлено {len(tractors)} тракторов (15 обычных + 5 системных).")
 
         # --- 2. Компоненты с правильными типами (CheckConstraint) ---
         components_data = [
@@ -547,6 +548,7 @@ def fill_realistic_data():
         raise
     finally:
         session.close()
+
 
 if __name__ == "__main__":
     fill_realistic_data()
