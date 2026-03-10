@@ -1,0 +1,200 @@
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, status
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
+from .. import schemas, crud, models
+from ..database import get_session
+from ..authorization import require_role, get_password_hash, get_current_user
+from ..log import logger
+from typing import List, Optional
+from sqlalchemy.exc import SQLAlchemyError
+from ..crud.chat import SupportCRUD
+
+router = APIRouter(prefix="/support", tags=["support"])
+
+# Pydantic модели для запросов
+class ReplyRequest(BaseModel):
+    message_id: int
+    content: str
+
+class ConversationRequest(BaseModel):
+    user_id: int
+
+class MessageCreate(BaseModel):
+    content: str
+    
+    class Config:
+        extra = "forbid"  # Защита от лишних полей
+
+# Обновите эндпоинт
+@router.post("/messages")
+async def send_to_moderators(
+    message: MessageCreate,  
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Отправка сообщения всем модераторам"""
+    
+    if current_user.role == "moderator":
+        raise HTTPException(status_code=400, detail="Moderators cannot send messages to themselves")
+    
+    # Используем message.content вместо content
+    new_message = SupportCRUD.send_message_to_moderators(db, current_user.id, message.content)
+    
+    return {
+        "id": new_message.id,
+        "content": new_message.content,
+        "created_at": new_message.created_at,
+        "status": "sent to all moderators"
+    }
+
+@router.post("/messages/reply")
+async def reply_to_message(
+    reply: ReplyRequest,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Ответ модератора на сообщение пользователя"""
+    
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only moderators can reply")
+    
+    result = SupportCRUD.moderator_reply(db, current_user.id, reply.message_id, reply.content)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="Original message not found")
+    
+    return {
+        "status": "reply sent",
+        "reply_id": result["reply"].id,
+        "reply_content": result["reply"].content,
+        "reply_created_at": result["reply"].created_at,
+        "original_message_id": result["original_message"].id,
+        "original_message_content": result["original_message"].content
+    }
+
+@router.get("/conversation/{user_id}")
+async def get_conversation_with_user(
+    user_id: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получить переписку с конкретным пользователем (только для модераторов)"""
+    
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only moderators can view conversations")
+    
+    # Проверяем, что пользователь существует
+    user = db.query(models.UserDB).filter(models.UserDB.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    conversation = SupportCRUD.get_conversation(db, user_id, current_user.id)
+    
+    return {
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "role": user.role
+        },
+        "moderator": {
+            "id": current_user.id,
+            "username": current_user.username
+        },
+        "messages": conversation
+    }
+
+@router.get("/messages")
+async def get_messages(
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получить сообщения (разный ответ для пользователя и модератора)"""
+    
+    if current_user.role == "moderator":
+        # Модератор видит все сообщения, сгруппированные по пользователям
+        users_data = SupportCRUD.get_messages_for_moderator(db, current_user.id)
+        
+        # Отмечаем все как прочитанные
+        for user_data in users_data:
+            for msg in user_data["messages"]:
+                if not msg["is_read"]:
+                    SupportCRUD.mark_as_read(db, msg["id"], current_user.id)
+                    msg["is_read"] = True
+        
+        return users_data
+    
+    else:
+        # Пользователь видит свои сообщения и ответы
+        messages = SupportCRUD.get_all_user_messages(db, current_user.id)
+        
+        return [
+            {
+                "id": item["message"].id,
+                "content": item["message"].content,
+                "created_at": item["message"].created_at,
+                "is_read": any(r["is_read"] for r in item["read_by"]),
+                "read_by": [
+                    {
+                        "moderator": r["moderator"],
+                        "read_at": r["read_at"]
+                    }
+                    for r in item["read_by"] if r["is_read"]
+                ],
+                "replies": item["replies"]
+            }
+            for item in messages
+        ]
+
+@router.get("/unread")
+async def get_unread(
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Только для модераторов: количество непрочитанных сообщений"""
+    
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only for moderators")
+    
+    count = SupportCRUD.get_unread_count(db, current_user.id)
+    return {"unread_count": count}
+
+@router.post("/messages/{message_id}/read")
+async def mark_message_read(
+    message_id: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Отметить сообщение как прочитанное (только для модераторов)"""
+    
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only moderators can mark messages as read")
+    
+    read_status = SupportCRUD.mark_as_read(db, message_id, current_user.id)
+    
+    if read_status:
+        return {"status": "marked as read"}
+    else:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+@router.get("/moderators")
+async def get_moderators(
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получить список всех модераторов"""
+    moderators = SupportCRUD.get_all_moderators(db)
+    return {"moderators": moderators}
+
+@router.get("/users")
+async def get_users_for_moderator(
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получить список пользователей, которые писали модератору (только для модераторов)"""
+    
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only for moderators")
+    
+    users = SupportCRUD.get_users_for_moderator(db, current_user.id)
+    return {"users": users}

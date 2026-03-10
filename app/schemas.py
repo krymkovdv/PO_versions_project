@@ -469,3 +469,35 @@ class UploadInstructionResponse(BaseModel):
 
 class ArchiveChangeRequest(BaseModel):
     is_archive: bool
+
+
+# Поддержка
+
+class ReplyRequest(BaseModel):
+    message_id: int
+    content: str = Field(..., min_length=1, max_length=1000)
+
+class ConversationMessage(BaseModel):
+    id: int
+    content: str
+    created_at: datetime
+    sender: str  # "user" или "moderator"
+    sender_name: str
+    is_read: Optional[bool] = None
+    read_by_moderators: Optional[List[dict]] = None
+    is_reply_to: Optional[int] = None
+
+class ConversationResponse(BaseModel):
+    user: dict
+    moderator: dict
+    messages: List[ConversationMessage]
+
+class UserForModerator(BaseModel):
+    user_id: int
+    username: str
+    role: str
+    last_message: datetime
+    unread_count: int
+
+class UsersForModeratorResponse(BaseModel):
+    users: List[UserForModerator]
