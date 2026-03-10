@@ -351,5 +351,6 @@ def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMeta
         filename_original=original_filename,  # ← оригинальное имя
         filename_for_download=original_filename,  # ← для скачивания
         has_instruction=has_instruction,
-        instruction_filename=instruction_filename
+        instruction_filename=instruction_filename,
+        release_date=fw.release_date
     )

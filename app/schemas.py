@@ -466,6 +466,7 @@ class SoftwareMetadata(BaseModel):
     filename_for_download: str
     has_instruction: bool = False  # ← Добавлено
     instruction_filename: Optional[str] = None  # ← Добавлено
+    release_date: Optional[datetime] = None
     
     class Config:
         from_attributes = True
