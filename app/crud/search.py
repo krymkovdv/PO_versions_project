@@ -346,62 +346,62 @@ def get_software_component_by_ids(
 # # ============================================
 # # Страница 4: Тракторы
 # # ============================================
-# def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
-#     """Получить тракторы по фильтрам (обновлено для новой схемы)"""
+def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
+    """Получить тракторы по фильтрам (обновлено для новой схемы)"""
     
-#     # Подзапрос для тракторов с актуальными обновлениями
-#     tractors_needing_update = (
-#         select(models.Tractor.id)
-#         .join(
-#             models.Tractor_Software_And_Component_Link,
-#             models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-#         )
-#         .join(
-#             models.Software_Component_Link,
-#             models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
-#         )
-#         .join(
-#             models.Software,
-#             models.Software_Component_Link.software_id == models.Software.id
-#         )
-#         .where(
-#             models.Software.is_actual == True,
-#             models.Software.is_archive == False
-#         )
-#         .distinct()
-#         .subquery()
-#     )
+    # Подзапрос для тракторов с актуальными обновлениями
+    tractors_needing_update = (
+        select(models.Tractor.id)
+        .join(
+            models.Tractor_Software_And_Component_Link,
+            models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
+        )
+        .join(
+            models.Software_Component_Link,
+            models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
+        )
+        .join(
+            models.Software,
+            models.Software_Component_Link.software_id == models.Software.id
+        )
+        .where(
+            models.Software.is_actual == True,
+            models.Software.is_archive == False
+        )
+        .distinct()
+        .subquery()
+    )
 
-#     # Основной запрос
-#     query = db.query(
-#         models.Tractor.id,
-#         models.Tractor.vin,
-#         models.Tractor.model,
-#         models.Tractor.consumer.label("dealer"),
-#         models.Tractor.assembly_date,
-#         models.Tractor.region,
-#         models.Tractor.oh_hour,
-#         models.Tractor.last_activity,
-#         models.Tractor.dealer
-#     ).select_from(models.Tractor)
+    # Основной запрос
+    query = db.query(
+        models.Tractor.id,
+        models.Tractor.vin,
+        models.Tractor.model,
+        models.Tractor.consumer.label("dealer"),
+        models.Tractor.assembly_date,
+        models.Tractor.region,
+        models.Tractor.oh_hour,
+        models.Tractor.last_activity,
+        models.Tractor.dealer
+    ).select_from(models.Tractor)
 
-#     # Фильтр по is_actual
-#     if filter.is_actual is not None:
-#         if filter.is_actual:
-#             query = query.filter(models.Tractor.id.in_(select(tractors_needing_update.c.id)))
-#         else:
-#             query = query.filter(~models.Tractor.id.in_(select(tractors_needing_update.c.id)))
+    # Фильтр по is_actual
+    if filter.is_actual is not None:
+        if filter.is_actual:
+            query = query.filter(models.Tractor.id.in_(select(tractors_needing_update.c.id)))
+        else:
+            query = query.filter(~models.Tractor.id.in_(select(tractors_needing_update.c.id)))
 
-#     # Фильтры
-#     if filter.trac_model:
-#         query = query.filter(models.Tractor.model.in_(filter.trac_model))
+    # Фильтры
+    if filter.trac_model:
+        query = query.filter(models.Tractor.model.in_(filter.trac_model))
 
-#     if filter.dealer:
-#         dealer_pattern = schemas.wildcard_to_psql_regex(filter.dealer)
-#         if not schemas.is_safe_regex(dealer_pattern):
-#             raise ValueError("Слишком сложный поисковый запрос для дилера")
-#         layout_regex = _similar_chars(dealer_pattern)
-#         query = query.filter(models.Tractor.consumer.op('~*')(layout_regex))
+    if filter.dealer:
+        dealer_pattern = schemas.wildcard_to_psql_regex(filter.dealer)
+        if not schemas.is_safe_regex(dealer_pattern):
+            raise ValueError("Слишком сложный поисковый запрос для дилера")
+        layout_regex = _similar_chars(dealer_pattern)
+        query = query.filter(models.Tractor.consumer.op('~*')(layout_regex))
 
     if filter.query:
         q = filter.query.strip()
@@ -462,36 +462,56 @@ def get_software_component_by_ids(
 
 def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponentRequest)-> List[schemas.TractorComponentResponse]:
     # Основной запрос с правильными joins
-        query = db.query(
-            models.Tractor.vin,
-            models.Component.type.label("component_type"),
-            models.Component.name.label("comp_model")
-        ).select_from(models.Tractor)\
-         .join(
-             models.Tractor_Software_And_Component_Link,
-             models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-         )\
-         .join(
-             models.Software_Component_Link,
-             models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
-         )\
-         .join(
-             models.Component,
-             models.Software_Component_Link.component_id == models.Component.id
-         )\
-         .filter(models.Tractor.vin.in_(request.vins))
-        
-        results = query.all()
-        
-        # Формируем ответ
-        return [
-            schemas.TractorComponentResponse( 
+    query = db.query(
+        models.Tractor.vin,
+        models.Component.type.label("component_type"),
+        models.Component.name.label("comp_model"),
+        models.Software.is_critical,
+        models.Software.is_actual,
+        models.Software.is_archive
+    ).select_from(models.Tractor)\
+     .join(
+         models.Tractor_Software_And_Component_Link,
+         models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
+     )\
+     .join(
+         models.Software_Component_Link,
+         models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
+     )\
+     .join(
+         models.Component,
+         models.Software_Component_Link.component_id == models.Component.id
+     )\
+     .join(
+         models.Software,
+         models.Software_Component_Link.software_id == models.Software.id
+     )\
+     .filter(models.Tractor.vin.in_(request.vins))\
+     .filter(models.Software.is_actual == True)   # добавим фильтр на актуальное ПО
+
+    results = query.all()
+
+    # Формируем ответ
+    response = []
+    for r in results:
+        # Определяем статус
+        if r.is_critical:
+            status = "critical"
+        elif r.is_actual:
+            status = "actual"
+        elif r.is_archive:
+            status = "oldy"
+        else:
+            status = "unknown"
+        response.append(
+            schemas.TractorComponentResponse(
                 vin=r.vin,
                 component_type=r.component_type,
-                comp_model=r.comp_model
+                comp_model=r.comp_model,
+                status=status
             )
-            for r in results
-        ]
+        )
+    return response
 
 def get_tractor_by_vin(db: Session, vin: str):
     """Получить информацию о тракторе по VIN (исправленная версия)"""
@@ -538,7 +558,7 @@ def get_tractor_by_vin(db: Session, vin: str):
         .filter(models.Tractor.vin == vin)
     )
 
-#     results = query.all()
+    results = query.all()
 
     if results:
         # Формируем ответ со всеми компонентами
