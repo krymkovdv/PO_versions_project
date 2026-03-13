@@ -10,7 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter(prefix="/tractors", tags=["Tractors"])
 
-@router.get("/", response_model=list[schemas.TractorsSchema])
+@router.get("", response_model=list[schemas.TractorsSchema])
 def get_tractors(db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     logger.info(f"[get_tractors] Получение списка тракторов user={current_user.username} role={current_user.role}")
     try: 
