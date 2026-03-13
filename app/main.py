@@ -19,13 +19,17 @@ Base.metadata.create_all(engine)
 #создание экземпляра приложения
 app = FastAPI(title="Сервис контроля версий")
 
+app = FastAPI(
+    redirect_slashes=False  #off автоматические редиректы
+)
 
+# 2. Затем CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["https://poview.sptz.ru", "http:vm-spkr.sptz.local", "10.100.16.187"],  # ❗ Укажите конкретный домен
     allow_credentials=True,
-    allow_methods=["*"],  
-    allow_headers=["*"]
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth.router)
@@ -40,4 +44,4 @@ app.include_router(search.router)
 # python -m app.main
 # .\venv\Scripts\Activate.ps1
 # uvicorn app.main:app --host 172.20.46.71 --port 8000
-# uvicorn app.main:app --host 26.77.162.134 --port 8000
+# uvicorn app.main:app --host 26.77.162.134 --port 800
