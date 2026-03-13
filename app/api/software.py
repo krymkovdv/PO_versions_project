@@ -12,7 +12,7 @@ from datetime import date
 
 router = APIRouter(prefix="/software", tags=["Software"])
 
-@router.get("/", response_model=List[schemas.SoftwareSchema])
+@router.get("", response_model=List[schemas.SoftwareSchema])
 def get_software(
     session: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
@@ -33,7 +33,7 @@ def get_software(
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
+@router.post("", response_model=schemas.SoftwareSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     # Проверка на дубликат name или path
     existing = db.query(models.Software).filter(
@@ -78,7 +78,7 @@ def update_software(
         raise HTTPException(status_code=403, detail="Only moderator can update software")
     return crud.software.update_software(db, sw_id, software_update)
 
-@router.get("/software-component-links/", response_model=List[schemas.SoftwareComponentsSchema])
+@router.get("/software-component-links", response_model=List[schemas.SoftwareComponentsSchema])
 def get_software_component_links(session: Session = Depends(get_session)): 
     try:
         logger.info(f"[get_software-component-links] успешно выполнена user=anonymous role=anonymous")
@@ -96,7 +96,7 @@ def get_software_component_links(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/software-component-links/", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
+@router.post("/software-component-links", response_model=schemas.SoftwareComponentsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_software_component_link(link: schemas.SoftwareComponentsSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     # Проверка на дубликат связки component_part_id + software_id
     existing = db.query(models.Software2ComponentPart).filter(

@@ -30,7 +30,7 @@ def get_tractors(db: Session = Depends(get_session), current_user: models.UserDB
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
+@router.post("", response_model=schemas.TractorsSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_tractor(tractor: schemas.TractorsSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     # Проверка на дубликат vin (если нужно)
     existing = db.query(models.Tractors).filter(models.Tractors.vin == tractor.vin).first()

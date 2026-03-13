@@ -10,7 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
-@router.get("/", response_model=List[schemas.UserSchema])
+@router.get("", response_model=List[schemas.UserSchema])
 def get_users(db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     try: 
         logger.info(f"[get_user] успешно выполнена user={current_user.username} role={current_user.role}")
@@ -28,7 +28,7 @@ def get_users(db: Session = Depends(get_session), current_user: models.UserDB = 
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/", status_code=201, dependencies=[Depends(require_role("moderator"))])
+@router.post("", status_code=201, dependencies=[Depends(require_role("moderator"))])
 def post_user(user: schemas.UserCreate, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     existing = db.query(models.UserDB).filter(models.UserDB.username == user.username).first()
     if existing:
@@ -45,7 +45,7 @@ def post_user(user: schemas.UserCreate, db: Session = Depends(get_session), curr
     logger.info(f"[post_user] создан пользователь {user_in.username} user={current_user.username} role={current_user.role}")
     return {"username": user_in.username, "role": user_in.role}
 
-@router.delete("/", dependencies=[Depends(require_role("moderator"))])
+@router.delete("", dependencies=[Depends(require_role("moderator"))])
 def delete_user(id: int, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     if crud.users.delete_users(db, id):
         logger.info(f"[delete_users] выполнена успешно user={current_user.username} role={current_user.role}")

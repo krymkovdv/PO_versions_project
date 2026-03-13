@@ -10,7 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter(prefix="/components", tags=["Components"])
 
-@router.get("/", response_model=list[schemas.ComponentSchema])
+@router.get("", response_model=list[schemas.ComponentSchema])
 def get_component(
     session: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
@@ -31,7 +31,7 @@ def get_component(
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.post("/", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
+@router.post("", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_component(component: schemas.ComponentSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     try:
         # Проверка на дубликат terminal_id
@@ -65,7 +65,7 @@ def update_component(
         raise HTTPException(status_code=403, detail="Only moderator can update components")
     return crud.components.update_component(db, component_id, component_update)
 
-@router.get("/component-parts/", response_model=List[schemas.ComponentPartSchema])
+@router.get("/component-parts", response_model=List[schemas.ComponentPartSchema])
 def get_components_parts(session: Session = Depends(get_session)): 
     try:
         logger.info(f"[get_component-parts] успешно выполнена user=anonymous role=anonymous")
@@ -83,7 +83,7 @@ def get_components_parts(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/component-parts/", response_model=schemas.ComponentPartSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
+@router.post("/component-parts", response_model=schemas.ComponentPartSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_component_parts(part: schemas.ComponentPartSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     # Проверка на дубликат part_type + component (если нужно)
     existing = db.query(models.ComponentParts).filter(

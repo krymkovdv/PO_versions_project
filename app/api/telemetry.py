@@ -28,7 +28,7 @@ def get_telemetry_components(session: Session = Depends(get_session)):
             detail=f"Неизвестная ошибка: {str(e)}"
         )
     
-@router.post("/telemetry-components/", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
+@router.post("/telemetry-components", response_model=schemas.TelemetryComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_telemetry_component(telemetry_component: schemas.TelemetryComponentSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     # Проверка на дубликат comp_ser_num
     if telemetry_component.comp_ser_num:
