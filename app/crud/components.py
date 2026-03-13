@@ -19,9 +19,8 @@ def get_component_by_id(db: Session, id: int):
 def create_component(db: Session, component: schemas.ComponentSchema):
     db_component = models.Component(
         type=component.type,
-        model=component.model,
-        number_of_parts=component.number_of_parts,
-        producer_comp=component.producer_comp
+        name=component.name,
+        producer=component.producer
     )
     db.add(db_component)
     db.commit()
@@ -51,64 +50,147 @@ def update_component(db: Session, component_id: int, component_update: schemas.C
         db.rollback()
         raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
 
-def get_component_parts(db: Session):
-    stmt = select(models.ComponentParts)
-    result = db.execute(stmt).scalars().all()
-    return result
+# app/crud/components.py
 
-def get_component_part_by_id(db: Session, id: int):
-    return db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
-
-def create_component_part(db: Session, part: schemas.ComponentPartSchema):
-    db_part = models.ComponentParts(
-        component=part.component,
-        part_type=part.part_type
-    )
-    db.add(db_part)
-    db.commit()
-    db.refresh(db_part)
-    return db_part
-
-def delete_component_part(db: Session, id: int):
-    part = db.query(models.ComponentParts).filter(models.ComponentParts.id == id).first()
-    if part is None:
-        return False
-    db.delete(part)
-    db.commit()
-    return True
-
-def update_component_part(db: Session, part_id: int, part_update: schemas.ComponentPartUpdate):
-    db_part = db.query(models.ComponentParts).filter(models.ComponentParts.id == part_id).first()
-    if not db_part:
-        raise HTTPException(status_code=404, detail="Component part not found")
-    for field, value in part_update.model_dump(exclude_unset=True).items():
-        if value is not None:
-            setattr(db_part, field, value)
-    try:
-        db.commit()
-        db.refresh(db_part)
-        return db_part
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
+def get_agg_by_trac_and_comp(
+    db: Session, 
+    trac_model: List[str] = None, 
+    type_comp: List[str] = None, 
+    producers: List[str] = None, 
+    status: List[str] = None
+):
+    """
+    Получает уникальные модели компонентов с учётом фильтров.
+    Возвращает список словарей: [{'id': 1, 'name': 'Engine-X'}, ...]
+    """
+    # Базовый запрос — начинаем с Component
+    query = db.query(
+        models.Component.id,
+        models.Component.name
+    ).distinct()
     
-def get_agg_by_trac_and_comp(db: Session, trac_model: List[str] = None, type_comp: List[str] = None, producers: List[str] = None, status: List[str] = None):
-    query = db.query(models.Component.model).distinct()
-# producer dobavil
+    # Флаги для отслеживания уже сделанных JOIN
+    joined_tractor_link = False
+    joined_software_link = False
+    joined_software = False
+    
     if trac_model:
-        query = query.join(models.TelemetryComponents, models.Component.id == models.TelemetryComponents.component)
-        query = query.join(models.Tractors, models.TelemetryComponents.tractor == models.Tractors.id)
-        query = query.filter(models.Tractors.model.in_(trac_model))
+        # Component → Software_Component_Link → Tractor_Software_And_Component_Link → Tractor
+        if not joined_software_link:
+            query = query.join(
+                models.Software_Component_Link, 
+                models.Component.id == models.Software_Component_Link.component_id
+            )
+            joined_software_link = True
+            
+        if not joined_tractor_link:
+            query = query.join(
+                models.Tractor_Software_And_Component_Link,
+                models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
+            )
+            joined_tractor_link = True
+            
+        query = query.join(
+            models.Tractor,
+            models.Tractor_Software_And_Component_Link.tractor_id == models.Tractor.id
+        )
+        query = query.filter(models.Tractor.model.in_(trac_model))
+    
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
-        # 
+    
     if producers:
-        query = query.filter(models.Component.producer_comp.in_(producers))
+        query = query.filter(models.Component.producer.in_(producers))
+    
     if status:
-        query = query.join(models.Component.parts).join(models.ComponentParts.software_link)
-        query = query.filter(models.Software2ComponentPart.status.in_(status))
-# 
+        if not joined_software_link:
+            query = query.join(
+                models.Software_Component_Link,
+                models.Component.id == models.Software_Component_Link.component_id
+            )
+            joined_software_link = True
+            
+        if not joined_software:
+            query = query.join(
+                models.Software,
+                models.Software_Component_Link.software_id == models.Software.id
+            )
+            joined_software = True
+            
+        query = query.filter(models.Software.status.in_(status))
+    
     results = query.all()
-    return [r.model for r in results if r.model is not None]    
+    
+    # Возвращаем список словарей для удобства на фронтенде
+    return [
+        {"id": r.id, "name": r.name} 
+        for r in results 
+        if r.name is not None
+    ]
 
-
+def get_component_producers(
+    db: Session,
+    trac_model: List[str] = None,
+    type_comp: List[str] = None,
+    component_models: List[str] = None,
+    status: List[str] = None
+):
+    """
+    Получает уникальных производителей компонентов с учётом фильтров.
+    Возвращает список словарей: [{'producer': 'Bosch'}, ...]
+    """
+    query = db.query(
+        models.Component.producer
+    ).distinct()
+    
+    joined_tractor_link = False
+    joined_software_link = False
+    joined_software = False
+    
+    if trac_model:
+        if not joined_software_link:
+            query = query.join(
+                models.Software_Component_Link,
+                models.Component.id == models.Software_Component_Link.component_id
+            )
+            joined_software_link = True
+        if not joined_tractor_link:
+            query = query.join(
+                models.Tractor_Software_And_Component_Link,
+                models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
+            )
+            joined_tractor_link = True
+        query = query.join(
+            models.Tractor,
+            models.Tractor_Software_And_Component_Link.tractor_id == models.Tractor.id
+        )
+        query = query.filter(models.Tractor.model.in_(trac_model))
+    
+    if type_comp:
+        query = query.filter(models.Component.type.in_(type_comp))
+    
+    if component_models:
+        query = query.filter(models.Component.name.in_(component_models))
+    
+    if status:
+        if not joined_software_link:
+            query = query.join(
+                models.Software_Component_Link,
+                models.Component.id == models.Software_Component_Link.component_id
+            )
+            joined_software_link = True
+        if not joined_software:
+            query = query.join(
+                models.Software,
+                models.Software_Component_Link.software_id == models.Software.id
+            )
+            joined_software = True
+        query = query.filter(models.Software.status.in_(status))
+    
+    results = query.all()
+    
+    return [
+        {"producer": r.producer} 
+        for r in results 
+        if r.producer is not None
+    ]

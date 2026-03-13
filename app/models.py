@@ -1,7 +1,7 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, Boolean, Date, CHAR, Table, String, event
+from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, Boolean, Date, CHAR, Table, String, event,CheckConstraint
 from datetime import datetime, timezone, date
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.orm.attributes import get_history
 
 class Base(DeclarativeBase): 
@@ -11,115 +11,136 @@ class UserDB(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    username = Column(String, unique=True, index=True)
-    password_hash = Column(String)
-    role = Column(String, default="user")
- 
-class Tractors(Base):
-    __tablename__ = "Tractors"
+    username = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, default="dealer", nullable=False)
+
+    sent_messages = relationship("SupportMessage", foreign_keys="SupportMessage.sender_id", back_populates="sender")
+    message_read_status = relationship("MessageReadStatus", foreign_keys="MessageReadStatus.moderator_id", back_populates="moderator")
+    
+    __table_args__ = (
+            CheckConstraint(
+                "role IN ('engineer', 'dealer', 'moderator')",
+                name="check_valid_role"
+            ),
+        )
+    
+class Tractor(Base):
+    __tablename__ = "tractors"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     model = Column(Text, nullable=False)
     vin = Column(Text, unique=True, nullable=False)
-    oh_hour = Column(Integer, nullable=False)
+    oh_hour = Column(Integer, default=0)
     last_activity = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     assembly_date = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     region = Column(Text, nullable=False)
     consumer = Column(Text, nullable=False)
-    serv_center = Column(Text, nullable=False)
+    dealer = Column(Text, nullable=False)
     
-    tel_trac = relationship('TelemetryComponents', back_populates='tractors')
+    tractor2SoftAndComp = relationship('Tractor_Software_And_Component_Link', back_populates= 'tractor')
     
-
-class TelemetryComponents(Base):
-    __tablename__ = 'TelemetryComponents'
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tractor = Column(Integer, ForeignKey('Tractors.id'), nullable=False)
-    component = Column(Integer, ForeignKey('Component.id'), nullable=False)
-    time_rec = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    comp_ser_num = Column(Text, unique=True)
-    mounting_date = Column(Date, nullable=False)
-    current_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=True)
-    recommend_sw_version = Column(Integer, ForeignKey('Software.id'), nullable=True) 
-
-    # Отношения
-    components = relationship('Component', back_populates='tel_comp')
-    tractors = relationship('Tractors', back_populates='tel_trac')
-    current_soft = relationship('Software', foreign_keys=[current_sw_version], back_populates='current_telemetry_versions', uselist=False)
-    recommended_soft = relationship('Software', foreign_keys=[recommend_sw_version], back_populates='recommended_telemetry_versions', uselist=False)
 
 class Component(Base):
-    __tablename__ = 'Component'
+    __tablename__ = 'components'
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     type = Column(Text, nullable=False)
-    model = Column(Text, unique=True, nullable=False)
-    number_of_parts = Column(Integer, nullable=False)
-    producer_comp = Column(Text, nullable=False)
-    
-    parts = relationship("ComponentParts", back_populates="components")
-    tel_comp = relationship('TelemetryComponents', back_populates='components')
+    name = Column(Text, unique=True, nullable=False)
+    producer = Column(Text, nullable=False)
 
-class Software2ComponentPart(Base):
-    __tablename__ = 'Software2ComponentPart'
+    component2Soft = relationship('Software_Component_Link', back_populates='component')
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    component_part_id = Column(Integer, ForeignKey('ComponentParts.id'), nullable=False)
-    software_id = Column(Integer, ForeignKey('Software.id'), nullable=False)
-    is_actual = Column(Boolean, default=False)  # флаг Major обновления
-    status = Column(CHAR, nullable=False, default='serial')
-    date_change_actual = Column(Date)  # дата изменения Major
-    not_recom = Column(Text)
-    date_change_record = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # дата изменения записи
-    previous_sw_version = Column(Integer, ForeignKey('Software.id'))
-
-    component_parts = relationship("ComponentParts", back_populates="software_link")
-    software = relationship("Software", foreign_keys=[software_id], back_populates="components_links")
-    previous_software = relationship('Software', foreign_keys=[previous_sw_version], back_populates='previous_in_links', uselist=False)
-
-@event.listens_for(Software2ComponentPart, 'before_update')
-def set_date_change_major_before_update(mapper, connection, target):
-    if target.is_actual and hasattr(target, '_sa_instance_state'):
-        attr_state = target._sa_instance_state
-        hist = get_history(attr_state, 'is_actual')
-        if hist.has_changes() and hist.deleted == [False] and hist.added == [True]:
-            target.actual = date.today()
-
-@event.listens_for(Software2ComponentPart, 'before_insert')
-def set_date_change_major_before_insert(mapper, connection, target):
-    if target.is_actual:
-        target.date_change_actual = date.today()
-
-
-class ComponentParts(Base):
-    __tablename__ = 'ComponentParts'
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    component = Column(Integer, ForeignKey('Component.id'), nullable=False)
-    part_type = Column(Text, nullable=False)
-
-    components = relationship("Component", back_populates="parts")
-    software_link = relationship("Software2ComponentPart", back_populates="component_parts")
+    __table_args__ = (
+            CheckConstraint(
+                "type IN ('DVS', 'KPP', 'RK', 'HR', 'BK')",
+                name="check_valid_role"
+            ),
+        )
 
 class Software(Base):
-    __tablename__ = 'Software'
+    __tablename__ = 'softwares'
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     path = Column(Text, unique=True, nullable=False)
-    name = Column(Text, unique=True, nullable=False)
-    inner_name = Column(Text, unique=True)
-    release_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    release_date = Column(DateTime)
+    end_actuality = Column(DateTime)
     description = Column(Text)
     producer = Column(Text, nullable=False)
     is_actual = Column(Boolean, default=True)
+    is_archive = Column(Boolean, default=False)
+    is_critical = Column(Boolean, default=False)
     status = Column(Text, nullable=True)
-    tractor_id = Column(Integer, ForeignKey('Tractors.id'), nullable=True)  # Связь с трактором
+    tractor_model = Column(Text, nullable=False) 
+    previous_sw_version = Column(Integer, ForeignKey('softwares.id'))
+    path_instruction = Column(Text, unique=True, nullable=False)
+
+    soft2Component = relationship('Software_Component_Link', back_populates='software')
+    previous_version = relationship(
+        'Software', 
+        remote_side=[id],
+        foreign_keys=[previous_sw_version]
+    )
+
+    __table_args__ = (
+            CheckConstraint(
+                "status IN ('serial', 'in operation', 'experienced')",
+                name="check_valid_role"
+            ),
+        )
+
+class Software_Component_Link(Base):
+    __tablename__ = 'software_component_links'
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    component_id = Column(Integer, ForeignKey('components.id'), nullable=False, index= True)
+    software_id = Column(Integer, ForeignKey('softwares.id'), nullable=False, index= True)
+
+    component = relationship("Component", foreign_keys=[component_id], back_populates="component2Soft")
+    software = relationship("Software", foreign_keys=[software_id], back_populates="soft2Component")
+    soft_comp_to_tractor = relationship("Tractor_Software_And_Component_Link", back_populates="software_component_link")
+
+class Tractor_Software_And_Component_Link(Base):
+    __tablename__ = 'tractor_software_and_component_links'
+    
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    is_recom = Column(Boolean, default=True)
+    tractor_id = Column(Integer, ForeignKey('tractors.id'), nullable=False, index= True)
+    soft_comp_link_id = Column(Integer, ForeignKey('software_component_links.id'), nullable=False, index= True)
+
+    software_component_link = relationship("Software_Component_Link", foreign_keys=[soft_comp_link_id], back_populates="soft_comp_to_tractor")
+    tractor = relationship("Tractor", foreign_keys=[tractor_id], back_populates="tractor2SoftAndComp")
 
 
 
-    components_links = relationship("Software2ComponentPart", foreign_keys="[Software2ComponentPart.software_id]", back_populates="software")
-    current_telemetry_versions = relationship('TelemetryComponents', foreign_keys="[TelemetryComponents.current_sw_version]", back_populates='current_soft')
-    recommended_telemetry_versions = relationship('TelemetryComponents', foreign_keys="[TelemetryComponents.recommend_sw_version]", back_populates='recommended_soft')
-    previous_in_links = relationship('Software2ComponentPart', foreign_keys="[Software2ComponentPart.previous_sw_version]", back_populates='previous_software')
-    tractor = relationship("Tractors", foreign_keys=[tractor_id])
+#Обратная свзяь 
+
+class SupportMessage(Base):
+    __tablename__ = "support_message"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    is_read = Column(Boolean, default=False)
+
+    sender_id = Column(Integer, ForeignKey('users.id'))
+    parent_message_id = Column(Integer, ForeignKey('support_message.id'), nullable=True, index=True)
+
+    sender = relationship("UserDB", foreign_keys=[sender_id], back_populates="sent_messages")
+
+    replies = relationship("SupportMessage", 
+                          backref=backref("parent", remote_side=[id]),
+                          cascade="all, delete-orphan")
+
+
+class MessageReadStatus(Base):
+    __tablename__ = "message_read_status"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    message_id = Column(Integer, ForeignKey('support_message.id'), nullable=False, index=True)
+    moderator_id = Column(Integer, ForeignKey('users.id'),nullable=False, index=True)
+    is_read = Column(Boolean,default=False)
+    read_at = Column(DateTime, nullable=True)
+
+    message = relationship("SupportMessage", foreign_keys=[message_id])
+    moderator = relationship("UserDB", foreign_keys=[moderator_id])
