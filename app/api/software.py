@@ -251,21 +251,38 @@ def assign_software_to_components_route(
     import json
 
     #Нормализация instruction_file
-    if instruction_file is None:
-        pass  # уже None, ничего не делаем
-    elif isinstance(instruction_file, str):
-        if not instruction_file.strip():
-            instruction_file = None  # пустая строка → None
-        else:
-            # Если пришла непустая строка — это ошибка, т.к. ожидается файл
-            logger.warning(f"[software/assign] instruction_file передан как строка: '{instruction_file}'")
+    def normalize_optional_file(value) -> Optional[UploadFile]:
+        """Преобразует undefined/null/пустые значения в None"""
+        # Случай 1: уже None
+        if value is None:
+            return None
+        
+        # Случай 2: строка "undefined", "null" или пустая
+        if isinstance(value, str):
+            stripped = value.strip().lower()
+            if stripped in ("", "undefined", "null", "none"):
+                return None
+            # Если пришла непустая строка — это ошибка
+            logger.warning(f"[software/assign] instruction_file передан как строка: '{value}'")
             raise HTTPException(
                 400,
-                detail="instruction_file должен быть файлом (UploadFile), а не строкой. Оставьте поле пустым в Swagger, если файл не нужен."
+                detail="instruction_file должен быть файлом, а не строкой"
             )
-    elif isinstance(instruction_file, UploadFile):
-        if not instruction_file.filename or not instruction_file.filename.strip():
-            instruction_file = None 
+        
+        # Случай 3: UploadFile с пустым именем
+        if isinstance(value, UploadFile):
+            if not value.filename or not value.filename.strip():
+                return None
+            return value
+        
+        # Случай 4: любой другой тип — ошибка
+        logger.error(f"[software/assign] Неожиданный тип instruction_file: {type(value)}")
+        raise HTTPException(
+            400,
+            detail=f"Неверный тип instruction_file: {type(value).__name__}"
+        )
+    
+    instruction_file = normalize_optional_file(instruction_file)
             
     # 1. Парсинг даты
     rd: Optional[datetime] = None
