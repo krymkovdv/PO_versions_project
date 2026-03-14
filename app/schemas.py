@@ -351,7 +351,8 @@ class TractorComponentResponse(BaseModel):
     vin: str
     component_type: str
     comp_model: str
-    status: str
+    is_actual: bool
+    is_critical: bool
 
     
 # ============================================

@@ -494,21 +494,13 @@ def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponent
     # Формируем ответ
     response = []
     for r in results:
-        # Определяем статус
-        if r.is_critical:
-            status = "critical"
-        elif r.is_actual:
-            status = "actual"
-        elif r.is_archive:
-            status = "oldy"
-        else:
-            status = "unknown"
         response.append(
             schemas.TractorComponentResponse(
                 vin=r.vin,
                 component_type=r.component_type,
                 comp_model=r.comp_model,
-                status=status
+                is_critical=r.is_critical,
+                is_actual=r.is_actual
             )
         )
     return response
