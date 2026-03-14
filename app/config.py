@@ -24,4 +24,4 @@ class Settings(BaseSettings):
 settings = Settings()
 
 UPLOAD_DIR = "uploads/firmware"
-MAX_FILE_SIZE = 1024 * 1024 * 1024
+MAX_FILE_SIZE = 100 * 1024 * 1024 * 1024

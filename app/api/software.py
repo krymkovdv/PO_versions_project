@@ -274,13 +274,8 @@ def assign_software_to_components_route(
             if not value.filename or not value.filename.strip():
                 return None
             return value
-        
-        # Случай 4: любой другой тип — ошибка
-        logger.error(f"[software/assign] Неожиданный тип instruction_file: {type(value)}")
-        raise HTTPException(
-            400,
-            detail=f"Неверный тип instruction_file: {type(value).__name__}"
-        )
+
+        return value
     
     instruction_file = normalize_optional_file(instruction_file)
             
