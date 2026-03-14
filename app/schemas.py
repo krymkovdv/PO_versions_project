@@ -153,7 +153,7 @@ class SoftwareSchema(BaseModel):
     status: Optional[str] = None  
     tractor_model: List[str] = Field(default_factory=list) 
     previous_sw_version: Optional[int] = None
-    path_instruction: str  
+    path_instruction: Optional[str]  
     
     model_config = ConfigDict(from_attributes=True)
     @computed_field
@@ -275,6 +275,7 @@ class TractorSoftwareResponse(BaseModel):
 # Поиск и фильтры
 # ============================================
 class ComponentInfoRequest(BaseModel):
+    search: str = ''
     trac_model: List[str] = []
     type_comp: List[str] = []
     name_comp: List[str] = []
@@ -398,7 +399,7 @@ class SoftwareComponentInfoResponse(BaseModel):
     software_status: Optional[str] = None
     software_tractor_models: List[str] = Field(default_factory=list)
     software_previous_sw_version: Optional[int] = None
-    software_path_instruction: str
+    software_path_instruction: Optional[str]
     
     # Информация о компоненте
     id_component: int
