@@ -275,6 +275,7 @@ class TractorSoftwareResponse(BaseModel):
 # Поиск и фильтры
 # ============================================
 class ComponentInfoRequest(BaseModel):
+    search: str = ''
     trac_model: List[str] = []
     type_comp: List[str] = []
     name_comp: List[str] = []
