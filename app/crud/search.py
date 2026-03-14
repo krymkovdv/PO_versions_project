@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from .. import models, schemas
-from sqlalchemy import select, or_, exists, distinct
+from sqlalchemy import select, or_, exists, distinct, func
 from typing import List, Optional
 from datetime import timedelta, datetime
 import re
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # ============================================
 def get_component_by_filters(
     db: Session,
+    search: str = '',
     trac_model: list = None,
     type_comp: list = None,
     name_comp: list = None,
@@ -54,6 +55,20 @@ def get_component_by_filters(
             models.Software.is_archive == False
         )
     )    
+
+    if search and search.strip():
+        search_term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                # Вариант 1: Используем функцию substring
+                func.substring(models.Software.path, 34).ilike(search_term),
+                # Вариант 2: Ищем во всем пути (проще и надежнее)
+                # models.Software.path.ilike(f"%{search_term}%"),
+                models.Component.name.ilike(search_term), 
+                models.Component.type.ilike(search_term)  
+            )
+        )
+
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
     
@@ -98,6 +113,7 @@ def get_component_by_filters(
 
 def get_archive_component_by_filters(
     db: Session,
+    search: str = '',
     trac_model: list = None,
     type_comp: list = None,
     name_comp: list = None,
@@ -136,6 +152,20 @@ def get_archive_component_by_filters(
             models.Software.is_archive == True
         )
     )    
+
+
+    if search and search.strip():
+            search_term = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    # Вариант 1: Используем функцию substring
+                    func.substring(models.Software.path, 34).ilike(search_term),
+                    # Вариант 2: Ищем во всем пути (проще и надежнее)
+                    # models.Software.path.ilike(f"%{search_term}%"),
+                    models.Component.name.ilike(search_term), 
+                    models.Component.type.ilike(search_term)  
+                )
+            )
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
     
@@ -318,7 +348,7 @@ def get_software_component_by_ids(
         {
             # ПО
             "id_firmwares": r.id_firmwares,
-            "software_path": r.software_path,
+            "software_path": r.software_path[33:],
             "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
             "software_description": r.software_description,
             "software_producer": r.software_producer,

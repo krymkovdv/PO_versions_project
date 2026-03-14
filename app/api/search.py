@@ -21,6 +21,7 @@ def get_component_by_filters(
     try:
         response = crud.search.get_component_by_filters(
             db,
+            search=filters.search,
             trac_model=filters.trac_model,
             type_comp=filters.type_comp,
             name_comp=filters.name_comp,
@@ -144,6 +145,7 @@ def get_archive_component_by_filters(
     try:
         response = crud.search.get_archive_component_by_filters(
             db,
+            search=filters.search,
             trac_model=filters.trac_model,
             type_comp=filters.type_comp,
             name_comp=filters.name_comp,
