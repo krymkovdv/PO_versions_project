@@ -1,7 +1,7 @@
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, Boolean, Date, CHAR, Table, String, event,CheckConstraint
 from datetime import datetime, timezone, date
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.orm.attributes import get_history
 
 class Base(DeclarativeBase): 
@@ -14,6 +14,9 @@ class UserDB(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     role = Column(String, default="dealer", nullable=False)
+
+    sent_messages = relationship("SupportMessage", foreign_keys="SupportMessage.sender_id", back_populates="sender")
+    message_read_status = relationship("MessageReadStatus", foreign_keys="MessageReadStatus.moderator_id", back_populates="moderator")
     
     __table_args__ = (
             CheckConstraint(
@@ -70,7 +73,7 @@ class Software(Base):
     status = Column(Text, nullable=True)
     tractor_model = Column(Text, nullable=False) 
     previous_sw_version = Column(Integer, ForeignKey('softwares.id'))
-    path_instruction = Column(Text, unique=True)
+    path_instruction = Column(Text, unique=True, nullable=True)
 
     soft2Component = relationship('Software_Component_Link', back_populates='software')
     previous_version = relationship(
@@ -107,3 +110,37 @@ class Tractor_Software_And_Component_Link(Base):
 
     software_component_link = relationship("Software_Component_Link", foreign_keys=[soft_comp_link_id], back_populates="soft_comp_to_tractor")
     tractor = relationship("Tractor", foreign_keys=[tractor_id], back_populates="tractor2SoftAndComp")
+
+
+
+#Обратная свзяь 
+
+class SupportMessage(Base):
+    __tablename__ = "support_message"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    is_read = Column(Boolean, default=False)
+
+    sender_id = Column(Integer, ForeignKey('users.id'))
+    parent_message_id = Column(Integer, ForeignKey('support_message.id'), nullable=True, index=True)
+
+    sender = relationship("UserDB", foreign_keys=[sender_id], back_populates="sent_messages")
+
+    replies = relationship("SupportMessage", 
+                          backref=backref("parent", remote_side=[id]),
+                          cascade="all, delete-orphan")
+
+
+class MessageReadStatus(Base):
+    __tablename__ = "message_read_status"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    message_id = Column(Integer, ForeignKey('support_message.id'), nullable=False, index=True)
+    moderator_id = Column(Integer, ForeignKey('users.id'),nullable=False, index=True)
+    is_read = Column(Boolean,default=False)
+    read_at = Column(DateTime, nullable=True)
+
+    message = relationship("SupportMessage", foreign_keys=[message_id])
+    moderator = relationship("UserDB", foreign_keys=[moderator_id])

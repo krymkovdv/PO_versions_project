@@ -5,11 +5,12 @@ from .. import schemas, crud, models
 from ..database import get_session
 from ..authorization import require_role, get_current_user
 from ..log import logger
-from typing import List, Optional
+from typing import Optional, Union, List, Annotated
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import FileResponse, Response
 from datetime import datetime
 import os
+
 
 router = APIRouter(prefix="/software", tags=["Software"])
 
@@ -225,7 +226,10 @@ def get_all_software_component_links(
 )
 def assign_software_to_components_route(
     file: UploadFile = File(..., description="Файл ПО"),
-    instruction_file: UploadFile = File(..., description="Файл инструкции"),
+    instruction_file: Annotated[
+        Optional[Union[UploadFile, str]], 
+        File(description="Файл инструкции (необязательно)")
+    ] = None,
     software_release_date: Optional[str] = Form(None),
     software_description: Optional[str] = Form(None),
     software_is_actual: bool = Form(True),
@@ -234,7 +238,7 @@ def assign_software_to_components_route(
     software_status: str = Form("serial"),
     software_tractor_models: str = Form(...),
     software_producer: str = Form(...),
-    previous_sw_version: Optional[str] = Form(default=None),  # ← str, не int!
+    previous_sw_version: Optional[str] = Form(default=None),
     component_models: str = Form(...),
     component_types: str = Form(...),
     component_producers: str = Form(...),
@@ -245,7 +249,24 @@ def assign_software_to_components_route(
     Назначение ПО нескольким компонентам и тракторам
     """
     import json
-    
+
+    #Нормализация instruction_file
+    if instruction_file is None:
+        pass  # уже None, ничего не делаем
+    elif isinstance(instruction_file, str):
+        if not instruction_file.strip():
+            instruction_file = None  # пустая строка → None
+        else:
+            # Если пришла непустая строка — это ошибка, т.к. ожидается файл
+            logger.warning(f"[software/assign] instruction_file передан как строка: '{instruction_file}'")
+            raise HTTPException(
+                400,
+                detail="instruction_file должен быть файлом (UploadFile), а не строкой. Оставьте поле пустым в Swagger, если файл не нужен."
+            )
+    elif isinstance(instruction_file, UploadFile):
+        if not instruction_file.filename or not instruction_file.filename.strip():
+            instruction_file = None 
+            
     # 1. Парсинг даты
     rd: Optional[datetime] = None
     if software_release_date:
@@ -289,7 +310,7 @@ def assign_software_to_components_route(
     if software_status not in ["serial", "in operation", "experienced"]:
         raise HTTPException(400, "Invalid status. Must be: 'serial', 'in operation', 'experienced'")
     
-    # 4. Парсинг previous_sw_version - БЕЗОПАСНАЯ ОБРАБОТКА
+    # 4. Парсинг previous_sw_version
     prev_sw_ver_int: Optional[int] = None
     if previous_sw_version and isinstance(previous_sw_version, str):
         stripped = previous_sw_version.strip()
@@ -302,7 +323,6 @@ def assign_software_to_components_route(
                     400, 
                     detail=f"previous_sw_version должен быть целым числом, получено: '{previous_sw_version}'"
                 )
-    # Если previous_sw_version == None или "" → prev_sw_ver_int = None ✓
     
     # 5. Создание схемы данных
     software_data = schemas.AssignSoftwareRequest(
@@ -325,7 +345,8 @@ def assign_software_to_components_route(
         logger.info(
             f"[software/assign] producer={software_producer}, "
             f"components={len(component_models_list)}, "
-            f"user={current_user.username}"
+            f"user={current_user.username}, "
+            f"instruction={'present' if instruction_file else 'absent'}"
         )
         
         base_name = os.path.splitext(file.filename)[0] if file.filename else "unknown"
@@ -334,7 +355,7 @@ def assign_software_to_components_route(
             db,
             file=file,
             software_data=software_data,
-            instruction_file=instruction_file,
+            instruction_file=instruction_file,  
             base_name=base_name
         )
         

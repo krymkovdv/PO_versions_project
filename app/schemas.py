@@ -153,7 +153,7 @@ class SoftwareSchema(BaseModel):
     status: Optional[str] = None  
     tractor_model: List[str] = Field(default_factory=list) 
     previous_sw_version: Optional[int] = None
-    path_instruction: str  
+    path_instruction: Optional[str]  
     
     model_config = ConfigDict(from_attributes=True)
     @computed_field
@@ -285,7 +285,7 @@ class TractorFilter(BaseModel):
     component_type: Optional[str] = None  # 'DVS', 'KPP', 'RK', 'HR', 'BK'
     
     software_filter: Optional[str] = Field(None, pattern="^(actual|critical|old)$")
-    
+    is_actual: Optional[bool] = None
     trac_model: List[str] = []
     dealer: str = ''
     date_assemle: Optional[date] = None
@@ -351,6 +351,7 @@ class TractorComponentResponse(BaseModel):
     vin: str
     component_type: str
     comp_model: str
+    status: str
 
     
 # ============================================
@@ -397,7 +398,7 @@ class SoftwareComponentInfoResponse(BaseModel):
     software_status: Optional[str] = None
     software_tractor_models: List[str] = Field(default_factory=list)
     software_previous_sw_version: Optional[int] = None
-    software_path_instruction: str
+    software_path_instruction: Optional[str]
     
     # Информация о компоненте
     id_component: int
@@ -519,3 +520,35 @@ class UploadInstructionResponse(BaseModel):
 
 class ArchiveChangeRequest(BaseModel):
     is_archive: bool
+
+
+# Поддержка
+
+class ReplyRequest(BaseModel):
+    message_id: int
+    content: str = Field(..., min_length=1, max_length=1000)
+
+class ConversationMessage(BaseModel):
+    id: int
+    content: str
+    created_at: datetime
+    sender: str  # "user" или "moderator"
+    sender_name: str
+    is_read: Optional[bool] = None
+    read_by_moderators: Optional[List[dict]] = None
+    is_reply_to: Optional[int] = None
+
+class ConversationResponse(BaseModel):
+    user: dict
+    moderator: dict
+    messages: List[ConversationMessage]
+
+class UserForModerator(BaseModel):
+    user_id: int
+    username: str
+    role: str
+    last_message: datetime
+    unread_count: int
+
+class UsersForModeratorResponse(BaseModel):
+    users: List[UserForModerator]

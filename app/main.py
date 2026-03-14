@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api import (
     auth, users, tractors, components, 
-    software, search
+    software, search, support
 )
 
 
@@ -34,6 +34,7 @@ app.include_router(tractors.router)
 app.include_router(components.router)
 app.include_router(software.router)
 app.include_router(search.router)
+app.include_router(support.router)
 
 # uvicorn app.main:app --reload
 # python -m app.main

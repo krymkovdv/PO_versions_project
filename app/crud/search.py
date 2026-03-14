@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from .. import models, schemas
-from sqlalchemy import select, or_, exists, distinct, func, and_
+from sqlalchemy import select, or_, exists, distinct
 from typing import List, Optional
 from datetime import timedelta, datetime
 import re
@@ -347,24 +347,14 @@ def get_software_component_by_ids(
 # # Страница 4: Тракторы
 # # ============================================
 def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
-    """
-    Получить тракторы по фильтрам
+    """Получить тракторы по фильтрам (обновлено для новой схемы)"""
     
-    filter.component_type: 'DVS', 'KPP', 'RK', 'HR', 'BK'
-    filter.software_filter: 'actual', 'critical', 'old'
-    
-    Логика:
-    - actual → Software.is_actual == True
-    - critical → Software.is_critical == True
-    - old → есть более новое ПО с is_actual=True для этого (трактор, компонент)
-    """
-    
-    # === Подзапрос: максимальная release_date актуального ПО для каждой пары (трактор, компонент) ===
-    latest_actual_sw = (
-        select(
-            models.Tractor_Software_And_Component_Link.tractor_id.label("tractor_id"),
-            models.Software_Component_Link.component_id.label("component_id"),
-            func.max(models.Software.release_date).label("max_release_date")
+    # Подзапрос для тракторов с актуальными обновлениями
+    tractors_needing_update = (
+        select(models.Tractor.id)
+        .join(
+            models.Tractor_Software_And_Component_Link,
+            models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
         )
         .join(
             models.Software_Component_Link,
@@ -378,95 +368,31 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
             models.Software.is_actual == True,
             models.Software.is_archive == False
         )
-        .group_by(
-            models.Tractor_Software_And_Component_Link.tractor_id,
-            models.Software_Component_Link.component_id
-        )
+        .distinct()
         .subquery()
     )
-    
-    # === Подзапрос: какие связи считаются "старыми" ===
-    # ПО старое, если его release_date < max_release_date актуального ПО для той же пары (трактор, компонент)
-    old_software_links = (
-        select(
-            models.Tractor_Software_And_Component_Link.tractor_id,
-            models.Tractor_Software_And_Component_Link.soft_comp_link_id
-        )
-        .join(
-            models.Software_Component_Link,
-            models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
-        )
-        .join(
-            models.Software,
-            models.Software_Component_Link.software_id == models.Software.id
-        )
-        .join(
-            latest_actual_sw,
-            and_(
-                models.Tractor_Software_And_Component_Link.tractor_id == latest_actual_sw.c.tractor_id,
-                models.Software_Component_Link.component_id == latest_actual_sw.c.component_id
-            )
-        )
-        .where(
-            models.Software.release_date < latest_actual_sw.c.max_release_date,
-            models.Software.is_archive == False
-        )
-        .subquery()
-    )
-    
-    # === Основной запрос ===
+
+    # Основной запрос
     query = db.query(
         models.Tractor.id,
         models.Tractor.vin,
         models.Tractor.model,
-        models.Tractor.consumer,
-        models.Tractor.dealer,
+        models.Tractor.consumer.label("dealer"),
         models.Tractor.assembly_date,
         models.Tractor.region,
         models.Tractor.oh_hour,
         models.Tractor.last_activity,
+        models.Tractor.dealer
     ).select_from(models.Tractor)
-    
-    # === Фильтр по типу компонента + software_filter ===
-    if filter.component_type and filter.software_filter:
-        # Присоединяем все связи: Tractor → TSACL → SCL → Software → Component
-        query = query.join(
-            models.Tractor_Software_And_Component_Link,
-            models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-        ).join(
-            models.Software_Component_Link,
-            models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
-        ).join(
-            models.Software,
-            models.Software_Component_Link.software_id == models.Software.id
-        ).join(
-            models.Component,
-            models.Software_Component_Link.component_id == models.Component.id
-        ).filter(
-            models.Component.type == filter.component_type
-        )
-        
-        if filter.software_filter == 'actual':
-            query = query.filter(
-                models.Software.is_actual == True,
-                models.Software.is_archive == False
-            )
-        elif filter.software_filter == 'critical':
-            query = query.filter(
-                models.Software.is_critical == True,
-                models.Software.is_archive == False
-            )
-        elif filter.software_filter == 'old':
-            # ПО старое, если его связь есть в old_software_links
-            query = query.filter(
-                models.Tractor_Software_And_Component_Link.soft_comp_link_id.in_(
-                    select(old_software_links.c.soft_comp_link_id)
-                    .where(
-                        old_software_links.c.tractor_id == models.Tractor.id
-                    )
-                )
-            )
-    # Фильтры остальные
+
+    # Фильтр по is_actual
+    if filter.is_actual is not None:
+        if filter.is_actual:
+            query = query.filter(models.Tractor.id.in_(select(tractors_needing_update.c.id)))
+        else:
+            query = query.filter(~models.Tractor.id.in_(select(tractors_needing_update.c.id)))
+
+    # Фильтры
     if filter.trac_model:
         query = query.filter(models.Tractor.model.in_(filter.trac_model))
 
@@ -536,36 +462,56 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
 
 def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponentRequest)-> List[schemas.TractorComponentResponse]:
     # Основной запрос с правильными joins
-        query = db.query(
-            models.Tractor.vin,
-            models.Component.type.label("component_type"),
-            models.Component.name.label("comp_model")
-        ).select_from(models.Tractor)\
-         .join(
-             models.Tractor_Software_And_Component_Link,
-             models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-         )\
-         .join(
-             models.Software_Component_Link,
-             models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
-         )\
-         .join(
-             models.Component,
-             models.Software_Component_Link.component_id == models.Component.id
-         )\
-         .filter(models.Tractor.vin.in_(request.vins))
-        
-        results = query.all()
-        
-        # Формируем ответ
-        return [
-            schemas.TractorComponentResponse( 
+    query = db.query(
+        models.Tractor.vin,
+        models.Component.type.label("component_type"),
+        models.Component.name.label("comp_model"),
+        models.Software.is_critical,
+        models.Software.is_actual,
+        models.Software.is_archive
+    ).select_from(models.Tractor)\
+     .join(
+         models.Tractor_Software_And_Component_Link,
+         models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
+     )\
+     .join(
+         models.Software_Component_Link,
+         models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
+     )\
+     .join(
+         models.Component,
+         models.Software_Component_Link.component_id == models.Component.id
+     )\
+     .join(
+         models.Software,
+         models.Software_Component_Link.software_id == models.Software.id
+     )\
+     .filter(models.Tractor.vin.in_(request.vins))\
+     .filter(models.Software.is_actual == True)   # добавим фильтр на актуальное ПО
+
+    results = query.all()
+
+    # Формируем ответ
+    response = []
+    for r in results:
+        # Определяем статус
+        if r.is_critical:
+            status = "critical"
+        elif r.is_actual:
+            status = "actual"
+        elif r.is_archive:
+            status = "oldy"
+        else:
+            status = "unknown"
+        response.append(
+            schemas.TractorComponentResponse(
                 vin=r.vin,
                 component_type=r.component_type,
-                comp_model=r.comp_model
+                comp_model=r.comp_model,
+                status=status
             )
-            for r in results
-        ]
+        )
+    return response
 
 def get_tractor_by_vin(db: Session, vin: str):
     """Получить информацию о тракторе по VIN (исправленная версия)"""

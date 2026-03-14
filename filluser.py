@@ -1,6 +1,6 @@
 """
 Скрипт для добавления пользователей через SQLAlchemy
-Учитывает реальную структуру модели UserDB из вашего проекта
+Учитывает обновленную структуру модели UserDB с поддержкой обратной связи
 """
 
 from datetime import datetime, timezone
@@ -18,14 +18,14 @@ logger = logging.getLogger(__name__)
 
 # Импорт моделей и конфигурации из вашего приложения
 try:
-    from app.models import Base, UserDB
+    from app.models import Base, UserDB, SupportMessage, MessageReadStatus
     from app.config import settings
     from passlib.context import CryptContext
 except ImportError as e:
     logger.error(f"Ошибка импорта: {e}")
     logger.info("Попытка импорта альтернативных путей...")
     try:
-        from models import UserDB
+        from models import UserDB, SupportMessage, MessageReadStatus
         from config import settings
         from passlib.context import CryptContext
     except ImportError as e2:
@@ -125,6 +125,16 @@ def add_user_dealer() -> bool:
     return add_user(username=dealer_name, password="dealer123", role="dealer")
 
 
+def add_user_dealer2() -> bool:
+    """Дополнительный дилер для тестирования"""
+    return add_user(username="ТехноАгро", password="dealer123", role="dealer")
+
+
+def add_user_dealer3() -> bool:
+    """Дополнительный дилер для тестирования"""
+    return add_user(username="АгроИмпорт", password="dealer123", role="dealer")
+
+
 def verify_user_exists(username: str) -> bool:
     """Проверка существования пользователя в БД"""
     engine = create_engine(settings.get_url())
@@ -135,11 +145,44 @@ def verify_user_exists(username: str) -> bool:
         user = session.query(UserDB).filter(UserDB.username == username).first()
         
         if user:
-            logger.info(f"🔍 Найден: {user.username} | Роль: {user.role} | Хеш: {user.password_hash[:20]}...")
+            logger.info(f"🔍 Найден: {user.username} | Роль: {user.role} | ID: {user.id} | Хеш: {user.password_hash[:20]}...")
+            
+            # Проверяем связи с сообщениями (опционально)
+            sent_count = session.query(SupportMessage).filter(SupportMessage.sender_id == user.id).count()
+            read_status_count = session.query(MessageReadStatus).filter(MessageReadStatus.moderator_id == user.id).count()
+            
+            logger.info(f"   📨 Отправлено сообщений: {sent_count}")
+            if user.role == "moderator":
+                logger.info(f"   👁️ Статусов прочтения: {read_status_count}")
+            
             return True
         else:
             logger.warning(f"❌ Пользователь '{username}' не найден в БД")
             return False
+    finally:
+        session.close()
+
+
+def get_all_users() -> None:
+    """Получение списка всех пользователей в БД"""
+    engine = create_engine(settings.get_url())
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = SessionLocal()
+    
+    try:
+        users = session.query(UserDB).order_by(UserDB.id).all()
+        
+        logger.info("\n" + "="*70)
+        logger.info("📋 ВСЕ ПОЛЬЗОВАТЕЛИ В СИСТЕМЕ")
+        logger.info("="*70)
+        
+        for user in users:
+            sent_count = session.query(SupportMessage).filter(SupportMessage.sender_id == user.id).count()
+            logger.info(f"ID: {user.id:3} | {user.username:20} | Роль: {user.role:10} | Сообщений: {sent_count}")
+        
+        logger.info("="*70)
+        logger.info(f"Всего пользователей: {len(users)}")
+        
     finally:
         session.close()
 
@@ -154,6 +197,8 @@ if __name__ == "__main__":
         {"func": add_user_stringer, "name": "stringer", "role": "moderator", "password": "string"},
         {"func": add_user_engineer, "name": "engineer", "role": "engineer", "password": "engineer"},
         {"func": add_user_dealer, "name": "АгроТехСервис", "role": "dealer", "password": "dealer123"},
+        {"func": add_user_dealer2, "name": "ТехноАгро", "role": "dealer", "password": "dealer123"},
+        {"func": add_user_dealer3, "name": "АгроИмпорт", "role": "dealer", "password": "dealer123"},
     ]
     
     results = []
@@ -175,6 +220,9 @@ if __name__ == "__main__":
         if not exists:
             all_ok = False
     
+    # Показываем всех пользователей в системе
+    get_all_users()
+    
     # Итоговый отчёт
     logger.info("\n" + "="*70)
     logger.info("📋 ИТОГОВЫЙ ОТЧЁТ")
@@ -190,6 +238,13 @@ if __name__ == "__main__":
         logger.info("   • stringer        | Пароль: string      | Роль: moderator")
         logger.info("   • engineer        | Пароль: engineer    | Роль: engineer")
         logger.info("   • АгроТехСервис   | Пароль: dealer123   | Роль: dealer")
+        logger.info("   • ТехноАгро        | Пароль: dealer123   | Роль: dealer")
+        logger.info("   • АгроИмпорт       | Пароль: dealer123   | Роль: dealer")
+        
+        logger.info("\n📨 Для тестирования обратной связи:")
+        logger.info("   - Отправляйте сообщения от dealer или engineer к moderator")
+        logger.info("   - Модератор stringer увидит все сообщения")
+        logger.info("   - Статус прочтения отслеживается в MessageReadStatus")
     else:
         logger.error("\n❌ Не все пользователи созданы. Проверьте логи выше.")
         exit(1)
