@@ -24,7 +24,7 @@ class MessageCreate(BaseModel):
     content: str
     
     class Config:
-        extra = "forbid"  # Защита от лишних полей
+        extra = "forbid"  
 
 # Обновите эндпоинт
 @router.post("/messages")
