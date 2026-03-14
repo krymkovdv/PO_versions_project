@@ -7,7 +7,7 @@ from ..authorization import require_role, get_current_user
 from ..log import logger
 from typing import List, Optional
 from sqlalchemy.exc import SQLAlchemyError
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from datetime import datetime
 import os
 
@@ -60,13 +60,31 @@ def create_software(software: schemas.SoftwareSchema, db: Session = Depends(get_
             detail=f"Неизвестная ошибка: {str(e)}"
         )
 
-@router.delete("/{software_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
-def delete_software(software_id: int, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
-    success = crud.software.delete_software(db, software_id)
-    if not success:
-        logger.error(f"[delete_software] software с таким id: {software_id} не найден user={current_user.username} role={current_user.role}", exc_info=True)
-        raise HTTPException(status_code=404, detail="Software not found")
-    logger.info(f"[delete_software] software {software_id} удалён user={current_user.username} role={current_user.role}")
+@router.delete("/{software_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("moderator"))])
+def delete_software(
+    software_id: int, 
+    db: Session = Depends(get_session), 
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    try:
+        success = crud.software.delete_software_with_links(db, software_id)
+        if not success:
+            logger.warning(f"[delete_software] ПО {software_id} не найдено user={current_user.username}")
+            raise HTTPException(status_code=404, detail="Software not found")
+        
+        logger.info(f"[delete_software] ПО {software_id} удалено user={current_user.username} role={current_user.role}")
+        # Возвращаем 204 No Content
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[delete_software] ошибка: {str(e)} user={current_user.username}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при удалении ПО: {str(e)}"
+        )
 
 @router.patch("/{sw_id}", response_model=schemas.SoftwareResponse)
 def update_software(
@@ -78,6 +96,7 @@ def update_software(
     if current_user.role != "moderator":
         raise HTTPException(status_code=403, detail="Only moderator can update software")
     return crud.software.update_software(db, sw_id, software_update)
+
 
 # ============================================
 # Связи ПО ↔ Компонент
@@ -189,6 +208,7 @@ def unlink_component_from_software(
         f"software_id={software_id}, component_id={component_id}"
     )
     return {"message": "Link deleted successfully"}
+
 
 @router.get("/links", response_model=list[schemas.SoftwareComponentsSchema])
 def get_all_software_component_links(

@@ -68,12 +68,116 @@ def create_software(db: Session, software: schemas.SoftwareSchema):
     db_software.tractor_model = _deserialize_tractor_models(db_software.tractor_model)
     return db_software
 
-def delete_software(db: Session, id: int):
-    software = db.query(models.Software).filter(models.Software.id == id).first()
-    if software is None:
+def delete_software_component_link_by_ids(
+    db: Session, 
+    component_id: int, 
+    software_id: int
+) -> bool:
+    """
+    Удаляет связь ПО-компонент и все зависимые записи в tractor_software_and_component_links
+    """
+    link = db.query(models.Software_Component_Link).filter(
+        models.Software_Component_Link.component_id == component_id,
+        models.Software_Component_Link.software_id == software_id
+    ).first()
+    
+    if not link:
         return False
-    db.delete(software)
+    
+    dependent_links = db.query(models.Tractor_Software_And_Component_Link).filter(
+        models.Tractor_Software_And_Component_Link.soft_comp_link_id == link.id
+    ).all()
+    
+    for dep_link in dependent_links:
+        db.delete(dep_link)
+
+    db.delete(link)
     db.commit()
+    return True
+
+# app/crud/software.py
+
+def delete_all_software_component_links(db: Session, software_id: int) -> int:
+    """
+    Удаляет ВСЕ связи указанного ПО с компонентами и все зависимые записи
+    
+    Returns:
+        int: количество удалённых связей
+    """
+    # 1. Находим все связи ПО с компонентами
+    links = db.query(models.Software_Component_Link).filter(
+        models.Software_Component_Link.software_id == software_id
+    ).all()
+    
+    deleted_count = 0
+    
+    for link in links:
+        # 2. Удаляем зависимые записи в tractor_software_and_component_links
+        db.query(models.Tractor_Software_And_Component_Link).filter(
+            models.Tractor_Software_And_Component_Link.soft_comp_link_id == link.id
+        ).delete(synchronize_session=False)
+        
+        # 3. Удаляем саму связь
+        db.delete(link)
+        deleted_count += 1
+    
+    db.commit()
+    return deleted_count
+
+def delete_software_with_links(db: Session, software_id: int) -> bool:
+    """
+    Полное удаление ПО:
+    1. Удаляет все связи с компонентами
+    2. Очищает ссылки previous_sw_version у других записей ПО
+    3. Удаляет файлы ПО с диска
+    4. Удаляет запись ПО из БД
+    """
+    # 1. Получаем ПО для удаления файлов
+    software = db.query(models.Software).filter(
+        models.Software.id == software_id
+    ).first()
+    
+    if not software:
+        return False
+    
+    # 2. Удаляем все связи ПО с компонентами
+    delete_all_software_component_links(db, software_id)
+    
+    # 3. Очищаем ссылки previous_sw_version у других записей ПО
+    #    которые ссылаются на удаляемое ПО
+    dependent_softwares = db.query(models.Software).filter(
+        models.Software.previous_sw_version == software_id
+    ).all()
+    
+    for dep_sw in dependent_softwares:
+        dep_sw.previous_sw_version = None  # Разрываем ссылку
+        logger.info(f"[delete_software] очищена ссылка previous_sw_version у ПО {dep_sw.id}")
+    
+    # 4. Удаляем файл ПО с диска (если есть)
+    if software.path:
+        file_path = os.path.join(config.UPLOAD_DIR, software.path)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"[delete_software] удалён файл: {software.path}")
+            except OSError as e:
+                logger.error(f"[delete_software] ошибка удаления файла: {e}")
+    
+    # 5. Удаляем инструкцию (если есть)
+    if software.path_instruction:
+        instr_path = os.path.join(config.UPLOAD_DIR, software.path_instruction)
+        if os.path.exists(instr_path):
+            try:
+                os.remove(instr_path)
+                logger.info(f"[delete_software] удалена инструкция: {software.path_instruction}")
+            except OSError as e:
+                logger.error(f"[delete_software] ошибка удаления инструкции: {e}")
+    
+    # 6. Удаляем запись ПО из БД
+    db.delete(software)
+    db.commit()  # commit после всех операций
+    
+    logger.info(f"[delete_software] ПО {software_id} полностью удалено")
     return True
 
 def update_software(db: Session, sw_id: int, software_update: schemas.SoftwareUpdate):

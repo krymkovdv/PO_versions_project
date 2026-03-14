@@ -70,7 +70,7 @@ class Software(Base):
     status = Column(Text, nullable=True)
     tractor_model = Column(Text, nullable=False) 
     previous_sw_version = Column(Integer, ForeignKey('softwares.id'))
-    path_instruction = Column(Text, unique=True, nullable=False)
+    path_instruction = Column(Text, unique=True)
 
     soft2Component = relationship('Software_Component_Link', back_populates='software')
     previous_version = relationship(
