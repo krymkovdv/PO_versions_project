@@ -7,7 +7,6 @@ import re
 import os
 from datetime import datetime, date
 import logging
-import magic
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 import random
