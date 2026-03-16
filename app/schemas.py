@@ -392,6 +392,7 @@ class SoftwareComponentInfoResponse(BaseModel):
     id_firmwares: int
     software_path: str
     software_release_date: Optional[datetime] = None
+    software_end_actuality: Optional[datetime] = None
     software_description: Optional[str] = None
     software_producer: str
     software_is_actual: bool
