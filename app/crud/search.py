@@ -21,8 +21,9 @@ def get_component_by_filters(
     type_comp: list = None,
     name_comp: list = None,
     producers: list = None,
-    status: list = None,
-    soft_state: List = None
+    status: list = None
+    #Для фильтрации по состоянию По (когда фронт готов - раскоментить)
+    # soft_state: List = None
 ):
     """
     Получение ПО по фильтрам с поддержкой множественных моделей тракторов
