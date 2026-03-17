@@ -352,7 +352,8 @@ class TractorComponentResponse(BaseModel):
     vin: str
     component_type: str
     comp_model: str
-    status: str
+    is_actual: bool
+    is_critical: bool
 
     
 # ============================================
@@ -391,6 +392,7 @@ class SoftwareComponentInfoResponse(BaseModel):
     id_firmwares: int
     software_path: str
     software_release_date: Optional[datetime] = None
+    software_end_actuality: Optional[datetime] = None
     software_description: Optional[str] = None
     software_producer: str
     software_is_actual: bool

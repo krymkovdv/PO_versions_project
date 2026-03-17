@@ -296,6 +296,7 @@ def get_software_component_by_ids(
             models.Software.id.label("id_firmwares"),
             models.Software.path.label("software_path"),
             models.Software.release_date.label("software_release_date"),
+            models.Software.end_actuality.label("software_end_actuality"),
             models.Software.description.label("software_description"),
             models.Software.producer.label("software_producer"),
             models.Software.is_actual.label("software_is_actual"),
@@ -348,8 +349,9 @@ def get_software_component_by_ids(
         {
             # ПО
             "id_firmwares": r.id_firmwares,
-            "software_path": r.software_path,
+            "software_path": r.software_path[33:],
             "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
+            "software_end_actuality": r.software_end_actuality.isoformat() if r.software_end_actuality else None, 
             "software_description": r.software_description,
             "software_producer": r.software_producer,
             "software_is_actual": r.software_is_actual,
@@ -524,21 +526,13 @@ def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponent
     # Формируем ответ
     response = []
     for r in results:
-        # Определяем статус
-        if r.is_critical:
-            status = "critical"
-        elif r.is_actual:
-            status = "actual"
-        elif r.is_archive:
-            status = "oldy"
-        else:
-            status = "unknown"
         response.append(
             schemas.TractorComponentResponse(
                 vin=r.vin,
                 component_type=r.component_type,
                 comp_model=r.comp_model,
-                status=status
+                is_critical=r.is_critical,
+                is_actual=r.is_actual
             )
         )
     return response
@@ -656,6 +650,7 @@ def get_archive_software_component_by_ids(
             models.Software.id.label("id_firmwares"),
             models.Software.path.label("software_path"),
             models.Software.release_date.label("software_release_date"),
+            models.Software.end_actuality.label("software_end_actuality"),
             models.Software.description.label("software_description"),
             models.Software.producer.label("software_producer"),
             models.Software.is_actual.label("software_is_actual"),
@@ -710,6 +705,7 @@ def get_archive_software_component_by_ids(
             "id_firmwares": r.id_firmwares,
             "software_path": r.software_path,
             "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
+            "software_end_actuality": r.software_end_actuality.isoformat() if r.software_end_actuality else None, 
             "software_description": r.software_description,
             "software_producer": r.software_producer,
             "software_is_actual": r.software_is_actual,
