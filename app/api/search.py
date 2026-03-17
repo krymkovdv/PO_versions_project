@@ -27,6 +27,8 @@ def get_component_by_filters(
             name_comp=filters.name_comp,
             producers=filters.producers,
             status=filters.status
+            #Для фильтрации по состоянию По (когда фронт готов - раскоментить)
+            # soft_state=filters.soft_state
         )
         logger.info(f"[component-info] успешно выполнена, найдено записей: {len(response)} user={current_user.username} role={current_user.role}")
         return response

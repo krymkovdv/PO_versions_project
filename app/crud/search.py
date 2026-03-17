@@ -21,7 +21,8 @@ def get_component_by_filters(
     type_comp: list = None,
     name_comp: list = None,
     producers: list = None,
-    status: list = None
+    status: list = None,
+    soft_state: List = None
 ):
     """
     Получение ПО по фильтрам с поддержкой множественных моделей тракторов
@@ -81,6 +82,15 @@ def get_component_by_filters(
     if status:
         query = query.filter(models.Software.status.in_(status))
     
+    #Для фильтрации по состоянию По (когда фронт готов - раскоментить)
+    # if soft_state:
+    #     if "critical" in soft_state:
+    #         query = query.filter(models.Software.is_critical == True)
+    #     if "actual" in soft_state:
+    #         query = query.filter(models.Software.is_actual == True)
+    #     if "old" in soft_state:
+    #         query = query.filter(models.Software.is_actual == False)
+
     query = query.distinct()
     results = query.all()
 
@@ -518,8 +528,8 @@ def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponent
          models.Software,
          models.Software_Component_Link.software_id == models.Software.id
      )\
-     .filter(models.Tractor.vin.in_(request.vins))\
-     .filter(models.Software.is_actual == True)   # добавим фильтр на актуальное ПО
+     .filter(models.Tractor.vin.in_(request.vins))
+
 
     results = query.all()
 
