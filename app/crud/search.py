@@ -84,13 +84,23 @@ def get_component_by_filters(
         query = query.filter(models.Software.status.in_(status))
     
     #Для фильтрации по состоянию По (когда фронт готов - раскоментить)
+    # if soft_state:
+    #     if "critical" in soft_state:
+    #         query = query.filter(models.Software.is_critical == True)
+    #     if "actual" in soft_state:
+    #         query = query.filter(models.Software.is_actual == True)
+    #     if "old" in soft_state:
+    #         query = query.filter(models.Software.is_actual == False)
     if soft_state:
+        conditions = []
         if "critical" in soft_state:
-            query = query.filter(models.Software.is_critical == True)
+            conditions.append(models.Software.is_critical == True)
         if "actual" in soft_state:
-            query = query.filter(models.Software.is_actual == True)
+            conditions.append(models.Software.is_actual == True)
         if "old" in soft_state:
-            query = query.filter(models.Software.is_actual == False)
+            conditions.append(models.Software.is_actual == False)
+        if conditions:
+            query = query.filter(or_(*conditions))
 
     query = query.distinct()
     results = query.all()
@@ -129,7 +139,8 @@ def get_archive_component_by_filters(
     type_comp: list = None,
     name_comp: list = None,
     producers: list = None,
-    status: list = None
+    status: list = None,
+    soft_state: List = None
 ):
     """
     Получение ПО по фильтрам с поддержкой множественных моделей тракторов
@@ -188,6 +199,17 @@ def get_archive_component_by_filters(
     
     if status:
         query = query.filter(models.Software.status.in_(status))
+
+    if soft_state:
+        conditions = []
+        if "critical" in soft_state:
+            conditions.append(models.Software.is_critical == True)
+        if "actual" in soft_state:
+            conditions.append(models.Software.is_actual == True)
+        if "old" in soft_state:
+            conditions.append(models.Software.is_actual == False)
+        if conditions:
+            query = query.filter(or_(*conditions))
     
     query = query.distinct()
     results = query.all()
