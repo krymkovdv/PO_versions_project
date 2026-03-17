@@ -21,9 +21,9 @@ def get_component_by_filters(
     type_comp: list = None,
     name_comp: list = None,
     producers: list = None,
-    status: list = None
+    status: list = None,
     #Для фильтрации по состоянию По (когда фронт готов - раскоментить)
-    # soft_state: List = None
+    soft_state: List = None
 ):
     """
     Получение ПО по фильтрам с поддержкой множественных моделей тракторов
@@ -84,13 +84,13 @@ def get_component_by_filters(
         query = query.filter(models.Software.status.in_(status))
     
     #Для фильтрации по состоянию По (когда фронт готов - раскоментить)
-    # if soft_state:
-    #     if "critical" in soft_state:
-    #         query = query.filter(models.Software.is_critical == True)
-    #     if "actual" in soft_state:
-    #         query = query.filter(models.Software.is_actual == True)
-    #     if "old" in soft_state:
-    #         query = query.filter(models.Software.is_actual == False)
+    if soft_state:
+        if "critical" in soft_state:
+            query = query.filter(models.Software.is_critical == True)
+        if "actual" in soft_state:
+            query = query.filter(models.Software.is_actual == True)
+        if "old" in soft_state:
+            query = query.filter(models.Software.is_actual == False)
 
     query = query.distinct()
     results = query.all()

@@ -282,7 +282,7 @@ class ComponentInfoRequest(BaseModel):
     producers: List[str] = []
     status: List[str] = []
     #Для фильтрации по состоянию По (когда фронт готов - раскоментить)
-    # soft_state: List[str] = []
+    soft_state: List[str] = []
 
 class TractorFilter(BaseModel):
     component_type: Optional[str] = None  # 'DVS', 'KPP', 'RK', 'HR', 'BK'
