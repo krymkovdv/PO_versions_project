@@ -4,8 +4,8 @@ from sqlalchemy import select
 import logging
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
-from typing import List
-
+from typing import List, Optional
+from . import software
 logger = logging.getLogger(__name__)
 
 def get_tractors(db: Session):
@@ -55,12 +55,8 @@ def update_tractor(db: Session, vin: str, tractor_update: schemas.TractorUpdate)
         db.rollback()
         raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
     
-def get_tractor_models(
-    db: Session,
-    component_types: List[str] = None,
-    component_models: List[str] = None,
-    component_producers: List[str] = None,
-    software_status: List[str] = None
+def get_tractor_models_for_tractor_table(
+    db: Session
 ):
     """
     Получает уникальные модели тракторов, связанные с компонентами/ПО.
@@ -69,76 +65,6 @@ def get_tractor_models(
     query = db.query(
         models.Tractor.model
     ).distinct()
-    
-    joined_tractor_link = False
-    joined_software_link = False
-    joined_software = False
-    joined_component = False
-    
-    if component_types:
-        if not joined_tractor_link:
-            query = query.join(
-                models.Tractor_Software_And_Component_Link,
-                models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-            )
-            joined_tractor_link = True
-        if not joined_software_link:
-            query = query.join(
-                models.Software_Component_Link,
-                models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
-            )
-            joined_software_link = True
-        if not joined_component:
-            query = query.join(
-                models.Component,
-                models.Software_Component_Link.component_id == models.Component.id
-            )
-            joined_component = True
-        query = query.filter(models.Component.type.in_(component_types))
-
-    if component_models:
-        if not joined_component:
-            if not joined_software_link:
-                query = query.join(
-                    models.Software_Component_Link,
-                    models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-                )
-                joined_software_link = True
-            query = query.join(
-                models.Component,
-                models.Software_Component_Link.component_id == models.Component.id
-            )
-            joined_component = True
-        query = query.filter(models.Component.name.in_(component_models))
-
-    if component_producers:
-        if not joined_component:
-            if not joined_software_link:
-                query = query.join(
-                    models.Software_Component_Link,
-                    models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-                )
-                joined_software_link = True
-            query = query.join(
-                models.Component,
-                models.Software_Component_Link.component_id == models.Component.id
-            )
-            joined_component = True
-        query = query.filter(models.Component.producer.in_(component_producers))
-    
-    if software_status:
-        if not joined_software_link:
-            query = query.join(
-                models.Software_Component_Link,
-                models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
-            )
-            joined_software_link = True
-        query = query.join(
-            models.Software,
-            models.Software_Component_Link.software_id == models.Software.id
-        )
-        query = query.filter(models.Software.status.in_(software_status))
-    
     results = query.all()
     
     return [
@@ -146,3 +72,67 @@ def get_tractor_models(
         for r in results 
         if r.model is not None
     ]
+
+def get_tractor_models_for_software_table(
+    db: Session,
+    component_types: Optional[List[str]] = None,
+    component_models: Optional[List[str]] = None,
+    component_producers: Optional[List[str]] = None,
+    software_status: Optional[List[str]] = None
+) -> List[dict]:
+    """
+    Получает уникальные модели тракторов из поля Software.tractor_model.
+    
+    Args:
+        db: Сессия БД
+        component_types: Фильтр по типам компонентов
+        component_models: Фильтр по моделям компонентов  
+        component_producers: Фильтр по производителям компонентов
+        software_status: Фильтр по статусу ПО
+        
+    Returns:
+        Список словарей: [{'model': 'K-7'}, {'model': 'K-525'}, ...]
+    """
+    # Базовый запрос к Software
+    query = select(models.Software)
+    
+    #  Если нужны фильтры по компонентам — добавляем JOIN'ы
+    if component_types or component_models or component_producers:
+        query = (
+            query
+            .join(
+                models.Software_Component_Link,
+                models.Software.id == models.Software_Component_Link.software_id
+            )
+            .join(
+                models.Component,
+                models.Software_Component_Link.component_id == models.Component.id
+            )
+        )
+        if component_types:
+            query = query.filter(models.Component.type.in_(component_types))
+        if component_models:
+            query = query.filter(models.Component.name.in_(component_models))
+        if component_producers:
+            query = query.filter(models.Component.producer.in_(component_producers))
+    
+    #  Фильтр по статусу ПО
+    if software_status:
+        query = query.filter(models.Software.status.in_(software_status))
+    
+    #  Исключаем архивные записи (опционально)
+    query = query.filter(models.Software.is_archive == False)
+    
+    # Выполняем запрос
+    software_records = db.execute(query).scalars().all()
+    
+    #  Собираем и десериализуем модели тракторов
+    unique_models = set()
+    for sw in software_records:
+        models_list = software._deserialize_tractor_models(sw.tractor_model)
+        for model in models_list:
+            if model:  # Исключаем пустые значения
+                unique_models.add(model.strip())
+    
+    # Возвращаем в нужном формате
+    return [{"model": model} for model in sorted(unique_models)]

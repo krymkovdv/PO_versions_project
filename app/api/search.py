@@ -137,6 +137,32 @@ def get_search_tractors_vin(
         logger.error(f"[search-tractor-vin] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/get-all-models-from-back",response_model=List[Dict[str, str]] )
+def get_tractor_models_for_tractor_table(
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получение моделей тракторов"""
+    logger.info(
+        f"user={current_user.username} role={current_user.role}"
+    )
+    try:
+        tractor_models = crud.tractors.get_tractor_models_for_tractor_table(
+            db
+        )
+        logger.info(
+            f"[tractor-models] успешно, найдено моделей: {len(tractor_models)} "
+            f"user={current_user.username} role={current_user.role}"
+        )
+        return tractor_models
+    except Exception as e:
+        logger.error(
+            f"[tractor-models] ошибка: {str(e)} "
+            f"user={current_user.username} role={current_user.role}",
+            exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+    
 @router.post("/archive-component-info", response_model=List[schemas.ComponentSearchResponseItem])
 def get_archive_component_by_filters(
     filters: schemas.ComponentInfoRequest,
@@ -283,7 +309,7 @@ def get_filtered_tractor_models(
         f"user={current_user.username} role={current_user.role}"
     )
     try:
-        tractor_models = crud.tractors.get_tractor_models(
+        tractor_models = crud.tractors.get_tractor_models_for_software_table(
             db,
             component_types=filters.component_types,
             component_models=filters.component_models,

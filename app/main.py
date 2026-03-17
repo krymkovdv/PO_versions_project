@@ -26,7 +26,7 @@ app = FastAPI(
 # 2. Затем CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://poview.sptz.ru", "http:vm-spkr.sptz.local", "10.100.16.187"],  # ❗ Укажите конкретный домен
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
