@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from datetime import datetime
 
 from .. import schemas, crud, models
 from ..database import get_session
@@ -198,3 +199,32 @@ async def get_users_for_moderator(
     
     users = SupportCRUD.get_users_for_moderator(db, current_user.id)
     return {"users": users}
+
+
+@router.get("/unread/replies-count")
+async def get_user_unread_replies(
+    last_checked: Optional[str] = None,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получить количество непрочитанных ответов от модераторов (только для пользователей)"""
+    
+    if current_user.role == "moderator":
+        # Модераторам этот эндпоинт не нужен, у них своя логика входящих
+        return {"unread_replies_count": 0}
+    
+    last_checked_dt = None
+    if last_checked:
+        try:
+            clean_date = last_checked.replace('Z', '+00:00')
+            last_checked_dt = datetime.fromisoformat(clean_date)
+        except ValueError:
+            pass
+    
+    count = SupportCRUD.get_unread_replies_count_for_user(
+        db, 
+        current_user.id, 
+        last_checked_dt
+    )
+    
+    return {"unread_replies_count": count}
