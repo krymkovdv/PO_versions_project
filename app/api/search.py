@@ -91,6 +91,30 @@ def get_software_component_by_ids(
     except Exception as e:
         logger.error(f"[software-component-info] ошибка: {str(e)} user={current_user.username} role={current_user.role}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/software-component-next-versions", response_model=List[schemas.SoftwareComponentInfoResponse])
+def get_next_software_versions(
+    id_firmwares: int,
+    id_component: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """
+    Получение всех следующих версий ПО для указанного компонента,
+    у которых previous_sw_version == id_firmwares.
+    """
+    logger.info(f"[software-component-next-versions] запрос id_firmwares={id_firmwares} id_component={id_component} user={current_user.username}")
+    try:
+        response = crud.search.get_next_software_versions(
+            db,
+            previous_id=id_firmwares,
+            component_id=id_component
+        )
+        logger.info(f"[software-component-next-versions] найдено записей: {len(response)}")
+        return response
+    except Exception as e:
+        logger.error(f"[software-component-next-versions] ошибка: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- Страница 4: Поиск тракторов ---
 @router.post("/tractor-info", response_model=List[schemas.TractorSearchResponse])

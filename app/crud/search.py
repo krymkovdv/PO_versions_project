@@ -408,6 +408,96 @@ def get_software_component_by_ids(
         for r in results
     ]
 
+def get_next_software_versions(
+    db: Session,
+    previous_id: int,
+    component_id: int
+):
+    """
+    Получение всех версий ПО для указанного компонента,
+    у которых previous_sw_version == previous_id.
+    Возвращает список в том же формате, что и get_software_component_by_ids.
+    """
+    query = (
+        db.query(
+            models.Software.id.label("id_firmwares"),
+            models.Software.path.label("software_path"),
+            models.Software.release_date.label("software_release_date"),
+            models.Software.end_actuality.label("software_end_actuality"),
+            models.Software.description.label("software_description"),
+            models.Software.producer.label("software_producer"),
+            models.Software.is_actual.label("software_is_actual"),
+            models.Software.is_archive.label("software_is_archive"),
+            models.Software.is_critical.label("software_is_critical"),
+            models.Software.status.label("software_status"),
+            models.Software.tractor_model.label("software_tractor_model"),
+            models.Software.previous_sw_version.label("software_previous_sw_version"),
+            models.Software.path_instruction.label("software_path_instruction"),
+            
+            models.Component.id.label("id_component"),
+            models.Component.type.label("component_type"),
+            models.Component.name.label("component_name"),
+            models.Component.producer.label("component_producer"),
+            
+            models.Software_Component_Link.id.label("link_id"),
+            models.Tractor_Software_And_Component_Link.is_recom.label("is_recom")
+        )
+        .select_from(models.Software)
+        .join(
+            models.Software_Component_Link,
+            models.Software.id == models.Software_Component_Link.software_id
+        )
+        .join(
+            models.Component,
+            models.Software_Component_Link.component_id == models.Component.id
+        )
+        .outerjoin(
+            models.Tractor_Software_And_Component_Link,
+            models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
+        )
+        .filter(
+            models.Software.previous_sw_version == previous_id,
+            models.Component.id == component_id,
+            # models.Software.is_archive == False  # опционально
+        )
+        .distinct()
+    )
+    
+    results = query.all()
+    
+    if not results:
+        return []
+    
+    return [
+        {
+            # ПО
+            "id_firmwares": r.id_firmwares,
+            "software_path": r.software_path[33:] if r.software_path else None,
+            "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
+            "software_end_actuality": r.software_end_actuality.isoformat() if r.software_end_actuality else None, 
+            "software_description": r.software_description,
+            "software_producer": r.software_producer,
+            "software_is_actual": r.software_is_actual,
+            "software_is_archive": r.software_is_archive,
+            "software_is_critical": r.software_is_critical,
+            "software_status": r.software_status,
+            "software_tractor_models": software._deserialize_tractor_models(r.software_tractor_model) if r.software_tractor_model else [],
+            "software_previous_sw_version": r.software_previous_sw_version,
+            "software_path_instruction": r.software_path_instruction,
+            
+            # Компонент
+            "id_component": r.id_component,
+            "component_type": r.component_type,
+            "component_name": r.component_name,
+            "component_producer": r.component_producer,
+            
+            # Связь
+            "link_id": r.link_id,
+            "is_recom": r.is_recom if r.is_recom is not None else True,
+        }
+        for r in results
+    ]
+
 # # ============================================
 # # Страница 4: Тракторы
 # # ============================================
