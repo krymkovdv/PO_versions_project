@@ -435,6 +435,7 @@ class TractorSearchResponse(BaseModel):
     vin: str
     model: str
     consumer: str
+    dealer: str
     assembly_date: Optional[datetime] = None
     region: str
     oh_hour: Optional[str] = None

@@ -413,11 +413,15 @@ def get_next_software_versions(
     previous_id: int,
     component_id: int
 ):
-    """
-    Получение всех версий ПО для указанного компонента,
-    у которых previous_sw_version == previous_id.
-    Возвращает список в том же формате, что и get_software_component_by_ids.
-    """
+    from sqlalchemy import exists, and_
+
+    subq = exists().where(
+        and_(
+            models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id,
+            models.Tractor_Software_And_Component_Link.is_recom == True
+        )
+    ).label("is_recom")
+
     query = (
         db.query(
             models.Software.id.label("id_firmwares"),
@@ -440,7 +444,7 @@ def get_next_software_versions(
             models.Component.producer.label("component_producer"),
             
             models.Software_Component_Link.id.label("link_id"),
-            models.Tractor_Software_And_Component_Link.is_recom.label("is_recom")
+            subq
         )
         .select_from(models.Software)
         .join(
@@ -451,14 +455,9 @@ def get_next_software_versions(
             models.Component,
             models.Software_Component_Link.component_id == models.Component.id
         )
-        .outerjoin(
-            models.Tractor_Software_And_Component_Link,
-            models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
-        )
         .filter(
             models.Software.previous_sw_version == previous_id,
             models.Component.id == component_id,
-            # models.Software.is_archive == False  # опционально
         )
         .distinct()
     )
@@ -470,7 +469,6 @@ def get_next_software_versions(
     
     return [
         {
-            # ПО
             "id_firmwares": r.id_firmwares,
             "software_path": r.software_path[33:] if r.software_path else None,
             "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
@@ -485,13 +483,11 @@ def get_next_software_versions(
             "software_previous_sw_version": r.software_previous_sw_version,
             "software_path_instruction": r.software_path_instruction,
             
-            # Компонент
             "id_component": r.id_component,
             "component_type": r.component_type,
             "component_name": r.component_name,
             "component_producer": r.component_producer,
             
-            # Связь
             "link_id": r.link_id,
             "is_recom": r.is_recom if r.is_recom is not None else True,
         }
@@ -532,7 +528,7 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         models.Tractor.id,
         models.Tractor.vin,
         models.Tractor.model,
-        models.Tractor.consumer.label("dealer"),
+        models.Tractor.consumer,
         models.Tractor.assembly_date,
         models.Tractor.region,
         models.Tractor.oh_hour,
@@ -556,9 +552,10 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         if not schemas.is_safe_regex(dealer_pattern):
             raise ValueError("Слишком сложный поисковый запрос для дилера")
         layout_regex = _similar_chars(dealer_pattern)
-        query = query.filter(models.Tractor.consumer.op('~*')(layout_regex))
+        query = query.filter(models.Tractor.dealer.op('~*')(layout_regex))
 
     if filter.query:
+       
         q = filter.query.strip()
         if q:
             try:
@@ -605,12 +602,13 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         {
             "vin": r.vin,
             "model": r.model,
-            "consumer": r.dealer,
-            "dealer": r.dealer if hasattr(r, 'dealer') else r.consumer,
+            "consumer": r.consumer,
+            "dealer": r.dealer,
             "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
             "region": r.region,
             "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
             "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+
         }
         for r in results
     ]
