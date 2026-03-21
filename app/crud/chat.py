@@ -1,6 +1,6 @@
 # app/crud/chat.py
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from datetime import datetime, timezone
 from typing import List, Dict, Optional
 from .. import models
@@ -36,8 +36,7 @@ class SupportCRUD:
     
     @staticmethod
     def moderator_reply(db: Session, moderator_id: int, original_message_id: int, content: str):
-        """Ответ модератора на конкретное сообщение пользователя"""
-        # Находим оригинальное сообщение
+        # ... (поиск оригинала) ...
         original_message = db.query(models.SupportMessage).filter(
             models.SupportMessage.id == original_message_id
         ).first()
@@ -45,16 +44,27 @@ class SupportCRUD:
         if not original_message:
             return None
         
-        # Создаем ответное сообщение с parent_message_id
+        # Создаем ответ
         reply_message = models.SupportMessage(
             sender_id=moderator_id,
-            content=content,  # Убрали префикс "Ответ на ваше сообщение"
-            parent_message_id=original_message_id  # 👈 КЛЮЧЕВОЕ ПОЛЕ - связь с оригиналом
+            content=content,
+            parent_message_id=original_message_id
         )
         db.add(reply_message)
         db.flush()
         
-        # Получаем всех модераторов (кроме отправившего ответ)
+        # --- ИЗМЕНЕНИЕ НАЧАЛО ---
+        
+        # 1. Создаем статус прочтения для АВТОРА оригинального сообщения (ПОЛЬЗОВАТЕЛЯ)
+        # Именно это позволит пользователю увидеть уведомление
+        user_read_status = models.MessageReadStatus(
+            message_id=reply_message.id,
+            moderator_id=original_message.sender_id, # Используем поле moderator_id для хранения ID того, кто должен прочитать
+            is_read=False
+        )
+        db.add(user_read_status)
+        
+        # 2. Создаем статусы для ДРУГИХ модераторов (как было раньше)
         other_moderators = db.query(models.UserDB).filter(
             and_(
                 models.UserDB.role == "moderator",
@@ -62,14 +72,13 @@ class SupportCRUD:
             )
         ).all()
         
-        # Создаем статусы прочтения для других модераторов
         for mod in other_moderators:
-            read_status = models.MessageReadStatus(
+            mod_read_status = models.MessageReadStatus(
                 message_id=reply_message.id,
                 moderator_id=mod.id,
                 is_read=False
             )
-            db.add(read_status)
+            db.add(mod_read_status)
         
         # Отмечаем оригинальное сообщение как прочитанное этим модератором
         read_status = db.query(models.MessageReadStatus).filter(
@@ -219,8 +228,9 @@ class SupportCRUD:
     
     @staticmethod
     def get_all_user_messages(db: Session, user_id: int):
-        """Получить все сообщения пользователя с ответами"""
-        # Получаем все корневые сообщения пользователя
+        """Получить все сообщения пользователя с ответами и АВТОМАТИЧЕСКИ отметить ответы как прочитанные"""
+        
+        # 1. Получаем все корневые сообщения пользователя
         messages = db.query(
             models.SupportMessage
         ).filter(
@@ -230,9 +240,13 @@ class SupportCRUD:
             models.SupportMessage.created_at.desc()
         ).all()
         
+        # 2. Собираем ID всех ответов, которые мы сейчас вернем пользователю
+        # Чтобы потом отметить их как прочитанные
+        reply_ids_to_mark = []
+        
         result = []
         for msg in messages:
-            # Информация о прочтении
+            # Информация о прочтении (для корневых сообщений)
             read_statuses = db.query(
                 models.MessageReadStatus, models.UserDB.username
             ).join(
@@ -247,6 +261,10 @@ class SupportCRUD:
             ).order_by(
                 models.SupportMessage.created_at.asc()
             ).all()
+            
+            # Собираем ID ответов для массовой пометки
+            for reply in replies:
+                reply_ids_to_mark.append(reply.id)
             
             result.append({
                 "message": msg,
@@ -264,6 +282,23 @@ class SupportCRUD:
                     for reply in replies
                 ]
             })
+        
+        # 3. МАССОВОЕ ОБНОВЛЕНИЕ СТАТУСОВ (Если есть что обновлять)
+        if reply_ids_to_mark:
+            # Находим все записи в MessageReadStatus для этих ответов, принадлежащие пользователю
+            # и которые еще не прочитаны
+            unread_statuses = db.query(models.MessageReadStatus).filter(
+                models.MessageReadStatus.message_id.in_(reply_ids_to_mark),
+                models.MessageReadStatus.moderator_id == user_id, # ID пользователя в поле moderator_id
+                models.MessageReadStatus.is_read == False
+            ).all()
+            
+            if unread_statuses:
+                for status in unread_statuses:
+                    status.is_read = True
+                    status.read_at = datetime.now(timezone.utc)
+                
+                db.commit() # Фиксируем изменения только если что-то изменили
         
         return result
     
@@ -285,9 +320,13 @@ class SupportCRUD:
     @staticmethod
     def get_unread_count(db: Session, moderator_id: int) -> int:
         """Получить количество непрочитанных сообщений для модератора"""
-        count = db.query(models.MessageReadStatus).filter(
+        count = db.query(models.MessageReadStatus).join(
+            models.SupportMessage, 
+            models.MessageReadStatus.message_id == models.SupportMessage.id
+            ).filter(
             models.MessageReadStatus.moderator_id == moderator_id,
-            models.MessageReadStatus.is_read == False
+            models.MessageReadStatus.is_read == False,
+            models.SupportMessage.parent_message_id == None
         ).count()
         return count
     
@@ -311,7 +350,7 @@ class SupportCRUD:
             models.UserDB.id,
             models.UserDB.username,
             models.UserDB.role,
-            db.func.max(models.SupportMessage.created_at).label("last_message")
+            func.max(models.SupportMessage.created_at).label("last_message")
         ).join(
             models.SupportMessage, models.SupportMessage.sender_id == models.UserDB.id
         ).filter(
@@ -319,7 +358,7 @@ class SupportCRUD:
         ).group_by(
             models.UserDB.id, models.UserDB.username, models.UserDB.role
         ).order_by(
-            db.func.max(models.SupportMessage.created_at).desc()
+            func.max(models.SupportMessage.created_at).desc()
         ).all()
         
         result = []
@@ -346,3 +385,54 @@ class SupportCRUD:
             })
         
         return result
+    
+    @staticmethod
+    def get_unread_replies_count_for_user(
+        db: Session, 
+        user_id: int, 
+        last_checked_at: Optional[datetime] = None
+    ) -> int:
+        """
+        Получить количество непрочитанных ОТВЕТОВ от модераторов для пользователя.
+        Учитывает только ответы (parent_message_id != None).
+        """
+        
+        # 1. Находим ID всех корневых сообщений этого пользователя
+        # (Ответы могут быть только на наши сообщения)
+        user_root_messages = db.query(models.SupportMessage.id).filter(
+            models.SupportMessage.sender_id == user_id,
+            models.SupportMessage.parent_message_id == None
+        ).all()
+        
+        root_ids = [m.id for m in user_root_messages]
+        if not root_ids:
+            return 0
+
+        # 2. Строим запрос к таблице статусов прочтения
+        # Нам нужно найти записи в MessageReadStatus, где is_read=False
+        # И само сообщение является ОТВЕТОМ (parent_id in root_ids) И написано НЕ пользователем
+        
+        query = db.query(models.MessageReadStatus).join(
+            models.SupportMessage,
+            models.MessageReadStatus.message_id == models.SupportMessage.id
+        ).filter(
+            models.MessageReadStatus.moderator_id == user_id, # Статус хранится для пользователя как "модератора" своей ветки? 
+            # СТОП! В вашей схеме MessageReadStatus.moderator_id ссылается на UserDB.id.
+            # Для пользователя мы тоже создаем запись в этой таблице? 
+            # Да, в send_message_to_moderators мы создаем статусы для модераторов.
+            # А когда модератор отвечает, мы должны создать статус для ПОЛЬЗОВАТЕЛЯ.
+            
+            # ПРОВЕРКА АРХИТЕКТУРЫ:
+            # Сейчас в moderator_reply вы создаете статусы только для ДРУГИХ МОДЕРАТОРОВ.
+            # Для пользователя статус НЕ создается автоматически. Это нужно исправить.
+            
+            models.MessageReadStatus.is_read == False,
+            models.SupportMessage.parent_message_id.in_(root_ids),
+            models.SupportMessage.sender_id != user_id # Только ответы от других (модераторов)
+        )
+
+        # Фильтр по времени (если пользователь уже заходил и смотрел историю)
+        if last_checked_at:
+            query = query.filter(models.SupportMessage.created_at > last_checked_at)
+
+        return query.count()

@@ -349,8 +349,6 @@ def get_software_component_by_ids(
             # Связь Software_Component_Link
             models.Software_Component_Link.id.label("link_id"),
             
-            # Связь Tractor_Software_And_Component_Link (берём первую запись)
-            models.Tractor_Software_And_Component_Link.is_recom.label("is_recom")
         )
         .select_from(models.Software)
         .join(
@@ -361,13 +359,9 @@ def get_software_component_by_ids(
             models.Component,
             models.Software_Component_Link.component_id == models.Component.id
         )
-        .outerjoin(
-            models.Tractor_Software_And_Component_Link,
-            models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
-        )
         .filter(
             models.Software.id == id_firmwares,
-            models.Component.id == id_component,
+            models.Component.id == id_component
             # models.Software.is_archive == False
         )
     )
@@ -401,9 +395,6 @@ def get_software_component_by_ids(
             "component_name": r.component_name,
             "component_producer": r.component_producer,
             
-            # Связь
-            "link_id": r.link_id,
-            "is_recom": r.is_recom if r.is_recom is not None else True,
         }
         for r in results
     ]
@@ -532,7 +523,7 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         models.Tractor.id,
         models.Tractor.vin,
         models.Tractor.model,
-        models.Tractor.consumer.label("dealer"),
+        models.Tractor.consumer,
         models.Tractor.assembly_date,
         models.Tractor.region,
         models.Tractor.oh_hour,
@@ -551,8 +542,8 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     if filter.trac_model:
         query = query.filter(models.Tractor.model.in_(filter.trac_model))
 
-    if filter.dealer:
-        dealer_pattern = schemas.wildcard_to_psql_regex(filter.dealer)
+    if filter.consumer:
+        dealer_pattern = schemas.wildcard_to_psql_regex(filter.consumer)
         if not schemas.is_safe_regex(dealer_pattern):
             raise ValueError("Слишком сложный поисковый запрос для дилера")
         layout_regex = _similar_chars(dealer_pattern)
@@ -605,7 +596,7 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         {
             "vin": r.vin,
             "model": r.model,
-            "consumer": r.dealer,
+            "consumer": r.consumer,
             "dealer": r.dealer if hasattr(r, 'dealer') else r.consumer,
             "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
             "region": r.region,

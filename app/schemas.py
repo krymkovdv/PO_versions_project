@@ -290,7 +290,7 @@ class TractorFilter(BaseModel):
     software_filter: Optional[str] = Field(None, pattern="^(actual|critical|old)$")
     is_actual: Optional[bool] = None
     trac_model: List[str] = []
-    dealer: str = ''
+    consumer: str = ''
     date_assemle: Optional[date] = None
     date_start: Optional[date] = None
     date_end: Optional[date] = None
@@ -411,9 +411,7 @@ class SoftwareComponentInfoResponse(BaseModel):
     component_name: str
     component_producer: str
     
-    # Информация о связи
-    link_id: int
-    is_recom: bool
+
     
     model_config = ConfigDict(from_attributes=True)
     
