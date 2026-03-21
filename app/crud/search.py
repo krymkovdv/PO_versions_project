@@ -41,6 +41,7 @@ def get_component_by_filters(
             models.Software.is_critical,
             models.Software.status,
             models.Software.tractor_model,
+            models.Software.description,
             models.Component.type,
             models.Component.name,
             models.Component.id.label("id_Component")
@@ -120,6 +121,7 @@ def get_component_by_filters(
             "download_link_instruction": getattr(r, 'download_link_instruction', None),
             "type_component": r.type,
             "release_date": r.release_date.isoformat() if r.release_date else None,
+            "description": r.description,
             "is_archive": r.is_archive,
             "is_actual": r.is_actual,
             "is_critical": r.is_critical,

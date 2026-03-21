@@ -375,6 +375,7 @@ class  ComponentSearchResponseItem(BaseModel):
     id_Component: Optional[int] = None
     status: Optional[str] = None
     tractor_model: Optional[List[str]]
+    description: Optional[str] = None
 
     @field_validator('type_component', mode='before')
     @classmethod
