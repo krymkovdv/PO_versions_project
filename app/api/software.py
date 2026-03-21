@@ -94,7 +94,7 @@ def update_software(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
-    if current_user.role != "moderator":
+    if current_user.role != "moderator" and current_user.role != "engineer":
         raise HTTPException(status_code=403, detail="Only moderator can update software")
     return crud.software.update_software(db, sw_id, software_update)
 

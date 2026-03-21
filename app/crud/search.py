@@ -41,6 +41,7 @@ def get_component_by_filters(
             models.Software.is_critical,
             models.Software.status,
             models.Software.tractor_model,
+            models.Software.description,
             models.Component.type,
             models.Component.name,
             models.Component.id.label("id_Component")
@@ -120,6 +121,7 @@ def get_component_by_filters(
             "download_link_instruction": getattr(r, 'download_link_instruction', None),
             "type_component": r.type,
             "release_date": r.release_date.isoformat() if r.release_date else None,
+            "description": r.description,
             "is_archive": r.is_archive,
             "is_actual": r.is_actual,
             "is_critical": r.is_critical,
@@ -349,8 +351,6 @@ def get_software_component_by_ids(
             # Связь Software_Component_Link
             models.Software_Component_Link.id.label("link_id"),
             
-            # Связь Tractor_Software_And_Component_Link (берём первую запись)
-            models.Tractor_Software_And_Component_Link.is_recom.label("is_recom")
         )
         .select_from(models.Software)
         .join(
@@ -361,13 +361,9 @@ def get_software_component_by_ids(
             models.Component,
             models.Software_Component_Link.component_id == models.Component.id
         )
-        .outerjoin(
-            models.Tractor_Software_And_Component_Link,
-            models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
-        )
         .filter(
             models.Software.id == id_firmwares,
-            models.Component.id == id_component,
+            models.Component.id == id_component
             # models.Software.is_archive == False
         )
     )
@@ -401,9 +397,6 @@ def get_software_component_by_ids(
             "component_name": r.component_name,
             "component_producer": r.component_producer,
             
-            # Связь
-            "link_id": r.link_id,
-            "is_recom": r.is_recom if r.is_recom is not None else True,
         }
         for r in results
     ]
@@ -547,8 +540,8 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     if filter.trac_model:
         query = query.filter(models.Tractor.model.in_(filter.trac_model))
 
-    if filter.dealer:
-        dealer_pattern = schemas.wildcard_to_psql_regex(filter.dealer)
+    if filter.consumer:
+        dealer_pattern = schemas.wildcard_to_psql_regex(filter.consumer)
         if not schemas.is_safe_regex(dealer_pattern):
             raise ValueError("Слишком сложный поисковый запрос для дилера")
         layout_regex = _similar_chars(dealer_pattern)

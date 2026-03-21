@@ -310,11 +310,11 @@ def assign_software_to_components(
             path_instruction=saved_instruction_filename 
         )
         db.add(fw)
-        db.flush()  # Получаем fw.id
+        db.flush() 
         
         logger.info(f"[assign_software] Создано ПО id={fw.id}, producer={fw.producer}")
         
-        # 7. Создаём связи с компонентами
+
         for i in range(n_models):
             comp_model = software_data.component_models[i]
             comp_type = software_data.component_types[i]
@@ -346,6 +346,18 @@ def assign_software_to_components(
             db.flush()
             
             logger.info(f"[assign_software] Создана связь ПО-Компонент link_id={link.id}")
+        previous_sw_version_past = fw.previous_sw_version
+        while previous_sw_version_past != None:
+            prev_fw = db.query(models.Software).filter(models.Software.id == previous_sw_version_past).first()
+            if prev_fw:
+                prev_fw.is_actual = False
+                prev_fw.end_actuality = datetime.utcnow()
+                previous_sw_version_past = prev_fw.previous_sw_version
+                logger.info(f"[assign_software] Деактивирована старая версия ПО id={prev_fw.id}")
+            else:
+                logger.warning(f"[assign_software] Предыдущая версия ПО {previous_sw_version_past} не найдена")
+                break
+
         
         # 8. Коммитим все изменения
         db.commit()
