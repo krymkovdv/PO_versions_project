@@ -528,32 +528,39 @@ class ArchiveChangeRequest(BaseModel):
 
 
 # Поддержка
+class SupportMessageCreate(BaseModel):
+    """Создание сообщения поддержки"""
+    content: str = Field(..., min_length=1, max_length=2000)
+    
+    class Config:
+        extra = "forbid"
 
-class ReplyRequest(BaseModel):
+class SupportReplyRequest(BaseModel):
+    """Запрос ответа на сообщение"""
     message_id: int
-    content: str = Field(..., min_length=1, max_length=1000)
+    content: str = Field(..., min_length=1, max_length=2000)
 
-class ConversationMessage(BaseModel):
+class SupportMessageDeleteRequest(BaseModel):
+    """Запрос на удаление сообщения"""
+    reason: Optional[str] = Field(None, max_length=500, description="Причина удаления")
+
+class SupportMessageDeleteResponse(BaseModel):
+    """Ответ после удаления"""
+    status: str
+    message_id: int
+    deleted_at: datetime
+    deleted_by: str
+    cascade_deleted: int = 0
+    
+    class Config:
+        from_attributes = True
+
+class SupportMessageResponse(BaseModel):
+    """Ответ с сообщением"""
     id: int
     content: str
     created_at: datetime
-    sender: str  # "user" или "moderator"
-    sender_name: str
-    is_read: Optional[bool] = None
-    read_by_moderators: Optional[List[dict]] = None
-    is_reply_to: Optional[int] = None
-
-class ConversationResponse(BaseModel):
-    user: dict
-    moderator: dict
-    messages: List[ConversationMessage]
-
-class UserForModerator(BaseModel):
-    user_id: int
-    username: str
-    role: str
-    last_message: datetime
-    unread_count: int
-
-class UsersForModeratorResponse(BaseModel):
-    users: List[UserForModerator]
+    status: str
+    
+    class Config:
+        from_attributes = True
