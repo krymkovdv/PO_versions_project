@@ -540,8 +540,8 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
     if filter.trac_model:
         query = query.filter(models.Tractor.model.in_(filter.trac_model))
 
-    if filter.consumer:
-        dealer_pattern = schemas.wildcard_to_psql_regex(filter.consumer)
+    if filter.dealer:
+        dealer_pattern = schemas.wildcard_to_psql_regex(filter.dealer)
         if not schemas.is_safe_regex(dealer_pattern):
             raise ValueError("Слишком сложный поисковый запрос для дилера")
         layout_regex = _similar_chars(dealer_pattern)

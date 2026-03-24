@@ -5,6 +5,7 @@ from typing import List
 import logging
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
+from .software import _deserialize_tractor_models
 
 logger = logging.getLogger(__name__)
 
@@ -63,38 +64,37 @@ def get_agg_by_trac_and_comp(
     Получает уникальные модели компонентов с учётом фильтров.
     Возвращает список словарей: [{'id': 1, 'name': 'Engine-X'}, ...]
     """
-    # Базовый запрос — начинаем с Component
     query = db.query(
         models.Component.id,
         models.Component.name
     ).distinct()
     
-    # Флаги для отслеживания уже сделанных JOIN
-    joined_tractor_link = False
     joined_software_link = False
     joined_software = False
     
     if trac_model:
-        # Component → Software_Component_Link → Tractor_Software_And_Component_Link → Tractor
+        # Получаем все Software, у которых есть поле tractor_model
+        software_records = db.query(models.Software).filter(
+            models.Software.tractor_model.isnot(None)
+        ).all()
+        
+        valid_software_ids = set()
+        for sw in software_records:
+            # Используем импортированную функцию
+            models_list = _deserialize_tractor_models(sw.tractor_model)
+            if any(m in models_list for m in trac_model):
+                valid_software_ids.add(sw.id)
+        
+        # Применяем фильтр к Software_Component_Link
         if not joined_software_link:
             query = query.join(
-                models.Software_Component_Link, 
+                models.Software_Component_Link,
                 models.Component.id == models.Software_Component_Link.component_id
             )
             joined_software_link = True
-            
-        if not joined_tractor_link:
-            query = query.join(
-                models.Tractor_Software_And_Component_Link,
-                models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
-            )
-            joined_tractor_link = True
-            
-        query = query.join(
-            models.Tractor,
-            models.Tractor_Software_And_Component_Link.tractor_id == models.Tractor.id
+        query = query.filter(
+            models.Software_Component_Link.software_id.in_(valid_software_ids)
         )
-        query = query.filter(models.Tractor.model.in_(trac_model))
     
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
@@ -109,19 +109,16 @@ def get_agg_by_trac_and_comp(
                 models.Component.id == models.Software_Component_Link.component_id
             )
             joined_software_link = True
-            
         if not joined_software:
             query = query.join(
                 models.Software,
                 models.Software_Component_Link.software_id == models.Software.id
             )
             joined_software = True
-            
         query = query.filter(models.Software.status.in_(status))
     
     results = query.all()
     
-    # Возвращаем список словарей для удобства на фронтенде
     return [
         {"id": r.id, "name": r.name} 
         for r in results 
@@ -147,24 +144,47 @@ def get_component_producers(
     joined_software_link = False
     joined_software = False
     
+    # if trac_model:
+    #     if not joined_software_link:
+    #         query = query.join(
+    #             models.Software_Component_Link,
+    #             models.Component.id == models.Software_Component_Link.component_id
+    #         )
+    #         joined_software_link = True
+    #     if not joined_tractor_link:
+    #         query = query.join(
+    #             models.Tractor_Software_And_Component_Link,
+    #             models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
+    #         )
+    #         joined_tractor_link = True
+    #     query = query.join(
+    #         models.Tractor,
+    #         models.Tractor_Software_And_Component_Link.tractor_id == models.Tractor.id
+    #     )
+    #     query = query.filter(models.Tractor.model.in_(trac_model))
     if trac_model:
+        # Получаем все Software, у которых есть поле tractor_model
+        software_records = db.query(models.Software).filter(
+            models.Software.tractor_model.isnot(None)
+        ).all()
+        
+        valid_software_ids = set()
+        for sw in software_records:
+            # Используем импортированную функцию
+            models_list = _deserialize_tractor_models(sw.tractor_model)
+            if any(m in models_list for m in trac_model):
+                valid_software_ids.add(sw.id)
+        
+        # Применяем фильтр к Software_Component_Link
         if not joined_software_link:
             query = query.join(
                 models.Software_Component_Link,
                 models.Component.id == models.Software_Component_Link.component_id
             )
             joined_software_link = True
-        if not joined_tractor_link:
-            query = query.join(
-                models.Tractor_Software_And_Component_Link,
-                models.Software_Component_Link.id == models.Tractor_Software_And_Component_Link.soft_comp_link_id
-            )
-            joined_tractor_link = True
-        query = query.join(
-            models.Tractor,
-            models.Tractor_Software_And_Component_Link.tractor_id == models.Tractor.id
+        query = query.filter(
+            models.Software_Component_Link.software_id.in_(valid_software_ids)
         )
-        query = query.filter(models.Tractor.model.in_(trac_model))
     
     if type_comp:
         query = query.filter(models.Component.type.in_(type_comp))
