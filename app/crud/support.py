@@ -1,6 +1,5 @@
 # app/crud/support.py
 from sqlalchemy.orm import Session
-from sqlalchemy import delete
 from datetime import datetime, timezone
 from .. import models
 from ..log import logger
