@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, s
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 
-from .. import schemas, crud, models
 from ..database import get_session
 from ..authorization import authenticate_user, create_access_token
 from ..log import logger

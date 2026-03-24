@@ -1,36 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, status
+# app/api/support.py
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from typing import Optional, List
 from datetime import datetime
+from pydantic import BaseModel, Field
 
 from .. import schemas, crud, models
 from ..database import get_session
-from ..authorization import require_role, get_password_hash, get_current_user
+from ..authorization import get_current_user
 from ..log import logger
-from typing import List, Optional
-from sqlalchemy.exc import SQLAlchemyError
-from ..crud.chat import SupportCRUD
+from ..crud.support import SupportCRUD
 
-router = APIRouter(prefix="/support", tags=["support"])
+router = APIRouter(prefix="/support", tags=["Support Chat"])
 
-# Pydantic модели для запросов
-class ReplyRequest(BaseModel):
-    message_id: int
-    content: str
+# ========== ЭНДПОИНТЫ (названия сохранены как было) ==========
 
-class ConversationRequest(BaseModel):
-    user_id: int
-
-class MessageCreate(BaseModel):
-    content: str
-    
-    class Config:
-        extra = "forbid"  
-
-# Обновите эндпоинт
 @router.post("/messages")
 async def send_to_moderators(
-    message: MessageCreate,  
+    message: schemas.SupportMessageCreate,  
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
@@ -39,8 +26,12 @@ async def send_to_moderators(
     if current_user.role == "moderator":
         raise HTTPException(status_code=400, detail="Moderators cannot send messages to themselves")
     
-    # Используем message.content вместо content
     new_message = SupportCRUD.send_message_to_moderators(db, current_user.id, message.content)
+    
+    logger.info(
+        f"[support/send] Сообщение отправлено: id={new_message.id}, "
+        f"user={current_user.username}"
+    )
     
     return {
         "id": new_message.id,
@@ -51,7 +42,7 @@ async def send_to_moderators(
 
 @router.post("/messages/reply")
 async def reply_to_message(
-    reply: ReplyRequest,
+    reply: schemas.SupportReplyRequest,
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
@@ -85,7 +76,6 @@ async def get_conversation_with_user(
     if current_user.role != "moderator":
         raise HTTPException(status_code=403, detail="Only moderators can view conversations")
     
-    # Проверяем, что пользователь существует
     user = db.query(models.UserDB).filter(models.UserDB.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -113,38 +103,31 @@ async def get_messages(
     """Получить сообщения (разный ответ для пользователя и модератора)"""
     
     if current_user.role == "moderator":
-        # Модератор видит все сообщения, сгруппированные по пользователям
         users_data = SupportCRUD.get_messages_for_moderator(db, current_user.id)
-        
-        # Отмечаем все как прочитанные
-        for user_data in users_data:
-            for msg in user_data["messages"]:
-                if not msg["is_read"]:
-                    SupportCRUD.mark_as_read(db, msg["id"], current_user.id)
-                    msg["is_read"] = True
-        
         return users_data
     
     else:
-        # Пользователь видит свои сообщения и ответы
         messages = SupportCRUD.get_all_user_messages(db, current_user.id)
         
+        # messages теперь список словарей с ключами: id, content, created_at, 
+        # is_read, is_closed, read_by, replies
         return [
             {
-                "id": item["message"].id,
-                "content": item["message"].content,
-                "created_at": item["message"].created_at,
-                "is_read": any(r["is_read"] for r in item["read_by"]),
+                "id": msg["id"],
+                "content": msg["content"],
+                "created_at": msg["created_at"],
+                "is_read": msg["is_read"],
+                "is_closed": msg["is_closed"],
                 "read_by": [
                     {
                         "moderator": r["moderator"],
                         "read_at": r["read_at"]
                     }
-                    for r in item["read_by"] if r["is_read"]
+                    for r in msg["read_by"] if r["is_read"]
                 ],
-                "replies": item["replies"]
+                "replies": msg["replies"]
             }
-            for item in messages
+            for msg in messages
         ]
 
 @router.get("/unread")
@@ -200,17 +183,15 @@ async def get_users_for_moderator(
     users = SupportCRUD.get_users_for_moderator(db, current_user.id)
     return {"users": users}
 
-
 @router.get("/unread/replies-count")
 async def get_user_unread_replies(
-    last_checked: Optional[str] = None,
+    last_checked: Optional[str] = Query(None),
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
     """Получить количество непрочитанных ответов от модераторов (только для пользователей)"""
     
     if current_user.role == "moderator":
-        # Модераторам этот эндпоинт не нужен, у них своя логика входящих
         return {"unread_replies_count": 0}
     
     last_checked_dt = None
@@ -228,3 +209,58 @@ async def get_user_unread_replies(
     )
     
     return {"unread_replies_count": count}
+
+@router.get("/read-message/{moderator_id}/{message_id}")
+async def read_message(message_id:int, db:Session = Depends(get_session), currnet_user: models.UserDB = Depends(get_current_user)):
+    if currnet_user.role != "moderator":
+        raise HTTPException(
+            status_code=403,
+            details="Only for modarators"
+        )
+    result = SupportCRUD.read_message(db,currnet_user.id,message_id)
+    return{
+        "message_id": message_id,
+        "is_read": result.is_read,
+        "read_at": result.read_at
+    }
+
+# ========== НОВЫЙ ЭНДПОИНТ ДЛЯ УДАЛЕНИЯ ==========
+
+@router.delete("/messages/{message_id}", response_model=schemas.SupportMessageDeleteResponse)
+async def delete_message(
+    message_id: int,
+    delete_request: Optional[schemas.SupportMessageDeleteRequest] = Body(None),
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """
+    Удаление сообщения
+    
+    - **Пользователи**: могут удалять только свои сообщения
+    - **Модераторы**: могут удалять любые сообщения
+    - При удалении родительского сообщения все ответы удаляются каскадом
+    - Удаление физическое (без возможности восстановления)
+    """
+    
+    reason = delete_request.reason if delete_request else None
+    
+    if reason:
+        logger.info(
+            f"[support/delete] Причина удаления: {reason}, "
+            f"message_id={message_id}, user={current_user.username}"
+        )
+    
+    result = SupportCRUD.delete_message(
+        db=db,
+        message_id=message_id,
+        user_id=current_user.id,
+        user_role=current_user.role
+    )
+    
+    return schemas.SupportMessageDeleteResponse(
+        status="deleted",
+        message_id=result["message_id"],
+        deleted_at=result["deleted_at"],
+        deleted_by=current_user.username,
+        cascade_deleted=result["cascade_deleted"]
+    )

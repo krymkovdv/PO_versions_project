@@ -209,13 +209,15 @@ class SupportCRUD:
                     "content": msg.content,
                     "created_at": msg.created_at,
                     "is_read": is_read or False,
+                    "is_closed": msg.is_closed,  # <-- ДОБАВЛЕНО
                     "replies": [
                         {
                             "id": reply.id,
                             "content": reply.content,
                             "created_at": reply.created_at,
                             "moderator_id": reply.sender_id,
-                            "moderator_name": reply.sender.username
+                            "moderator_name": reply.sender.username,
+                            "is_closed": reply.is_closed  # <-- ДОБАВЛЕНО для ответов
                         }
                         for reply in replies
                     ]
@@ -241,7 +243,6 @@ class SupportCRUD:
         ).all()
         
         # 2. Собираем ID всех ответов, которые мы сейчас вернем пользователю
-        # Чтобы потом отметить их как прочитанные
         reply_ids_to_mark = []
         
         result = []
@@ -267,7 +268,11 @@ class SupportCRUD:
                 reply_ids_to_mark.append(reply.id)
             
             result.append({
-                "message": msg,
+                "id": msg.id,
+                "content": msg.content,
+                "created_at": msg.created_at,
+                "is_read": msg.is_read,
+                "is_closed": msg.is_closed,  # <-- ДОБАВЛЕНО
                 "read_by": [
                     {"moderator": username, "is_read": status.is_read, "read_at": status.read_at}
                     for status, username in read_statuses
@@ -277,31 +282,28 @@ class SupportCRUD:
                         "id": reply.id,
                         "content": reply.content,
                         "created_at": reply.created_at,
-                        "moderator_name": reply.sender.username
+                        "moderator_name": reply.sender.username,
+                        "moderator_id": reply.sender_id,
+                        "is_closed": reply.is_closed  # <-- ДОБАВЛЕНО
                     }
                     for reply in replies
                 ]
             })
         
-        # 3. МАССОВОЕ ОБНОВЛЕНИЕ СТАТУСОВ (Если есть что обновлять)
+        # 3. МАССОВОЕ ОБНОВЛЕНИЕ СТАТУСОВ
         if reply_ids_to_mark:
-            # Находим все записи в MessageReadStatus для этих ответов, принадлежащие пользователю
-            # и которые еще не прочитаны
-            unread_statuses = db.query(models.MessageReadStatus).filter(
+            db.query(models.MessageReadStatus).filter(
                 models.MessageReadStatus.message_id.in_(reply_ids_to_mark),
-                models.MessageReadStatus.moderator_id == user_id, # ID пользователя в поле moderator_id
+                models.MessageReadStatus.moderator_id == user_id,
                 models.MessageReadStatus.is_read == False
-            ).all()
-            
-            if unread_statuses:
-                for status in unread_statuses:
-                    status.is_read = True
-                    status.read_at = datetime.now(timezone.utc)
-                
-                db.commit() # Фиксируем изменения только если что-то изменили
+            ).update(
+                {"is_read": True, "read_at": datetime.now(timezone.utc)},
+                synchronize_session=False
+            )
+            db.commit()
         
         return result
-    
+        
     @staticmethod
     def mark_as_read(db: Session, message_id: int, moderator_id: int):
         """Отметить сообщение как прочитанное модератором"""
@@ -320,14 +322,19 @@ class SupportCRUD:
     @staticmethod
     def get_unread_count(db: Session, moderator_id: int) -> int:
         """Получить количество непрочитанных сообщений для модератора"""
-        count = db.query(models.MessageReadStatus).join(
-            models.SupportMessage, 
-            models.MessageReadStatus.message_id == models.SupportMessage.id
-            ).filter(
+        
+        # Подзапрос: получаем ID сообщений, которые уже прочитаны
+        read_message_ids = db.query(models.MessageReadStatus.message_id).filter(
             models.MessageReadStatus.moderator_id == moderator_id,
-            models.MessageReadStatus.is_read == False,
-            models.SupportMessage.parent_message_id == None
+            models.MessageReadStatus.is_read == True
+        ).subquery()
+        
+        # Считаем корневые сообщения, которых нет в списке прочитанных
+        count = db.query(models.SupportMessage).filter(
+            models.SupportMessage.parent_message_id == None,
+            ~models.SupportMessage.id.in_(read_message_ids)
         ).count()
+        
         return count
     
     @staticmethod
@@ -436,3 +443,26 @@ class SupportCRUD:
             query = query.filter(models.SupportMessage.created_at > last_checked_at)
 
         return query.count()
+
+    @staticmethod
+    def read_message(db:Session, moderator_id:int, message_id: int ):
+        read_status = db.query(models.MessageReadStatus).filter(models.MessageReadStatus.message_id == message_id, models.MessageReadStatus.moderator_id == moderator_id).first()
+        if read_status:
+            if not read_status.is_read:
+                read_status.is_read = True
+                read_status.read_at = datetime.now(timezone.utc)
+                db.commit()
+                return read_status
+            else:
+                return read_status
+        if not read_status:
+            read_status = models.MessageReadStatus(
+                message_id=message_id,
+                moderator_id=moderator_id,
+                read_at=datetime.now(timezone.utc),
+                is_read=True
+            )
+            db.add(read_status)
+            db.commit() 
+            return read_status
+
