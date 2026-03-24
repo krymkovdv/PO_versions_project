@@ -290,7 +290,7 @@ class TractorFilter(BaseModel):
     software_filter: Optional[str] = Field(None, pattern="^(actual|critical|old)$")
     is_actual: Optional[bool] = None
     trac_model: List[str] = []
-    consumer: str = ''
+    dealer: str = ''
     date_assemle: Optional[date] = None
     date_start: Optional[date] = None
     date_end: Optional[date] = None
