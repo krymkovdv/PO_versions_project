@@ -122,6 +122,7 @@ class SupportMessage(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     is_read = Column(Boolean, default=False)
+    is_closed  =Column(Boolean, default=False)
 
     sender_id = Column(Integer, ForeignKey('users.id'))
     parent_message_id = Column(Integer, ForeignKey('support_message.id'), nullable=True, index=True)

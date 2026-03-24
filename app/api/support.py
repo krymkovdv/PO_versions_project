@@ -115,36 +115,31 @@ async def get_messages(
     if current_user.role == "moderator":
         # Модератор видит все сообщения, сгруппированные по пользователям
         users_data = SupportCRUD.get_messages_for_moderator(db, current_user.id)
-        
-        # Отмечаем все как прочитанные
-        for user_data in users_data:
-            for msg in user_data["messages"]:
-                if not msg["is_read"]:
-                    SupportCRUD.mark_as_read(db, msg["id"], current_user.id)
-                    msg["is_read"] = True
-        
         return users_data
     
     else:
         # Пользователь видит свои сообщения и ответы
         messages = SupportCRUD.get_all_user_messages(db, current_user.id)
         
+        # messages теперь список словарей с ключами: id, content, created_at, 
+        # is_read, is_closed, read_by, replies
         return [
             {
-                "id": item["message"].id,
-                "content": item["message"].content,
-                "created_at": item["message"].created_at,
-                "is_read": any(r["is_read"] for r in item["read_by"]),
+                "id": msg["id"],
+                "content": msg["content"],
+                "created_at": msg["created_at"],
+                "is_read": msg["is_read"],
+                "is_closed": msg["is_closed"],
                 "read_by": [
                     {
                         "moderator": r["moderator"],
                         "read_at": r["read_at"]
                     }
-                    for r in item["read_by"] if r["is_read"]
+                    for r in msg["read_by"] if r["is_read"]
                 ],
-                "replies": item["replies"]
+                "replies": msg["replies"]
             }
-            for item in messages
+            for msg in messages
         ]
 
 @router.get("/unread")
@@ -228,3 +223,17 @@ async def get_user_unread_replies(
     )
     
     return {"unread_replies_count": count}
+
+@router.get("/read-message/{moderator_id}/{message_id}")
+async def read_message(message_id:int, db:Session = Depends(get_session), currnet_user: models.UserDB = Depends(get_current_user)):
+    if currnet_user.role != "moderator":
+        raise HTTPException(
+            status_code=403,
+            details="Only for modarators"
+        )
+    result = SupportCRUD.read_message(db,currnet_user.id,message_id)
+    return{
+        "message_id": message_id,
+        "is_read": result.is_read,
+        "read_at": result.read_at
+    }

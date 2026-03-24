@@ -65,7 +65,7 @@ class UserSchema(BaseModel):
     id: int
     username: str
     role: str
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class UserCreate(BaseModel):
@@ -367,6 +367,7 @@ class  ComponentSearchResponseItem(BaseModel):
     download_link_instruction: Optional[str] = None
     type_component: str
     release_date: Optional[datetime] = None
+    end_actuality: Optional[datetime] = None
     is_actual: Optional[bool] = None
     is_archive: Optional[bool] = None
     is_critical: Optional[bool] = None 

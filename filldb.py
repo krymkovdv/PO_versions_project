@@ -29,13 +29,34 @@ def fill_realistic_data():
         print(f"   • Дилеров: {len(dealers)}")
         print(f"   • Инженеров: {len(engineers)}")
 
-        # Если пользователей нет, используем имена из справочников
-        if not dealers:
-            dealers_names = ["АгроТехСервис", "Кировец-Центр", "СельхозМаш", "АгроИнвест", 
-                           "ТехноАгро", "РосАгроМаш", "АгроКомплект", "Механизатор",
-                           "АгроСервисПлюс", "ТракторныйДом"]
-        else:
-            dealers_names = [d.username for d in dealers]
+        # Если пользователей нет, создаем тестовых
+        if not users:
+            print("\n⚠️ В базе нет пользователей. Создаем тестовых...")
+            
+            test_users = [
+                {"username": "moderator1", "password_hash": "hashed_pass1", "role": "moderator"},
+                {"username": "moderator2", "password_hash": "hashed_pass2", "role": "moderator"},
+                {"username": "dealer1", "password_hash": "hashed_pass3", "role": "dealer"},
+                {"username": "dealer2", "password_hash": "hashed_pass4", "role": "dealer"},
+                {"username": "engineer1", "password_hash": "hashed_pass5", "role": "engineer"},
+                {"username": "engineer2", "password_hash": "hashed_pass6", "role": "engineer"},
+            ]
+            
+            for u_data in test_users:
+                user = UserDB(**u_data)
+                session.add(user)
+            
+            session.flush()
+            
+            # Обновляем списки
+            users = session.query(UserDB).all()
+            moderators = [u for u in users if u.role == "moderator"]
+            dealers = [u for u in users if u.role == "dealer"]
+            engineers = [u for u in users if u.role == "engineer"]
+            
+            print(f"✅ Создано {len(users)} тестовых пользователей")
+
+        dealers_names = [d.username for d in dealers] if dealers else ["АгроТехСервис", "Кировец-Центр", "СельхозМаш"]
 
         # --- 1. Добавляем 50 тракторов ---
         tractors_data = []
@@ -47,13 +68,13 @@ def fill_realistic_data():
             model = random.choice(models_pool)
             tractor = Tractor(
                 model=model,
-                vin=f"VIN_{i:05d}",  # VIN_00001...VIN_00050
+                vin=f"VIN_{i:05d}",
                 oh_hour=random.randint(50, 5000),
                 last_activity=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 60)),
                 assembly_date=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 1500)),
-                region=random.choice(regions[:-1]),  # Все кроме RU-SYS
-                consumer=random.choice(dealers_names),
-                dealer=random.choice(dealers_names)
+                region=random.choice(regions[:-1]),
+                consumer=random.choice(dealers_names) if dealers_names else "Тестовый потребитель",
+                dealer=random.choice(dealers_names) if dealers_names else "Тестовый дилер"
             )
             session.add(tractor)
             tractors_data.append(tractor)
@@ -61,12 +82,12 @@ def fill_realistic_data():
         session.flush()
         print(f"\n✅ Добавлено 50 обычных тракторов.")
 
-        # --- 1.1. Добавляем 8 СИСТЕМНЫХ тракторов с НЕОБЫЧНЫМ VIN ---
+        # --- 1.1. Добавляем 8 СИСТЕМНЫХ тракторов ---
         system_models = ["K-7", "K-5", "K-700", "K-744", "K-525", "K-530T", "K-730M", "K-714"]
         for i, model in enumerate(system_models, start=1):
             tractor = Tractor(
                 model=model,
-                vin=f"VIN_system_{i}",  # VIN_system_1, VIN_system_2...
+                vin=f"VIN_system_{i}",
                 oh_hour=random.randint(0, 100),
                 last_activity=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 5)),
                 assembly_date=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 365)),
@@ -75,12 +96,12 @@ def fill_realistic_data():
                 dealer="СЦ-Системный"
             )
             session.add(tractor)
-            tractors.append(tractor)
+            tractors_data.append(tractor)
 
         session.flush()
-        print(f"✅ Добавлено {len(tractors)} тракторов (15 обычных + 5 системных).")
+        print(f"✅ Добавлено {len(system_models)} системных тракторов. Всего: {len(tractors_data)}")
 
-        # --- 2. Компоненты с правильными типами (CheckConstraint) ---
+        # --- 2. Компоненты ---
         components_data = [
             # DVS (двигатели)
             {"type": "DVS", "name": "ДВС Weichai WP12", "producer": "Weichai"},
@@ -120,7 +141,7 @@ def fill_realistic_data():
         session.flush()
         print(f"✅ Добавлено/обновлено {len(components)} компонентов.")
 
-        # --- 3. ПО с правильными статусами (CheckConstraint) ---
+        # --- 3. ПО ---
         softwares_data = [
             # Для ДВС Weichai
             {"path": "weichai/weichai_v1.0.bin", "path_instruction": "weichai/weichai_v1.0.pdf",
@@ -133,7 +154,7 @@ def fill_realistic_data():
              "release_date": datetime(2024, 1, 10), "end_actuality": None,
              "description": "Major обновление экологии Euro-5", "producer": "Weichai", 
              "is_actual": True, "is_archive": False, "is_critical": True, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": 1},
+             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
              
             # Для ДВС Cummins
             {"path": "cummins/cummins_v1.0.bin", "path_instruction": "cummins/cummins_v1.0.pdf",
@@ -146,7 +167,7 @@ def fill_realistic_data():
              "release_date": datetime(2024, 2, 15), "end_actuality": None,
              "description": "Обновление ДВС Cummins", "producer": "Cummins", 
              "is_actual": True, "is_archive": False, "is_critical": False, 
-             "status": "serial", "tractor_model": "K-525", "previous_sw_version": 3},
+             "status": "serial", "tractor_model": "K-525", "previous_sw_version": None},
              
             # Для КПП-728
             {"path": "kpp/kpp728_v1.0.bin", "path_instruction": "kpp/kpp728_v1.0.pdf",
@@ -159,7 +180,7 @@ def fill_realistic_data():
              "release_date": datetime(2024, 2, 1), "end_actuality": None,
              "description": "Major обновление КПП-728", "producer": "Кировец", 
              "is_actual": True, "is_archive": False, "is_critical": True, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": 5},
+             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
              
             # Для КПП-730
             {"path": "kpp/kpp730_v1.0.bin", "path_instruction": "kpp/kpp730_v1.0.pdf",
@@ -179,7 +200,7 @@ def fill_realistic_data():
              "release_date": datetime(2024, 4, 1), "end_actuality": None,
              "description": "Major обновление гидравлики", "producer": "Гидросила", 
              "is_actual": True, "is_archive": False, "is_critical": True, 
-             "status": "experienced", "tractor_model": "K-7", "previous_sw_version": 8},
+             "status": "experienced", "tractor_model": "K-7", "previous_sw_version": None},
              
             # Для рулевого управления
             {"path": "steer/steer_v1.0.bin", "path_instruction": "steer/steer_v1.0.pdf",
@@ -202,15 +223,15 @@ def fill_realistic_data():
                 
                 # Ключи для поиска
                 if "Weichai" in s_data["path"]:
-                    key = "Weichai-ECU-" + ("1.0" if "v1.0" in s_data["path"] else "2.0")
+                    key = f"Weichai-ECU-{s_data['path'].split('_v')[1].split('.')[0]}"
                 elif "cummins" in s_data["path"].lower():
-                    key = "Cummins-ECU-" + ("1.0" if "v1.0" in s_data["path"] else "2.0")
+                    key = f"Cummins-ECU-{s_data['path'].split('_v')[1].split('.')[0]}"
                 elif "kpp728" in s_data["path"].lower():
-                    key = "KPP-728-" + ("1.0" if "v1.0" in s_data["path"] else "2.0")
+                    key = f"KPP-728-{s_data['path'].split('_v')[1].split('.')[0]}"
                 elif "kpp730" in s_data["path"].lower():
                     key = "KPP-730-1.0"
                 elif "hydro" in s_data["path"].lower():
-                    key = "HydroCtrl-" + ("1.0" if "v1.0" in s_data["path"] else "2.0")
+                    key = f"HydroCtrl-{s_data['path'].split('_v')[1].split('.')[0]}"
                 elif "steer" in s_data["path"].lower():
                     key = "SteerCtrl-1.0"
                 else:
@@ -223,22 +244,16 @@ def fill_realistic_data():
         session.flush()
         print(f"✅ Добавлено/обновлено {len(softwares)} ПО.")
 
-        # --- 4. Связи ПО и Компонентов (Software_Component_Link) ---
+        # --- 4. Связи ПО и Компонентов ---
         component_sw_mapping = {
             "ДВС Weichai WP12": ["Weichai-ECU-1.0", "Weichai-ECU-2.0"],
             "ДВС Cummins X12": ["Cummins-ECU-1.0", "Cummins-ECU-2.0"],
-            "ДВС ЯМЗ-238": ["Weichai-ECU-1.0"],  # Временная заглушка
             "КПП-728": ["KPP-728-1.0", "KPP-728-2.0"],
             "КПП-730": ["KPP-730-1.0"],
-            "КПП-740": ["KPP-730-1.0"],  # Временная заглушка
-            "Рулевая колонка РК-7": ["SteerCtrl-1.0"],
-            "Рулевой механизм РМ-7": ["SteerCtrl-1.0"],
             "Гидрораспределитель Р-80": ["HydroCtrl-1.0", "HydroCtrl-2.0"],
             "Гидронасос НШ-50": ["HydroCtrl-1.0", "HydroCtrl-2.0"],
-            "Гидронасос НШ-32": ["HydroCtrl-1.0"],
-            "БК-Агро v2": ["SteerCtrl-1.0"],  # Временная заглушка
-            "БК-Агро v3": ["SteerCtrl-1.0"],  # Временная заглушка
-            "БК-Агро v4": ["SteerCtrl-1.0"],  # Временная заглушка
+            "Рулевая колонка РК-7": ["SteerCtrl-1.0"],
+            "Рулевой механизм РМ-7": ["SteerCtrl-1.0"],
         }
 
         software_component_links = []
@@ -248,7 +263,6 @@ def fill_realistic_data():
             for sw_key in sw_keys:
                 sw = sw_by_key.get(sw_key)
                 if sw:
-                    # Проверяем, существует ли уже такая связь
                     existing_link = session.query(Software_Component_Link).filter_by(
                         component_id=comp.id,
                         software_id=sw.id
@@ -268,27 +282,12 @@ def fill_realistic_data():
         # --- 5. Связи Тракторов с ПО и Компонентами ---
         tractor_links_count = 0
         
-        # Для обычных тракторов (первые 50)
-        for i, tractor in enumerate(tractors_data[:50]):
-            # Для каждого компонента выбираем подходящее ПО
-            for comp in components:
-                links_for_comp = [link for link in software_component_links if link.component_id == comp.id]
-                
-                if not links_for_comp:
-                    continue
-                
-                # Выбираем ПО в зависимости от группы трактора
-                if i < 15:  # Первая группа - старая версия
-                    sw_link = links_for_comp[0]
-                    is_recom = len(links_for_comp) > 1
-                elif i < 30:  # Вторая группа - смешанная
-                    sw_link = random.choice(links_for_comp)
-                    is_recom = len(links_for_comp) > 1
-                else:  # Третья группа - новая версия
-                    sw_link = links_for_comp[-1] if len(links_for_comp) > 1 else links_for_comp[0]
-                    is_recom = True
-                
-                # Проверяем, существует ли уже такая связь
+        for tractor in tractors_data:
+            # Для каждого трактора выбираем несколько связей
+            num_links = random.randint(2, 5)
+            selected_links = random.sample(software_component_links, min(num_links, len(software_component_links)))
+            
+            for sw_link in selected_links:
                 existing_tractor_link = session.query(Tractor_Software_And_Component_Link).filter_by(
                     tractor_id=tractor.id,
                     soft_comp_link_id=sw_link.id
@@ -296,56 +295,34 @@ def fill_realistic_data():
                 
                 if not existing_tractor_link:
                     tractor_link = Tractor_Software_And_Component_Link(
-                        is_recom=is_recom,
+                        is_recom=random.choice([True, False]),
                         tractor_id=tractor.id,
                         soft_comp_link_id=sw_link.id
                     )
                     session.add(tractor_link)
                     tractor_links_count += 1
 
-        # Для системных тракторов (индексы 50-57)
-        for i, tractor in enumerate(tractors_data[50:], start=50):
-            for comp in random.sample(components, min(3, len(components))):
-                links_for_comp = [link for link in software_component_links if link.component_id == comp.id]
-                if links_for_comp:
-                    sw_link = random.choice(links_for_comp)
-                    
-                    # Проверяем существование связи
-                    existing_tractor_link = session.query(Tractor_Software_And_Component_Link).filter_by(
-                        tractor_id=tractor.id,
-                        soft_comp_link_id=sw_link.id
-                    ).first()
-                    
-                    if not existing_tractor_link:
-                        tractor_link = Tractor_Software_And_Component_Link(
-                            is_recom=True,
-                            tractor_id=tractor.id,
-                            soft_comp_link_id=sw_link.id
-                        )
-                        session.add(tractor_link)
-                        tractor_links_count += 1
-
         session.flush()
         print(f"✅ Добавлено {tractor_links_count} связей Трактор-ПО-Компоненты.")
 
-        # --- 6. СОЗДАНИЕ ТЕСТОВЫХ СООБЩЕНИЙ С ПРАВИЛЬНОЙ СТРУКТУРОЙ (parent_message_id) ---
+        # --- 6. СОЗДАНИЕ ТЕСТОВЫХ СООБЩЕНИЙ ---
         if moderators and (dealers or engineers):
-            print(f"\n📨 СОЗДАНИЕ ТЕСТОВЫХ СООБЩЕНИЙ С ДРЕВОВИДНОЙ СТРУКТУРОЙ")
+            print(f"\n📨 СОЗДАНИЕ ТЕСТОВЫХ СООБЩЕНИЙ")
             
             messages_created = 0
             replies_created = 0
             
-            for moderator in moderators[:2]:  # Берем первых двух модераторов
+            for moderator in moderators[:2]:
                 
                 # Создаем сообщения от дилеров
-                for dealer in dealers[:3]:  # Первые 3 дилера
-                    # Каждый дилер создает 2-3 корневых сообщения
+                for dealer in dealers[:3] if dealers else []:
                     for _ in range(random.randint(2, 3)):
                         msg = SupportMessage(
                             content=f"Вопрос от дилера {dealer.username}: Проблема с трактором VIN_{random.randint(1,50):05d}",
                             sender_id=dealer.id,
                             is_read=False,
-                            parent_message_id=None  # Корневое сообщение
+                            is_closed=random.choice([True, False]),
+                            parent_message_id=None
                         )
                         session.add(msg)
                         session.flush()
@@ -356,27 +333,27 @@ def fill_realistic_data():
                             read_status = MessageReadStatus(
                                 message_id=msg.id,
                                 moderator_id=mod.id,
-                                is_read=(mod.id == moderator.id and random.choice([True, False])),  # Частично прочитаны
+                                is_read=(mod.id == moderator.id and random.choice([True, False])),
                                 read_at=datetime.now(timezone.utc) - timedelta(hours=random.randint(1, 24)) if random.choice([True, False]) else None
                             )
                             session.add(read_status)
                         
-                        # Некоторые сообщения получают ответы от модераторов
-                        if random.choice([True, False]):  # 50% сообщений получают ответ
+                        # Некоторые сообщения получают ответы
+                        if random.choice([True, False]):
                             for reply_mod in random.sample(moderators, random.randint(1, len(moderators))):
                                 reply = SupportMessage(
-                                    content=f"Ответ от модератора {reply_mod.username}: Проверьте настройки, возможно проблема в {random.choice(['гидравлике', 'ЭБУ', 'датчиках'])}",
+                                    content=f"Ответ от модератора {reply_mod.username}: Проверьте настройки",
                                     sender_id=reply_mod.id,
                                     is_read=False,
-                                    parent_message_id=msg.id  # 👈 Связываем с родительским сообщением
+                                    is_closed=False,
+                                    parent_message_id=msg.id
                                 )
                                 session.add(reply)
                                 session.flush()
                                 replies_created += 1
                                 
-                                # Статусы прочтения для ответов
                                 for mod in moderators:
-                                    if mod.id != reply_mod.id:  # Ответчик уже прочитал свое сообщение
+                                    if mod.id != reply_mod.id:
                                         read_status = MessageReadStatus(
                                             message_id=reply.id,
                                             moderator_id=mod.id,
@@ -386,19 +363,19 @@ def fill_realistic_data():
                                         session.add(read_status)
                 
                 # Создаем сообщения от инженеров
-                for engineer in engineers[:2]:  # Первые 2 инженера
+                for engineer in engineers[:2] if engineers else []:
                     for _ in range(random.randint(1, 2)):
                         msg = SupportMessage(
-                            content=f"Технический вопрос от инженера {engineer.username}: Нужно обновление ПО для {random.choice(['двигателя', 'КПП', 'гидравлики'])}",
+                            content=f"Технический вопрос от инженера {engineer.username}: Нужно обновление ПО",
                             sender_id=engineer.id,
                             is_read=False,
-                            parent_message_id=None  # Корневое сообщение
+                            is_closed=False,
+                            parent_message_id=None
                         )
                         session.add(msg)
                         session.flush()
                         messages_created += 1
                         
-                        # Статусы прочтения
                         for mod in moderators:
                             read_status = MessageReadStatus(
                                 message_id=msg.id,
@@ -408,14 +385,14 @@ def fill_realistic_data():
                             )
                             session.add(read_status)
                         
-                        # Ответы на технические вопросы (чаще получают ответы)
-                        if random.choice([True, True, False]):  # 66% сообщений получают ответ
+                        if random.choice([True, True, False]):
                             for reply_mod in random.sample(moderators, random.randint(1, len(moderators))):
                                 reply = SupportMessage(
-                                    content=f"Ответ от модератора {reply_mod.username}: Рекомендуем обновиться до версии {random.choice(['v2.0', 'v1.5', 'v3.0'])}",
+                                    content=f"Ответ от модератора {reply_mod.username}: Рекомендуем обновиться",
                                     sender_id=reply_mod.id,
                                     is_read=False,
-                                    parent_message_id=msg.id  # 👈 Связываем с родительским сообщением
+                                    is_closed=False,
+                                    parent_message_id=msg.id
                                 )
                                 session.add(reply)
                                 session.flush()
@@ -431,75 +408,12 @@ def fill_realistic_data():
                                         )
                                         session.add(read_status)
             
-            # Создаем цепочки из нескольких ответов (диалоги)
-            if dealers and moderators:
-                dealer = dealers[0]
-                moderator = moderators[0]
-                
-                # Создаем диалог с несколькими ответами
-                first_msg = SupportMessage(
-                    content=f"Срочная проблема! Трактор {random.choice(['K-7', 'K-5'])} не заводится, код ошибки {random.randint(100, 999)}",
-                    sender_id=dealer.id,
-                    is_read=False,
-                    parent_message_id=None
-                )
-                session.add(first_msg)
-                session.flush()
-                messages_created += 1
-                
-                for mod in moderators:
-                    session.add(MessageReadStatus(message_id=first_msg.id, moderator_id=mod.id, is_read=False))
-                
-                # Первый ответ модератора
-                reply1 = SupportMessage(
-                    content=f"Модератор {moderator.username}: Проверьте предохранители и массу",
-                    sender_id=moderator.id,
-                    is_read=False,
-                    parent_message_id=first_msg.id
-                )
-                session.add(reply1)
-                session.flush()
-                replies_created += 1
-                
-                for mod in moderators:
-                    if mod.id != moderator.id:
-                        session.add(MessageReadStatus(message_id=reply1.id, moderator_id=mod.id, is_read=False))
-                
-                # Ответ дилера
-                reply2 = SupportMessage(
-                    content=f"Дилер {dealer.username}: Предохранители целы, масса в норме. Ошибка {random.randint(100, 999)}",
-                    sender_id=dealer.id,
-                    is_read=False,
-                    parent_message_id=first_msg.id  # Тоже относится к первому сообщению
-                )
-                session.add(reply2)
-                session.flush()
-                messages_created += 1  # Считаем как новое сообщение от дилера
-                
-                for mod in moderators:
-                    session.add(MessageReadStatus(message_id=reply2.id, moderator_id=mod.id, is_read=False))
-                
-                # Второй ответ модератора
-                reply3 = SupportMessage(
-                    content=f"Модератор {moderator.username}: Попробуйте перепрошить ЭБУ. Нужна помощь?",
-                    sender_id=moderator.id,
-                    is_read=False,
-                    parent_message_id=first_msg.id
-                )
-                session.add(reply3)
-                session.flush()
-                replies_created += 1
-                
-                for mod in moderators:
-                    if mod.id != moderator.id:
-                        session.add(MessageReadStatus(message_id=reply3.id, moderator_id=mod.id, is_read=False))
-            
-            print(f"✅ Создано сообщений с древовидной структурой:")
+            print(f"✅ Создано сообщений:")
             print(f"   • Корневых сообщений: {messages_created}")
             print(f"   • Ответов: {replies_created}")
             print(f"   • Всего сообщений: {messages_created + replies_created}")
 
-        # --- 7. Вывод статистики с проверкой древовидной структуры ---
+        # --- 7. Вывод статистики ---
         session.commit()
         
         print("\n" + "="*70)
@@ -518,26 +432,17 @@ def fill_realistic_data():
         print(f"   • ПО-Компоненты: {len(software_component_links)}")
         print(f"   • Трактор-ПО-Компоненты: {tractor_links_count}")
         
-        # Статистика по сообщениям с древовидной структурой
         total_messages = session.query(SupportMessage).count()
         root_messages = session.query(SupportMessage).filter(SupportMessage.parent_message_id == None).count()
         replies = session.query(SupportMessage).filter(SupportMessage.parent_message_id != None).count()
         
-        print(f"\n📨 Обратная связь (древовидная структура):")
+        print(f"\n📨 Обратная связь:")
         print(f"   • Всего сообщений: {total_messages}")
         print(f"   • Корневых сообщений: {root_messages}")
         print(f"   • Ответов: {replies}")
         print(f"   • Статусов прочтения: {session.query(MessageReadStatus).count()}")
         
-        # Проверка работы backref
-        if root_messages > 0:
-            sample_root = session.query(SupportMessage).filter(SupportMessage.parent_message_id == None).first()
-            if sample_root:
-                reply_count = len(sample_root.replies)  # 👈 Проверка backref
-                print(f"\n🔍 Проверка backref (на примере сообщения ID={sample_root.id}):")
-                print(f"   • Ответов через backref: {reply_count}")
-        
-        print(f"\n✅ База данных успешно заполнена с поддержкой древовидной структуры сообщений!")
+        print(f"\n✅ База данных успешно заполнена!")
         print("="*70)
 
     except Exception as e:

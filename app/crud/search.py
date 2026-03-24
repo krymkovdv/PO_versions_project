@@ -36,6 +36,7 @@ def get_component_by_filters(
             models.Software.path.label("download_link"),
             models.Software.path_instruction.label("download_link_instruction"),
             models.Software.release_date,
+            models.Software.end_actuality,
             models.Software.is_actual,
             models.Software.is_archive,
             models.Software.is_critical,
@@ -121,6 +122,7 @@ def get_component_by_filters(
             "download_link_instruction": getattr(r, 'download_link_instruction', None),
             "type_component": r.type,
             "release_date": r.release_date.isoformat() if r.release_date else None,
+            "end_actuality":r.end_actuality.isoformat() if r.end_actuality else None,
             "description": r.description,
             "is_archive": r.is_archive,
             "is_actual": r.is_actual,
@@ -155,11 +157,13 @@ def get_archive_component_by_filters(
             models.Software.path.label("download_link"),
             models.Software.path_instruction.label("download_link_instruction"),
             models.Software.release_date,
+            models.Software.end_actuality,
             models.Software.is_actual,
             models.Software.is_archive,
             models.Software.is_critical,
             models.Software.status,
             models.Software.tractor_model,
+            models.Software.description,
             models.Component.type,
             models.Component.name,
             models.Component.id.label("id_Component")
@@ -231,6 +235,7 @@ def get_archive_component_by_filters(
             "download_link_instruction": getattr(r, 'download_link_instruction', None),
             "type_component": r.type,
             "release_date": r.release_date.isoformat() if r.release_date else None,
+            "end_actuality": r.end_actuality.isoformat() if r.end_actuality else None,
             "is_archive": r.is_archive,
             "is_actual": r.is_actual,
             "is_critical": r.is_critical,
@@ -238,7 +243,8 @@ def get_archive_component_by_filters(
             "id_Firmwares": r.id_Firmwares,
             "id_Component":r.id_Component,
             "status": r.status,
-            "tractor_model": software._deserialize_tractor_models(r.tractor_model)
+            "tractor_model": software._deserialize_tractor_models(r.tractor_model),
+            "description": r.description
         }
         for r in results
     ]
