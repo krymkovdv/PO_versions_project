@@ -5,7 +5,6 @@ from .. import schemas, crud, models
 from ..database import get_session
 from ..authorization import require_role, get_current_user
 from ..log import logger
-from typing import List
 from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter(prefix="/components", tags=["Components"])

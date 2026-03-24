@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from .. import models, schemas
-from datetime import datetime, timezone
 
 # ============================================
 # GET (Получение)

@@ -21,7 +21,7 @@ class UserDB(Base):
     __table_args__ = (
             CheckConstraint(
                 "role IN ('engineer', 'dealer', 'moderator')",
-                name="check_valid_role"
+                name="check_user_role"
             ),
         )
     
@@ -54,7 +54,7 @@ class Component(Base):
     __table_args__ = (
             CheckConstraint(
                 "type IN ('DVS', 'KPP', 'RK', 'HR', 'BK')",
-                name="check_valid_role"
+                name="check_component_type"
             ),
         )
 
@@ -85,7 +85,7 @@ class Software(Base):
     __table_args__ = (
             CheckConstraint(
                 "status IN ('serial', 'in operation', 'experienced')",
-                name="check_valid_role"
+                name="check_software_status"
             ),
         )
 
@@ -122,8 +122,7 @@ class SupportMessage(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     is_read = Column(Boolean, default=False)
-    is_closed  =Column(Boolean, default=False)
-
+    is_closed = Column(Boolean, default = False)
     sender_id = Column(Integer, ForeignKey('users.id'))
     parent_message_id = Column(Integer, ForeignKey('support_message.id'), nullable=True, index=True)
 

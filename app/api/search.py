@@ -6,7 +6,6 @@ from ..database import get_session
 from ..authorization import require_role, get_password_hash, get_current_user
 from ..log import logger
 from typing import List, Dict
-from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
