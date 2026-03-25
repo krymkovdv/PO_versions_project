@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 from .. import schemas, crud, models
@@ -210,7 +210,7 @@ async def get_user_unread_replies(
     
     return {"unread_replies_count": count}
 
-@router.get("/read-message/{moderator_id}/{message_id}")
+@router.get("/read-message/{message_id}")
 async def read_message(message_id:int, db:Session = Depends(get_session), currnet_user: models.UserDB = Depends(get_current_user)):
     if currnet_user.role != "moderator":
         raise HTTPException(
@@ -264,3 +264,38 @@ async def delete_message(
         deleted_by=current_user.username,
         cascade_deleted=result["cascade_deleted"]
     )
+
+
+@router.patch("/close-message/{message_id}")  # Лучше использовать PATCH для частичного обновления
+async def close_message(
+    message_id: int, 
+    db: Session = Depends(get_session), 
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    # Проверка роли (только модераторы могут закрывать сообщения)
+    if current_user.role != "moderator":
+        raise HTTPException(
+            status_code=403,
+            detail="Only for moderators"
+        )
+
+    result = SupportCRUD.close_message(db, message_id)
+
+    return {
+        "message_id": message_id,
+        "is_closed": result.is_closed,      # True
+        "updated_at": datetime.now(timezone.utc)
+    }
+
+
+@router.get("/support/unread-count", response_model=schemas.UnreadRepliesCountResponse, status_code=status.HTTP_200_OK)
+def get_unread_replies_count_api(
+    current_user: models.UserDB = Depends(get_current_user),
+    db: Session = Depends(get_session)
+):
+    """
+    Возвращает количество непрочитанных ответов от модераторов/поддержки 
+    на сообщения текущего пользователя.
+    """
+    count = SupportCRUD.get_unread_replies_count(db, current_user.id)
+    return {"unread_count": count}

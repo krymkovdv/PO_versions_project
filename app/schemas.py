@@ -565,3 +565,10 @@ class SupportMessageResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class UnreadRepliesCountResponse(BaseModel):
+    unread_count: int
+
+    class Config:
+        from_attributes = True

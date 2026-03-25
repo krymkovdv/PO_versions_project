@@ -5,6 +5,8 @@ from .. import models
 from ..log import logger
 from typing import Optional, List, Dict, Any
 from fastapi import HTTPException, status
+from collections import defaultdict
+from sqlalchemy import func
 
 class SupportCRUD:
     
@@ -136,42 +138,76 @@ class SupportCRUD:
             "cascade_deleted": cascade_count
         }
     
+    from datetime import datetime, timezone
+
+
     @staticmethod
-    def get_all_user_messages(db: Session, user_id: int) -> List[Dict[str, Any]]:
-        """Получить все сообщения пользователя"""
-        messages = db.query(models.SupportMessage).filter(
+    def get_all_user_messages(db: Session, user_id: int):
+        # 1. Получаем все корневые сообщения пользователя
+        root_messages = db.query(models.SupportMessage).filter(
             models.SupportMessage.sender_id == user_id,
-            models.SupportMessage.parent_message_id == None  # Только родительские
-        ).order_by(models.SupportMessage.created_at.desc()).all()
+            models.SupportMessage.parent_message_id == None
+        ).all()
         
+        if not root_messages:
+            return []
+
+        # 2. Собираем ID корневых сообщений для оптимизации запросов
+        root_ids = [msg.id for msg in root_messages]
+
+        # 3. Получаем ВСЕ ответы на эти сообщения одним запросом (вместо цикла)
+        all_replies = db.query(models.SupportMessage).filter(
+            models.SupportMessage.parent_message_id.in_(root_ids)
+        ).all()
+
+
+        replies_by_parent = defaultdict(list)
+        for reply in all_replies:
+            if not reply.is_read:
+                reply.is_read = True
+                # Если нужно фиксировать время прочтения в самой таблице сообщений (если бы было поле read_at)
+                # reply.read_at = datetime.now(timezone.utc) 
+            replies_by_parent[reply.parent_message_id].append(reply)
+
         result = []
-        for msg in messages:
-            replies = db.query(models.SupportMessage).filter(
-                models.SupportMessage.parent_message_id == msg.id
-            ).all()
-            
-            read_status = db.query(models.MessageReadStatus).filter(
+        
+        for msg in root_messages:
+            # 5. Получаем статусы прочтения (для модераторов) для корневого сообщения
+            read_statuses = db.query(models.MessageReadStatus).filter(
                 models.MessageReadStatus.message_id == msg.id
             ).all()
+
+            read_by = [
+                {
+                    "moderator": status.moderator_id,
+                    "read_at": status.read_at,
+                    "is_read": status.is_read
+                }
+                for status in read_statuses
+            ]
+            
+            # 6. Формируем список ответов для текущего сообщения
+            current_replies = replies_by_parent.get(msg.id, [])
             
             result.append({
-                "message": msg,
-                "replies": replies,
-                "read_by": [
-                    {
-                        "moderator": rs.moderator_id,
-                        "is_read": rs.is_read,
-                        "read_at": rs.read_at
-                    }
-                    for rs in read_status
-                ]
+                "id": msg.id,
+                "content": msg.content,
+                "created_at": msg.created_at,
+                "is_read": msg.is_read,
+                "is_closed": msg.is_closed,
+                "read_by": read_by,
+                "replies": [{"id": r.id, "content": r.content, "is_read": r.is_read} for r in current_replies]
             })
         
+        # 7. ✅ СОХРАНЯЕМ изменения в базе (самое важное!)
+        # Это запишет is_read = True для всех ответов в базу данных
+        db.commit()
+        
         return result
-    
+
     @staticmethod
     def get_messages_for_moderator(db: Session, moderator_id: int) -> List[Dict[str, Any]]:
-        """Получить все сообщения для модератора (группированные по пользователям)"""
+        """Получить все сообщения для модератора"""
         users = db.query(models.UserDB).filter(
             models.UserDB.role != "moderator"
         ).all()
@@ -188,26 +224,29 @@ class SupportCRUD:
                 for msg in messages:
                     replies = db.query(models.SupportMessage).filter(
                         models.SupportMessage.parent_message_id == msg.id
-                    ).all()
-                    
-                    read_status = db.query(models.MessageReadStatus).filter(
-                        models.MessageReadStatus.message_id == msg.id,
-                        models.MessageReadStatus.moderator_id == moderator_id
-                    ).first()
+                    ).order_by(models.SupportMessage.created_at.asc()).all()
                     
                     user_messages.append({
                         "id": msg.id,
                         "content": msg.content,
                         "created_at": msg.created_at,
-                        "is_read": read_status.is_read if read_status else False,
-                        "replies": replies
+                        "is_read": msg.is_read,
+                        "is_closed": msg.is_closed,
+                        "replies": [
+                            {
+                                "id": reply.id,
+                                "content": reply.content,
+                                "created_at": reply.created_at,
+                                "moderator_name": reply.moderator_name if hasattr(reply, 'moderator_name') else "Модератор"
+                            }
+                            for reply in replies
+                        ]
                     })
                 
                 result.append({
-                    "user": {
-                        "id": user.id,
-                        "username": user.username
-                    },
+                    "user_id": user.id,
+                    "username": user.username,
+                    "role": user.role,
                     "messages": user_messages
                 })
         
@@ -343,3 +382,89 @@ class SupportCRUD:
             })
         
         return result
+
+
+
+    @staticmethod
+    def read_message(db: Session, moderator_id: int, message_id: int) -> models.MessageReadStatus:
+        now = datetime.now(timezone.utc)
+
+        # 1. Ищем запись статуса прочтения для этого модератора и сообщения
+        read_status = db.query(models.MessageReadStatus).filter(
+            models.MessageReadStatus.message_id == message_id,
+            models.MessageReadStatus.moderator_id == moderator_id
+        ).first()
+
+        # 2. Если записи НЕТ — создаем новую автоматически с is_read=True
+        if not read_status:
+            read_status = models.MessageReadStatus(
+                message_id=message_id,
+                moderator_id=moderator_id,
+                is_read=True,
+                read_at=now
+            )
+            db.add(read_status)
+        else:
+            # 3. Если запись ЕСТЬ — обновляем её на True
+            read_status.is_read = True
+            read_status.read_at = now
+
+        # 4. Обновляем общее поле is_read в самом сообщении (SupportMessage)
+        message = db.query(models.SupportMessage).filter(
+            models.SupportMessage.id == message_id
+        ).first()
+
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+
+        message.is_read = True
+
+        # 5. Сохраняем изменения в БД
+        db.commit()
+        db.refresh(read_status)
+
+        return read_status
+    
+    @staticmethod
+    def close_message(db: Session, message_id: int) -> models.SupportMessage:
+        # 1. Ищем сообщение
+        message = db.query(models.SupportMessage).filter(
+            models.SupportMessage.id == message_id
+        ).first()
+
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+
+        # 2. Меняем is_closed на True
+        message.is_closed = True
+
+        # 3. Сохраняем изменения
+        db.commit()
+        db.refresh(message)
+
+        return message
+
+
+
+    @staticmethod
+    def get_unread_replies_count(db: Session, user_id: int) -> int:
+        """
+        Возвращает количество непрочитанных ответов на сообщения пользователя.
+        """
+        # 1. Сначала находим ID всех сообщений, которые отправил сам пользователь
+        # (Это будут 'родительские' сообщения, на которые могут быть ответы)
+        user_message_ids_subquery = db.query(models.SupportMessage.id).filter(
+            models.SupportMessage.sender_id == user_id
+        )
+
+        # 2. Считаем сообщения-ответы, которые:
+        # - Являются ответами на сообщения пользователя (parent_message_id IN ...)
+        # - Еще не прочитаны (is_read == False)
+        # - Отправлены не самим пользователем (чтобы не считать свои реплаи в своей ветке)
+        count = db.query(func.count(models.SupportMessage.id)).filter(
+            models.SupportMessage.parent_message_id.in_(user_message_ids_subquery),
+            models.SupportMessage.is_read == False,
+            models.SupportMessage.sender_id != user_id
+        ).scalar()
+
+        return count if count else 0
