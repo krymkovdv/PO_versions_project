@@ -640,7 +640,6 @@ def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponent
      )\
      .filter(models.Tractor.vin.in_(request.vins))
 
-
     results = query.all()
 
     # Формируем ответ
