@@ -389,82 +389,111 @@ class SupportCRUD:
     def read_message(db: Session, moderator_id: int, message_id: int) -> models.MessageReadStatus:
         now = datetime.now(timezone.utc)
 
-        # 1. Ищем запись статуса прочтения для этого модератора и сообщения
+        # 1. Находим или создаём статус прочтения для модератора
         read_status = db.query(models.MessageReadStatus).filter(
             models.MessageReadStatus.message_id == message_id,
             models.MessageReadStatus.moderator_id == moderator_id
         ).first()
 
-        # 2. Если записи НЕТ — создаем новую автоматически с is_read=True
+        # 2. Находим само сообщение
+        message = db.query(models.SupportMessage).filter(
+            models.SupportMessage.id == message_id
+        ).first()
+        
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+
+        # 3. Определяем НОВЫЙ статус (тоггл)
+        new_read_value = not read_status.is_read if read_status else True
+
+        # 4. Обновляем MessageReadStatus
         if not read_status:
             read_status = models.MessageReadStatus(
                 message_id=message_id,
                 moderator_id=moderator_id,
-                is_read=True,
-                read_at=now
+                is_read=new_read_value,
+                read_at=now if new_read_value else None
             )
             db.add(read_status)
         else:
-            # 3. Если запись ЕСТЬ — обновляем её на True
-            read_status.is_read = True
-            read_status.read_at = now
+            read_status.is_read = new_read_value
+            if new_read_value:
+                read_status.read_at = now
+            else:
+                read_status.read_at = None  
 
-        # 4. Обновляем общее поле is_read в самом сообщении (SupportMessage)
-        message = db.query(models.SupportMessage).filter(
-            models.SupportMessage.id == message_id
-        ).first()
+        message.is_read = new_read_value
 
-        if not message:
-            raise HTTPException(status_code=404, detail="Message not found")
-
-        message.is_read = True
-
-        # 5. Сохраняем изменения в БД
         db.commit()
         db.refresh(read_status)
-
         return read_status
-    
+
     @staticmethod
-    def close_message(db: Session, message_id: int) -> models.SupportMessage:
-        # 1. Ищем сообщение
+    def close_message(db: Session, message_id: int, moderator_id: int) -> models.SupportMessage:
         message = db.query(models.SupportMessage).filter(
             models.SupportMessage.id == message_id
         ).first()
-
+        
         if not message:
             raise HTTPException(status_code=404, detail="Message not found")
 
-        # 2. Меняем is_closed на True
-        message.is_closed = True
+        # 🔁 Тогглим статус закрытия
+        message.is_closed = not message.is_closed
+        
+        # Если закрываем — устанавливаем ОБА поля is_read в True
+        if message.is_closed:
+            message.is_read = True  # ✅ Глобальный статус
+            
+            # ✅ Обновляем статус прочтения для этого модератора
+            read_status = db.query(models.MessageReadStatus).filter(
+                models.MessageReadStatus.message_id == message_id,
+                models.MessageReadStatus.moderator_id == moderator_id
+            ).first()
+            
+            if read_status:
+                read_status.is_read = True  # ✅ Персональный статус
+                if read_status.read_at is None:
+                    read_status.read_at = datetime.now(timezone.utc)
+            else:
+                # Если записи не было — создаём с is_read=True
+                read_status = models.MessageReadStatus(
+                    message_id=message_id,
+                    moderator_id=moderator_id,
+                    is_read=True,
+                    read_at=datetime.now(timezone.utc)
+                )
+                db.add(read_status)
 
-        # 3. Сохраняем изменения
+
         db.commit()
         db.refresh(message)
-
         return message
+
+        
 
 
 
     @staticmethod
-    def get_unread_replies_count(db: Session, user_id: int) -> int:
+    def get_unread_count_for_moderator(
+        db: Session, 
+        moderator_id: int, 
+        include_closed: bool = False  # ✅ Опционально: учитывать закрытые или нет
+    ) -> int:
         """
-        Возвращает количество непрочитанных ответов на сообщения пользователя.
+        Возвращает количество сообщений, которые модератор ещё не прочитал.
+        Считает только корневые сообщения (не ответы).
         """
-        # 1. Сначала находим ID всех сообщений, которые отправил сам пользователь
-        # (Это будут 'родительские' сообщения, на которые могут быть ответы)
-        user_message_ids_subquery = db.query(models.SupportMessage.id).filter(
-            models.SupportMessage.sender_id == user_id
-        )
-
-        # 2. Считаем сообщения-ответы, которые:
-        # - Являются ответами на сообщения пользователя (parent_message_id IN ...)
-        # - Еще не прочитаны (is_read == False)
-        # - Отправлены не самим пользователем (чтобы не считать свои реплаи в своей ветке)
-        count = db.query(func.count(models.SupportMessage.id)).filter(
-            models.SupportMessage.parent_message_id.in_(user_message_ids_subquery),
+        query = db.query(func.count(models.MessageReadStatus.id)).join(
+            models.SupportMessage,
+            models.MessageReadStatus.message_id == models.SupportMessage.id
+        ).filter(
+            models.MessageReadStatus.moderator_id == moderator_id,
             models.SupportMessage.is_read == False,
-            models.SupportMessage.sender_id != user_id
-        ).scalar()
-
-        return count if count else 0
+            models.SupportMessage.parent_message_id == None  # ✅ Только главные сообщения, не ответы
+        )
+        
+        # ✅ Опционально: исключить закрытые обращения из подсчёта
+        if not include_closed:
+            query = query.filter(models.SupportMessage.is_closed == False)
+        
+        return query.scalar() or 0

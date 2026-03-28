@@ -266,7 +266,7 @@ async def delete_message(
     )
 
 
-@router.patch("/close-message/{message_id}")  # Лучше использовать PATCH для частичного обновления
+@router.patch("/close-message/{message_id}/{moderator_id}")  # Лучше использовать PATCH для частичного обновления
 async def close_message(
     message_id: int, 
     db: Session = Depends(get_session), 
@@ -279,11 +279,12 @@ async def close_message(
             detail="Only for moderators"
         )
 
-    result = SupportCRUD.close_message(db, message_id)
+    result = SupportCRUD.close_message(db, message_id, current_user.id)
 
     return {
         "message_id": message_id,
-        "is_closed": result.is_closed,      # True
+        "is_closed": result.is_closed,   
+        "is_read": result.is_read,   
         "updated_at": datetime.now(timezone.utc)
     }
 
@@ -297,5 +298,5 @@ def get_unread_replies_count_api(
     Возвращает количество непрочитанных ответов от модераторов/поддержки 
     на сообщения текущего пользователя.
     """
-    count = SupportCRUD.get_unread_replies_count(db, current_user.id)
+    count = SupportCRUD.get_unread_count_for_moderator(db, current_user.id)
     return {"unread_count": count}
