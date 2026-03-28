@@ -668,7 +668,7 @@ def get_tractor_by_vin(db: Session, vin: str):
         db.query(
             models.Tractor.vin,
             models.Tractor.model,
-            models.Tractor.consumer,
+            models.Tractor.dealer,
             models.Tractor.assembly_date,
             models.Tractor.region,
             models.Tractor.oh_hour,
@@ -709,7 +709,7 @@ def get_tractor_by_vin(db: Session, vin: str):
             {
                 "vin": r.vin,
                 "model": r.model,
-                "consumer": r.consumer,
+                "consumer": r.dealer,
                 "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
                 "region": r.region,
                 "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
