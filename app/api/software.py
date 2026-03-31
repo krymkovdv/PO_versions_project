@@ -454,6 +454,29 @@ def upload_instruction(
         logger.error(f"[software/upload-instruction] ошибка: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ошибка при загрузке инструкции: {str(e)}")
 
+@router.post("/upload-file/{id}", response_model=schemas.SoftwareMetadata, dependencies=[Depends(require_role("moderator"))])
+def upload_software_file(
+    id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Replace the main file for existing software"""
+    logger.info(f"[software/upload-file] replacing file for software id={id} user={current_user.username}")
+    try:
+        result = crud.software.update_software_file(
+            db=db,
+            software_id=id,
+            file=file
+        )
+        logger.info(f"[software/upload-file] successfully replaced file user={current_user.username}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[software/upload-file] error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error replacing software file: {str(e)}")
+
 @router.get("/{id}/metadata", response_model=schemas.SoftwareMetadata)
 def get_software_metadata(
     id: int,
