@@ -205,7 +205,7 @@ class SoftwareUpdate(BaseModel):
     previous_sw_version: Optional[int] = None
     path_instruction: Optional[str] = None
 
-    @field_validator('status')
+    @field_validator('end_actuality','status', mode='before')
     @classmethod
     def validate_status(cls, v):
         if v not in {'serial', 'experienced', 'in operation'}:
@@ -451,6 +451,7 @@ class TractorSearchResponse2(BaseModel):
     vin: str
     model: str
     consumer: str
+    dealer: str
     assembly_date: Optional[datetime] = None
     region: str
     oh_hour: Optional[str] = None

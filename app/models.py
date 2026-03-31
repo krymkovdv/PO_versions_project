@@ -64,7 +64,7 @@ class Software(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     path = Column(Text, unique=True, nullable=False)
     release_date = Column(DateTime)
-    end_actuality = Column(DateTime)
+    end_actuality = Column(DateTime, nullable=True)
     description = Column(Text)
     producer = Column(Text, nullable=False)
     is_actual = Column(Boolean, default=True)

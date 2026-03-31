@@ -412,87 +412,118 @@ def get_next_software_versions(
     previous_id: int,
     component_id: int
 ):
+    """
+    Возвращает ВСЕ последующие версии ПО для указанного компонента,
+    начиная с previous_id (исключая саму previous_id).
+    Использует BFS для обхода всех потомков.
+    """
     from sqlalchemy import exists, and_
+    from collections import deque
 
-    subq = exists().where(
-        and_(
-            models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id,
-            models.Tractor_Software_And_Component_Link.is_recom == True
-        )
-    ).label("is_recom")
+    # Множество для уникальных ID уже обработанных версий
+    visited_ids = set()
+    # Очередь для BFS: храним ID версий, которые нужно обработать
+    queue = deque([previous_id])
+    # Список результатов
+    all_next_versions = []
 
-    query = (
-        db.query(
-            models.Software.id.label("id_firmwares"),
-            models.Software.path.label("software_path"),
-            models.Software.release_date.label("software_release_date"),
-            models.Software.end_actuality.label("software_end_actuality"),
-            models.Software.description.label("software_description"),
-            models.Software.producer.label("software_producer"),
-            models.Software.is_actual.label("software_is_actual"),
-            models.Software.is_archive.label("software_is_archive"),
-            models.Software.is_critical.label("software_is_critical"),
-            models.Software.status.label("software_status"),
-            models.Software.tractor_model.label("software_tractor_model"),
-            models.Software.previous_sw_version.label("software_previous_sw_version"),
-            models.Software.path_instruction.label("software_path_instruction"),
-            
-            models.Component.id.label("id_component"),
-            models.Component.type.label("component_type"),
-            models.Component.name.label("component_name"),
-            models.Component.producer.label("component_producer"),
-            
-            models.Software_Component_Link.id.label("link_id"),
-            subq
+    # Вспомогательный запрос для получения данных версии по её ID и component_id
+    def fetch_version_data(sw_id: int):
+        subq = exists().where(
+            and_(
+                models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id,
+                models.Tractor_Software_And_Component_Link.is_recom == True
+            )
+        ).label("is_recom")
+
+        query = (
+            db.query(
+                models.Software.id.label("id_firmwares"),
+                models.Software.path.label("software_path"),
+                models.Software.release_date.label("software_release_date"),
+                models.Software.end_actuality.label("software_end_actuality"),
+                models.Software.description.label("software_description"),
+                models.Software.producer.label("software_producer"),
+                models.Software.is_actual.label("software_is_actual"),
+                models.Software.is_archive.label("software_is_archive"),
+                models.Software.is_critical.label("software_is_critical"),
+                models.Software.status.label("software_status"),
+                models.Software.tractor_model.label("software_tractor_model"),
+                models.Software.previous_sw_version.label("software_previous_sw_version"),
+                models.Software.path_instruction.label("software_path_instruction"),
+                models.Component.id.label("id_component"),
+                models.Component.type.label("component_type"),
+                models.Component.name.label("component_name"),
+                models.Component.producer.label("component_producer"),
+                models.Software_Component_Link.id.label("link_id"),
+                subq
+            )
+            .select_from(models.Software)
+            .join(
+                models.Software_Component_Link,
+                models.Software.id == models.Software_Component_Link.software_id
+            )
+            .join(
+                models.Component,
+                models.Software_Component_Link.component_id == models.Component.id
+            )
+            .filter(
+                models.Software.id == sw_id,
+                models.Component.id == component_id
+            )
         )
-        .select_from(models.Software)
-        .join(
-            models.Software_Component_Link,
-            models.Software.id == models.Software_Component_Link.software_id
-        )
-        .join(
-            models.Component,
-            models.Software_Component_Link.component_id == models.Component.id
-        )
-        .filter(
-            models.Software.previous_sw_version == previous_id,
-            models.Component.id == component_id,
-        )
-        .distinct()
+        return query.first()
+
+    while queue:
+        current_id = queue.popleft()
+        if current_id in visited_ids:
+            continue
+        visited_ids.add(current_id)
+
+        # Находим всех прямых потомков текущей версии
+        children = db.query(models.Software).filter(
+            models.Software.previous_sw_version == current_id
+        ).all()
+
+        for child in children:
+            child_id = child.id
+            if child_id in visited_ids:
+                continue
+            # Загружаем полные данные для потомка
+            child_data = fetch_version_data(child_id)
+            if child_data:
+                # Преобразуем в словарь (аналогично исходному формату)
+                all_next_versions.append({
+                    "id_firmwares": child_data.id_firmwares,
+                    "software_path": child_data.software_path[33:] if child_data.software_path else None,
+                    "software_release_date": child_data.software_release_date.isoformat() if child_data.software_release_date else None,
+                    "software_end_actuality": child_data.software_end_actuality.isoformat() if child_data.software_end_actuality else None,
+                    "software_description": child_data.software_description,
+                    "software_producer": child_data.software_producer,
+                    "software_is_actual": child_data.software_is_actual,
+                    "software_is_archive": child_data.software_is_archive,
+                    "software_is_critical": child_data.software_is_critical,
+                    "software_status": child_data.software_status,
+                    "software_tractor_models": software._deserialize_tractor_models(child_data.software_tractor_model) if child_data.software_tractor_model else [],
+                    "software_previous_sw_version": child_data.software_previous_sw_version,
+                    "software_path_instruction": child_data.software_path_instruction,
+                    "id_component": child_data.id_component,
+                    "component_type": child_data.component_type,
+                    "component_name": child_data.component_name,
+                    "component_producer": child_data.component_producer,
+                    "link_id": child_data.link_id,
+                    "is_recom": child_data.is_recom if child_data.is_recom is not None else True,
+                })
+                # Добавляем потомка в очередь, чтобы обработать его детей
+                queue.append(child_id)
+    
+    all_next_versions.sort(
+    key=lambda x: x['software_release_date'] or '0000-01-01',
+    reverse=True   # от новых к старым
     )
-    
-    results = query.all()
-    
-    if not results:
-        return []
-    
-    return [
-        {
-            "id_firmwares": r.id_firmwares,
-            "software_path": r.software_path[33:] if r.software_path else None,
-            "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
-            "software_end_actuality": r.software_end_actuality.isoformat() if r.software_end_actuality else None, 
-            "software_description": r.software_description,
-            "software_producer": r.software_producer,
-            "software_is_actual": r.software_is_actual,
-            "software_is_archive": r.software_is_archive,
-            "software_is_critical": r.software_is_critical,
-            "software_status": r.software_status,
-            "software_tractor_models": software._deserialize_tractor_models(r.software_tractor_model) if r.software_tractor_model else [],
-            "software_previous_sw_version": r.software_previous_sw_version,
-            "software_path_instruction": r.software_path_instruction,
-            
-            "id_component": r.id_component,
-            "component_type": r.component_type,
-            "component_name": r.component_name,
-            "component_producer": r.component_producer,
-            
-            "link_id": r.link_id,
-            "is_recom": r.is_recom if r.is_recom is not None else True,
-        }
-        for r in results
-    ]
 
+
+    return all_next_versions
 # # ============================================
 # # Страница 4: Тракторы
 # # ============================================
@@ -669,6 +700,7 @@ def get_tractor_by_vin(db: Session, vin: str):
             models.Tractor.vin,
             models.Tractor.model,
             models.Tractor.dealer,
+            models.Tractor.consumer,
             models.Tractor.assembly_date,
             models.Tractor.region,
             models.Tractor.oh_hour,
@@ -709,7 +741,8 @@ def get_tractor_by_vin(db: Session, vin: str):
             {
                 "vin": r.vin,
                 "model": r.model,
-                "consumer": r.dealer,
+                "dealer": r.dealer,
+                "consumer": r.consumer,
                 "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
                 "region": r.region,
                 "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
@@ -730,6 +763,7 @@ def get_tractor_by_vin(db: Session, vin: str):
             "vin": tractor.vin,
             "model": tractor.model,
             "consumer": tractor.consumer,
+            "dealer": tractor.dealer,
             "assembly_date": tractor.assembly_date.isoformat() if tractor.assembly_date else None,
             "region": tractor.region,
             "oh_hour": str(tractor.oh_hour) if tractor.oh_hour is not None else "",
