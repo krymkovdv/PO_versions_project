@@ -413,16 +413,15 @@ def get_software_full(db: Session, software_id: int):
     return fw, full_path
 
 def extract_original_filename(stored_name: str) -> str:
-    """
-    Извлекает оригинальное имя файла из сохранённого формата UUID_оригинал.
-    Формат: 32 hex символа (UUID) + '_' + оригинальное_имя
-    Пример: '4d4fad61562743fd871a7a62429b77a6_photo_2026-03-02.jpg' → 'photo_2026-03-02.jpg'
-    """
-    # UUID без дефисов = 32 hex символа, затем '_' и оригинальное имя
-    match = re.match(r'^[0-9a-f]{32}_(.+)$', stored_name, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    # Если формат не совпадает, возвращаем как есть
+    """Срезает первые 33 символа (32 UUID + 1 подчеркивание)"""
+    if not stored_name:
+        return ""
+    
+    # Если длина строки больше 33 символов и есть подчеркивание на 33-й позиции
+    if len(stored_name) > 33 and stored_name[32] == '_':
+        return stored_name[33:]  # Возвращаем всё после 33-го символа
+    
+    # Иначе возвращаем как есть
     return stored_name
 
 def download_software_file(db: Session, software_id: int):
@@ -482,3 +481,160 @@ def get_software_metadata(db: Session, software_id: int) -> schemas.SoftwareMeta
         instruction_filename=instruction_filename,
         release_date=fw.release_date
     )
+
+def update_software_file(
+    db: Session,
+    software_id: int,
+    file: UploadFile
+) -> schemas.SoftwareMetadata:
+    """
+    Updates the main file for an existing software entry
+    """
+    from .. import config
+    
+    # 1. Find the software
+    software_item = get_software_by_id(db, software_id)
+    if not software_item:
+        raise HTTPException(status_code=404, detail="Software not found")
+    
+    # 2. Validate file size
+    check_file_size(file, config.MAX_FILE_SIZE)
+    
+    # 3. Save the new file
+    saved_filename = save_uploaded_file(file, file.filename)
+    logger.info(f"[update_software_file] Saved new software file: {saved_filename}")
+    
+    # 4. Remove the old file if it exists
+    if software_item.path:
+        old_path = os.path.join(config.UPLOAD_DIR, software_item.path)
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+                logger.info(f"[update_software_file] Removed old software file: {software_item.path}")
+            except OSError as e:
+                logger.error(f"[update_software_file] Error removing old file: {e}")
+    
+    # 5. Update the database record
+    software_item.path = saved_filename
+    db.commit()
+    db.refresh(software_item)
+    
+    # 6. Return metadata
+    original_filename = extract_original_filename(saved_filename)
+    
+    return schemas.SoftwareMetadata(
+        id=software_item.id,
+        name=software_item.producer,
+        inner_name=None,
+        filename_original=original_filename,
+        filename_for_download=original_filename,
+        has_instruction=bool(software_item.path_instruction),
+        instruction_filename=extract_original_filename(os.path.basename(software_item.path_instruction)) if software_item.path_instruction else None,
+        release_date=software_item.release_date
+    )
+
+def update_software_instruction(
+    db: Session,
+    software_id: int,
+    instruction_file: UploadFile
+) -> schemas.SoftwareMetadata:
+    """
+    Обновляет файл инструкции для существующего ПО
+    """
+    from .. import config
+    
+    # 1. Находим ПО
+    software_item = get_software_by_id(db, software_id)
+    if not software_item:
+        raise HTTPException(status_code=404, detail="Software not found")
+    
+    # 2. Проверяем размер файла
+    check_file_size(instruction_file, config.MAX_FILE_SIZE)
+    
+    # 3. Удаляем старую инструкцию, если она есть
+    if software_item.path_instruction:
+        old_path = os.path.join(config.UPLOAD_DIR, software_item.path_instruction)
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+                logger.info(f"[update_software_instruction] удалена старая инструкция: {software_item.path_instruction}")
+            except OSError as e:
+                logger.error(f"[update_software_instruction] ошибка удаления: {e}")
+    
+    # 4. Сохраняем новую инструкцию
+    saved_filename = save_uploaded_file(instruction_file, instruction_file.filename)
+    logger.info(f"[update_software_instruction] сохранена новая инструкция: {saved_filename}")
+    
+    # 5. Обновляем запись в БД
+    software_item.path_instruction = saved_filename
+    db.commit()
+    db.refresh(software_item)
+    
+    # 6. Возвращаем метаданные в правильном формате
+    original_filename = extract_original_filename(saved_filename)
+    
+    return schemas.SoftwareMetadata(
+        id=software_item.id,
+        name=software_item.producer,  # обязательное поле
+        inner_name=None,
+        filename_original=original_filename,  # обязательное поле
+        filename_for_download=original_filename,  # обязательное поле
+        has_instruction=True,
+        instruction_filename=original_filename,
+        release_date=software_item.release_date
+    )
+
+def get_software_file_info(db: Session, software_id: int):
+    """Get information about a software file without returning the file itself"""
+    from sqlalchemy import func
+    from .. import config
+    import os
+    
+    software = db.query(models.Software).filter(models.Software.id == software_id).first()
+    if not software:
+        raise HTTPException(404, "Software not found")
+    
+    full_path = os.path.join(config.UPLOAD_DIR, software.path)
+    exists = os.path.exists(full_path)
+    
+    if exists:
+        size_bytes = os.path.getsize(full_path)
+    else:
+        size_bytes = 0
+    
+    # Create a simple object to return file info
+    class FileInfo:
+        def __init__(self, exists, size_bytes, full_path):
+            self.exists = exists
+            self.size_bytes = size_bytes
+            self.full_path = full_path
+    
+    return FileInfo(exists, size_bytes, full_path)
+
+
+def get_instruction_file_info(db: Session, software_id: int):
+    """Get information about a software instruction file"""
+    from sqlalchemy import func
+    from .. import config
+    import os
+    
+    software = db.query(models.Software).filter(models.Software.id == software_id).first()
+    if not software or not software.path_instruction:
+        raise HTTPException(404, "Software or instruction file not found")
+    
+    full_path = os.path.join(config.UPLOAD_DIR, software.path_instruction)
+    exists = os.path.exists(full_path)
+    
+    if exists:
+        size_bytes = os.path.getsize(full_path)
+    else:
+        size_bytes = 0
+    
+    class FileInfo:
+        def __init__(self, exists, size_bytes, full_path, filename):
+            self.exists = exists
+            self.size_bytes = size_bytes
+            self.full_path = full_path
+            self.filename = filename
+    
+    return FileInfo(exists, size_bytes, full_path, os.path.basename(software.path_instruction))
