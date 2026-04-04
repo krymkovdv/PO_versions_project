@@ -33,7 +33,7 @@ def get_component_by_filters(
     query = (
         db.query(
             models.Software.id.label("id_Firmwares"),
-            models.Software.name,
+            models.Software.name.label("soft_name"),
             models.Software.path.label("download_link"),
             models.Software.path_instruction.label("download_link_instruction"),
             models.Software.release_date,
@@ -119,9 +119,9 @@ def get_component_by_filters(
 
     return [
         {
-            "name": r.name,
-            "download_link": r.download_link[33:],
-            "download_link_instruction": getattr(r, 'download_link_instruction', None),
+            "name": r.soft_name,
+            "download_link": r.download_link[33:] if r.download_link is not None else "",
+            "download_link_instruction": r.download_link_instruction[33:] if r.download_link_instruction else None,
             "type_component": r.type,
             "release_date": r.release_date.isoformat() if r.release_date else None,
             "end_actuality":r.end_actuality.isoformat() if r.end_actuality else None,
