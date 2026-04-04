@@ -33,6 +33,7 @@ def get_component_by_filters(
     query = (
         db.query(
             models.Software.id.label("id_Firmwares"),
+            models.Software.name,
             models.Software.path.label("download_link"),
             models.Software.path_instruction.label("download_link_instruction"),
             models.Software.release_date,
@@ -118,6 +119,7 @@ def get_component_by_filters(
 
     return [
         {
+            "name": r.name,
             "download_link": r.download_link[33:],
             "download_link_instruction": getattr(r, 'download_link_instruction', None),
             "type_component": r.type,
@@ -154,6 +156,7 @@ def get_archive_component_by_filters(
     query = (
         db.query(
             models.Software.id.label("id_Firmwares"),
+            models.Software.name,
             models.Software.path.label("download_link"),
             models.Software.path_instruction.label("download_link_instruction"),
             models.Software.release_date,
@@ -231,6 +234,7 @@ def get_archive_component_by_filters(
 
     return [
         {
+            "name": r.name,
             "download_link": r.download_link[33:],
             "download_link_instruction": getattr(r, 'download_link_instruction', None),
             "type_component": r.type,
