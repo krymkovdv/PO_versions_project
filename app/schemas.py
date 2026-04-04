@@ -205,7 +205,7 @@ class SoftwareUpdate(BaseModel):
     previous_sw_version: Optional[int] = None
     path_instruction: Optional[str] = None
 
-    @field_validator('end_actuality','status', mode='before')
+    @field_validator('status',)
     @classmethod
     def validate_status(cls, v):
         if v not in {'serial', 'experienced', 'in operation'}:
