@@ -225,6 +225,7 @@ def get_all_software_component_links(
     status_code=201,
 )
 def assign_software_to_components_route(
+    name:  str = Form(...),
     file: UploadFile = File(..., description="Файл ПО"),
     instruction_file: Annotated[
         Optional[Union[UploadFile, str]], 
@@ -338,6 +339,7 @@ def assign_software_to_components_route(
     
     # 5. Создание схемы данных
     software_data = schemas.AssignSoftwareRequest(
+        name=name,  # Adding the name field to the schema
         software_release_date=rd,
         software_description=software_description,
         software_is_actual=software_is_actual,

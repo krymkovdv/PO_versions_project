@@ -297,6 +297,7 @@ def assign_software_to_components(
         
         # 6. Создаём ПО
         fw = models.Software(
+            name=software_data.name,  # Using the name field from the request
             path=saved_filename,
             release_date=software_data.software_release_date,
             description=software_data.software_description,
@@ -312,7 +313,7 @@ def assign_software_to_components(
         db.add(fw)
         db.flush() 
         
-        logger.info(f"[assign_software] Создано ПО id={fw.id}, producer={fw.producer}")
+        logger.info(f"[assign_software] Created software id={fw.id}, producer={fw.producer}")
         
 
         for i in range(n_models):
@@ -335,7 +336,7 @@ def assign_software_to_components(
                 )
                 db.add(component)
                 db.flush()
-                logger.info(f"[assign_software] Создан компонент id={component.id}, model={comp_model}")
+                logger.info(f"[assign_software] Created component id={component.id}, model={comp_model}")
             
             # Создаём связь ПО-Компонент
             link = models.Software_Component_Link(
@@ -345,7 +346,7 @@ def assign_software_to_components(
             db.add(link)
             db.flush()
             
-            logger.info(f"[assign_software] Создана связь ПО-Компонент link_id={link.id}")
+            logger.info(f"[assign_software] Created software-component link link_id={link.id}")
         previous_sw_version_past = fw.previous_sw_version
         while previous_sw_version_past != None:
             prev_fw = db.query(models.Software).filter(models.Software.id == previous_sw_version_past).first()
@@ -353,9 +354,9 @@ def assign_software_to_components(
                 prev_fw.is_actual = False
                 prev_fw.end_actuality = datetime.utcnow()
                 previous_sw_version_past = prev_fw.previous_sw_version
-                logger.info(f"[assign_software] Деактивирована старая версия ПО id={prev_fw.id}")
+                logger.info(f"[assign_software] Deactivated old software version id={prev_fw.id}")
             else:
-                logger.warning(f"[assign_software] Предыдущая версия ПО {previous_sw_version_past} не найдена")
+                logger.warning(f"[assign_software] Previous software version {previous_sw_version_past} not found")
                 break
 
         
@@ -363,7 +364,7 @@ def assign_software_to_components(
         db.commit()
         db.refresh(fw)
         
-        logger.info(f"[assign_software] Успешно завершено для ПО id={fw.id}")
+        logger.info(f"[assign_software] Successfully completed for software id={fw.id}")
         
         # 9. Возвращаем ответ
         return schemas.SoftwareResponse(

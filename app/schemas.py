@@ -362,6 +362,7 @@ class TractorComponentResponse(BaseModel):
 # ============================================
 
 class  ComponentSearchResponseItem(BaseModel):
+    name : str = None
     download_link: Optional[str] = None
     download_link_instruction: Optional[str] = None
     type_component: str
@@ -470,6 +471,7 @@ class TractorSearchResponse2(BaseModel):
 # ============================================
 class AssignSoftwareRequest(BaseModel):
       # Поля ПО
+    name: str = Field(..., min_length=1)  # Adding name field
     software_release_date: Optional[datetime] = None
     software_description: Optional[str] = None
     software_is_actual: Optional[bool] = None
