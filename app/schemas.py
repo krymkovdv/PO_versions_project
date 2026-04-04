@@ -127,7 +127,7 @@ class ComponentSchema(BaseModel):
     @field_validator('type', mode='before')
     @classmethod
     def validate_type(cls, v):
-        ALLOWED_TYPES = {'DVS', 'KPP', 'RK', 'HR', 'BK'}
+        ALLOWED_TYPES = {'DVS', 'KPP', 'RK', 'HR', 'BK','AUTOPILOT'}
         if v not in ALLOWED_TYPES:
             raise ValueError(f"Component type must be one of: {', '.join(ALLOWED_TYPES)}")
         return v.upper()

@@ -53,7 +53,7 @@ class Component(Base):
 
     __table_args__ = (
             CheckConstraint(
-                "type IN ('DVS', 'KPP', 'RK', 'HR', 'BK')",
+                "type IN ('DVS', 'KPP', 'RK', 'HR', 'BK','AUTOPILOT')",
                 name="check_component_type"
             ),
         )
@@ -62,7 +62,8 @@ class Software(Base):
     __tablename__ = 'softwares'
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    path = Column(Text, unique=True, nullable=False)
+    name = Column(Text, nullable=False)
+    path = Column(Text, unique=True, nullable=True)
     release_date = Column(DateTime)
     end_actuality = Column(DateTime)
     description = Column(Text)
