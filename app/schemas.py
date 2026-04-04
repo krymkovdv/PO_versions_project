@@ -142,18 +142,18 @@ class ComponentUpdate(BaseModel):
 # ============================================
 class SoftwareSchema(BaseModel):
     id: Optional[int] = None
-    path: str
+    path: Optional[str] = None
     release_date: Optional[datetime] = None
     end_actuality: Optional[datetime] = None 
     description: Optional[str] = None
-    producer: str
-    is_actual: bool = True
-    is_archive: bool = False 
-    is_critical: bool = False 
+    producer: Optional[str] = None
+    is_actual: Optional[bool] = None
+    is_archive: Optional[bool] = None 
+    is_critical: Optional[bool] = None 
     status: Optional[str] = None  
     tractor_model: List[str] = Field(default_factory=list) 
     previous_sw_version: Optional[int] = None
-    path_instruction: Optional[str]  
+    path_instruction: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
     @computed_field
@@ -199,7 +199,7 @@ class SoftwareUpdate(BaseModel):
     producer: Optional[str] = None
     is_actual: Optional[bool] = None
     is_archive: Optional[bool] = None
-    is_critical: bool = False 
+    is_critical: Optional[bool] = None 
     status: Optional[str] = None
     tractor_model: List[str] = Field(default_factory=list)
     previous_sw_version: Optional[int] = None
@@ -266,7 +266,7 @@ class TractorSoftwareResponse(BaseModel):
     component_id: int
     component_type: str
     component_name: str
-    is_recom: bool
+    is_recom: Optional[bool] = None
     mounted_date: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
@@ -354,10 +354,9 @@ class TractorComponentResponse(BaseModel):
     vin: str
     component_type: str
     comp_model: str
-    is_actual: bool
-    is_critical: bool
+    is_actual: Optional[bool] = None
+    is_critical: Optional[bool] = None
 
-    
 # ============================================
 # Ответы для поиска
 # ============================================
@@ -394,14 +393,14 @@ class SoftwareComponentInfoResponse(BaseModel):
     
     # Информация о ПО
     id_firmwares: int
-    software_path: str
+    software_path: Optional[str] = None
     software_release_date: Optional[datetime] = None
     software_end_actuality: Optional[datetime] = None
     software_description: Optional[str] = None
     software_producer: str
-    software_is_actual: bool
-    software_is_archive: bool
-    software_is_critical:bool
+    software_is_actual: Optional[bool] = None
+    software_is_archive: Optional[bool] = None
+    software_is_critical: Optional[bool] = None
     software_status: Optional[str] = None
     software_tractor_models: List[str] = Field(default_factory=list)
     software_previous_sw_version: Optional[int] = None
@@ -473,10 +472,10 @@ class AssignSoftwareRequest(BaseModel):
       # Поля ПО
     software_release_date: Optional[datetime] = None
     software_description: Optional[str] = None
-    software_is_actual: bool = True
-    software_is_archive: bool = False
-    software_is_critical: bool = False
-    software_status: str
+    software_is_actual: Optional[bool] = None
+    software_is_archive: Optional[bool] = None
+    software_is_critical: Optional[bool] = None
+    software_status: Optional[str] = None
     software_tractor_models: List[str] = Field(..., min_length=1)  # Массив моделей тракторов
     software_producer: str = Field(..., min_length=1)
     software_previous_version: Optional[int] = None
@@ -525,7 +524,7 @@ class UploadInstructionResponse(BaseModel):
 
 
 class ArchiveChangeRequest(BaseModel):
-    is_archive: bool
+    is_archive: Optional[bool] = None
 
 
 # Поддержка
