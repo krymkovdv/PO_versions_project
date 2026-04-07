@@ -1,4 +1,4 @@
-# fill_realistic_data.py (исправленная версия с AUTOPILOT)
+# fill_realistic_data.py
 from datetime import datetime, timezone, timedelta
 from app.database import get_session
 from app.models import (
@@ -8,6 +8,51 @@ from app.models import (
 )
 from sqlalchemy.orm import Session
 import random
+
+
+class SoftwareFilterManager:
+    """Класс для управления взаимной фильтрацией полей Software"""
+    
+    def __init__(self, software_data):
+        self.software_data = software_data
+        self.apply_filters()
+    
+    def apply_filters(self):
+        """Применяет все правила фильтрации"""
+        # Правило 1: Если is_archive = True, то is_actual = False
+        if self.software_data.get('is_archive', False):
+            self.software_data['is_actual'] = False
+        
+        # Правило 2: Если is_actual = True, то is_archive = False
+        if self.software_data.get('is_actual', False):
+            self.software_data['is_archive'] = False
+        
+        # Правило 3: В зависимости от статуса корректируем другие поля
+        status = self.software_data.get('status', 'serial')
+        if status == 'archived':
+            self.software_data['is_archive'] = True
+            self.software_data['is_actual'] = False
+        elif status == 'in operation' or status == 'experienced':
+            # Эти статусы не могут быть архивными
+            if self.software_data.get('is_archive', False):
+                self.software_data['is_archive'] = False
+        
+        # Правило 4: В зависимости от производителя корректируем статус
+        producer = self.software_data.get('producer', '')
+        if producer == 'Кировец':
+            # Для Кировец не может быть статуса 'experienced'
+            if self.software_data.get('status') == 'experienced':
+                self.software_data['status'] = 'serial'
+        elif producer == 'Cognitive Technologies':
+            # Для Cognitive Technologies приоритетный статус 'serial'
+            if self.software_data.get('status') == 'in operation':
+                self.software_data['status'] = 'serial'
+        
+        # Правило 5: Критическое ПО не может быть архивным
+        if self.software_data.get('is_critical', False):
+            self.software_data['is_archive'] = False
+            if not self.software_data.get('is_actual', False):
+                self.software_data['is_actual'] = True
 
 
 def fill_realistic_data():
@@ -29,32 +74,11 @@ def fill_realistic_data():
         print(f"   • Дилеров: {len(dealers)}")
         print(f"   • Инженеров: {len(engineers)}")
 
-        # Если пользователей нет, создаем тестовых
+        # Если пользователей нет, выводим предупреждение
         if not users:
-            print("\n⚠️ В базе нет пользователей. Создаем тестовых...")
-            
-            test_users = [
-                {"username": "moderator1", "password_hash": "hashed_pass1", "role": "moderator"},
-                {"username": "moderator2", "password_hash": "hashed_pass2", "role": "moderator"},
-                {"username": "dealer1", "password_hash": "hashed_pass3", "role": "dealer"},
-                {"username": "dealer2", "password_hash": "hashed_pass4", "role": "dealer"},
-                {"username": "engineer1", "password_hash": "hashed_pass5", "role": "engineer"},
-                {"username": "engineer2", "password_hash": "hashed_pass6", "role": "engineer"},
-            ]
-            
-            for u_data in test_users:
-                user = UserDB(**u_data)
-                session.add(user)
-            
-            session.flush()
-            
-            # Обновляем списки
-            users = session.query(UserDB).all()
-            moderators = [u for u in users if u.role == "moderator"]
-            dealers = [u for u in users if u.role == "dealer"]
-            engineers = [u for u in users if u.role == "engineer"]
-            
-            print(f"✅ Создано {len(users)} тестовых пользователей")
+            print("\n⚠️ ВНИМАНИЕ: В базе нет пользователей!")
+            print("   Сначала запустите скрипт для создания пользователей (create_users.py)")
+            print("   Пропускаем создание сообщений обратной связи...")
 
         dealers_names = [d.username for d in dealers] if dealers else ["АгроТехСервис", "Кировец-Центр", "СельхозМаш"]
 
@@ -147,104 +171,130 @@ def fill_realistic_data():
         session.flush()
         print(f"✅ Добавлено/обновлено {len(components)} компонентов (включая {len([c for c in components if c.type == 'AUTOPILOT'])} автопилотов).")
 
-        # --- 3. ПО (С ОБЯЗАТЕЛЬНЫМ ПОЛЕМ name) ---
-        softwares_data = [
+        # --- 3. ПО (С ПРИМЕНЕНИЕМ ФИЛЬТРАЦИИ) ---
+        softwares_raw_data = [
             # Для ДВС Weichai
-            {"name": "Weichai WP12 ECU v1.0", "path": "weichai/weichai_v1.0.bin", "path_instruction": "weichai/weichai_v1.0.pdf",
-             "release_date": datetime(2023, 1, 15), "end_actuality": datetime(2024, 1, 1),
-             "description": "Базовая прошивка ДВС Weichai", "producer": "Weichai", 
-             "is_actual": False, "is_archive": True, "is_critical": False, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
-             
-            {"name": "Weichai WP12 ECU v2.0", "path": "weichai/weichai_v2.0.bin", "path_instruction": "weichai/weichai_v2.0.pdf",
-             "release_date": datetime(2024, 1, 10), "end_actuality": None,
-             "description": "Major обновление экологии Euro-5", "producer": "Weichai", 
-             "is_actual": True, "is_archive": False, "is_critical": True, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
-             
+            {
+                "name": "Weichai WP12 ECU v1.0", "path": "weichai/weichai_v1.0.bin", "path_instruction": "weichai/weichai_v1.0.pdf",
+                "release_date": datetime(2023, 1, 15), "end_actuality": datetime(2024, 1, 1),
+                "description": "Базовая прошивка ДВС Weichai", "producer": "Weichai", 
+                "is_actual": False, "is_archive": True, "is_critical": False, 
+                "status": "serial", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            {
+                "name": "Weichai WP12 ECU v2.0", "path": "weichai/weichai_v2.0.bin", "path_instruction": "weichai/weichai_v2.0.pdf",
+                "release_date": datetime(2024, 1, 10), "end_actuality": None,
+                "description": "Major обновление экологии Euro-5", "producer": "Weichai", 
+                "is_actual": True, "is_archive": False, "is_critical": True, 
+                "status": "serial", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            
             # Для ДВС Cummins
-            {"name": "Cummins X12 ECU v1.0", "path": "cummins/cummins_v1.0.bin", "path_instruction": "cummins/cummins_v1.0.pdf",
-             "release_date": datetime(2023, 3, 20), "end_actuality": datetime(2024, 2, 1),
-             "description": "Базовая прошивка ДВС Cummins", "producer": "Cummins", 
-             "is_actual": False, "is_archive": True, "is_critical": False, 
-             "status": "serial", "tractor_model": "K-525", "previous_sw_version": None},
-             
-            {"name": "Cummins X12 ECU v2.0", "path": "cummins/cummins_v2.0.bin", "path_instruction": "cummins/cummins_v2.0.pdf",
-             "release_date": datetime(2024, 2, 15), "end_actuality": None,
-             "description": "Обновление ДВС Cummins", "producer": "Cummins", 
-             "is_actual": True, "is_archive": False, "is_critical": False, 
-             "status": "serial", "tractor_model": "K-525", "previous_sw_version": None},
-             
+            {
+                "name": "Cummins X12 ECU v1.0", "path": "cummins/cummins_v1.0.bin", "path_instruction": "cummins/cummins_v1.0.pdf",
+                "release_date": datetime(2023, 3, 20), "end_actuality": datetime(2024, 2, 1),
+                "description": "Базовая прошивка ДВС Cummins", "producer": "Cummins", 
+                "is_actual": False, "is_archive": True, "is_critical": False, 
+                "status": "serial", "tractor_model": "K-525", "previous_sw_version": None
+            },
+            {
+                "name": "Cummins X12 ECU v2.0", "path": "cummins/cummins_v2.0.bin", "path_instruction": "cummins/cummins_v2.0.pdf",
+                "release_date": datetime(2024, 2, 15), "end_actuality": None,
+                "description": "Обновление ДВС Cummins", "producer": "Cummins", 
+                "is_actual": True, "is_archive": False, "is_critical": False, 
+                "status": "serial", "tractor_model": "K-525", "previous_sw_version": None
+            },
+            
             # Для КПП-728
-            {"name": "КПП-728 Controller v1.0", "path": "kpp/kpp728_v1.0.bin", "path_instruction": "kpp/kpp728_v1.0.pdf",
-             "release_date": datetime(2023, 5, 1), "end_actuality": datetime(2024, 1, 1),
-             "description": "Базовая прошивка КПП-728", "producer": "Кировец", 
-             "is_actual": False, "is_archive": True, "is_critical": False, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
-             
-            {"name": "КПП-728 Controller v2.0", "path": "kpp/kpp728_v2.0.bin", "path_instruction": "kpp/kpp728_v2.0.pdf",
-             "release_date": datetime(2024, 2, 1), "end_actuality": None,
-             "description": "Major обновление КПП-728", "producer": "Кировец", 
-             "is_actual": True, "is_archive": False, "is_critical": True, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
-             
+            {
+                "name": "КПП-728 Controller v1.0", "path": "kpp/kpp728_v1.0.bin", "path_instruction": "kpp/kpp728_v1.0.pdf",
+                "release_date": datetime(2023, 5, 1), "end_actuality": datetime(2024, 1, 1),
+                "description": "Базовая прошивка КПП-728", "producer": "Кировец", 
+                "is_actual": False, "is_archive": True, "is_critical": False, 
+                "status": "serial", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            {
+                "name": "КПП-728 Controller v2.0", "path": "kpp/kpp728_v2.0.bin", "path_instruction": "kpp/kpp728_v2.0.pdf",
+                "release_date": datetime(2024, 2, 1), "end_actuality": None,
+                "description": "Major обновление КПП-728", "producer": "Кировец", 
+                "is_actual": True, "is_archive": False, "is_critical": True, 
+                "status": "serial", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            
             # Для КПП-730
-            {"name": "КПП-730 Controller v1.0", "path": "kpp/kpp730_v1.0.bin", "path_instruction": "kpp/kpp730_v1.0.pdf",
-             "release_date": datetime(2023, 6, 1), "end_actuality": None,
-             "description": "Базовая прошивка КПП-730", "producer": "Кировец", 
-             "is_actual": True, "is_archive": False, "is_critical": False, 
-             "status": "in operation", "tractor_model": "K-742МСТ", "previous_sw_version": None},
-             
+            {
+                "name": "КПП-730 Controller v1.0", "path": "kpp/kpp730_v1.0.bin", "path_instruction": "kpp/kpp730_v1.0.pdf",
+                "release_date": datetime(2023, 6, 1), "end_actuality": None,
+                "description": "Базовая прошивка КПП-730", "producer": "Кировец", 
+                "is_actual": True, "is_archive": False, "is_critical": False, 
+                "status": "in operation", "tractor_model": "K-742МСТ", "previous_sw_version": None
+            },
+            
             # Для гидравлики
-            {"name": "Hydraulic Control v1.0", "path": "hydro/hydro_v1.0.bin", "path_instruction": "hydro/hydro_v1.0.pdf",
-             "release_date": datetime(2023, 3, 15), "end_actuality": datetime(2024, 3, 1),
-             "description": "Базовая прошивка гидравлики", "producer": "Гидросила", 
-             "is_actual": False, "is_archive": True, "is_critical": False, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
-             
-            {"name": "Hydraulic Control v2.0", "path": "hydro/hydro_v2.0.bin", "path_instruction": "hydro/hydro_v2.0.pdf",
-             "release_date": datetime(2024, 4, 1), "end_actuality": None,
-             "description": "Major обновление гидравлики", "producer": "Гидросила", 
-             "is_actual": True, "is_archive": False, "is_critical": True, 
-             "status": "experienced", "tractor_model": "K-7", "previous_sw_version": None},
-             
+            {
+                "name": "Hydraulic Control v1.0", "path": "hydro/hydro_v1.0.bin", "path_instruction": "hydro/hydro_v1.0.pdf",
+                "release_date": datetime(2023, 3, 15), "end_actuality": datetime(2024, 3, 1),
+                "description": "Базовая прошивка гидравлики", "producer": "Гидросила", 
+                "is_actual": False, "is_archive": True, "is_critical": False, 
+                "status": "serial", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            {
+                "name": "Hydraulic Control v2.0", "path": "hydro/hydro_v2.0.bin", "path_instruction": "hydro/hydro_v2.0.pdf",
+                "release_date": datetime(2024, 4, 1), "end_actuality": None,
+                "description": "Major обновление гидравлики", "producer": "Гидросила", 
+                "is_actual": True, "is_archive": False, "is_critical": True, 
+                "status": "experienced", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            
             # Для рулевого управления
-            {"name": "Steering Control v1.0", "path": "steer/steer_v1.0.bin", "path_instruction": "steer/steer_v1.0.pdf",
-             "release_date": datetime(2023, 6, 1), "end_actuality": None,
-             "description": "Базовая прошивка рулевого", "producer": "Кировец", 
-             "is_actual": True, "is_archive": False, "is_critical": True, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
-             
-            # --- ДОБАВЛЕНО ПО ДЛЯ АВТОПИЛОТА ---
-            {"name": "AgroPilot Autopilot v1.0", "path": "autopilot/agropilot_v1.0.bin", "path_instruction": "autopilot/agropilot_v1.0.pdf",
-             "release_date": datetime(2023, 8, 15), "end_actuality": datetime(2024, 6, 1),
-             "description": "Базовая версия автопилота AgroPilot", "producer": "Cognitive Technologies", 
-             "is_actual": False, "is_archive": True, "is_critical": False, 
-             "status": "experienced", "tractor_model": "K-7", "previous_sw_version": None},
-             
-            {"name": "AgroPilot Autopilot v2.0", "path": "autopilot/agropilot_v2.0.bin", "path_instruction": "autopilot/agropilot_v2.0.pdf",
-             "release_date": datetime(2024, 6, 10), "end_actuality": None,
-             "description": "Автопилот с поддержкой RTK и AI-распознаванием", "producer": "Cognitive Technologies", 
-             "is_actual": True, "is_archive": False, "is_critical": True, 
-             "status": "serial", "tractor_model": "K-7", "previous_sw_version": None},
-             
-            {"name": "GeoPilot System v1.0", "path": "autopilot/geopilot_v1.0.bin", "path_instruction": "autopilot/geopilot_v1.0.pdf",
-             "release_date": datetime(2024, 1, 20), "end_actuality": None,
-             "description": "Геодезическая система автопилотирования", "producer": "ГеоСкан", 
-             "is_actual": True, "is_archive": False, "is_critical": False, 
-             "status": "serial", "tractor_model": "K-525", "previous_sw_version": None},
-             
-            {"name": "RTK-Pilot Pro v1.0", "path": "autopilot/rtkpilot_v1.0.bin", "path_instruction": "autopilot/rtkpilot_v1.0.pdf",
-             "release_date": datetime(2024, 3, 5), "end_actuality": None,
-             "description": "Высокоточный RTK автопилот", "producer": "RTK Systems", 
-             "is_actual": True, "is_archive": False, "is_critical": False, 
-             "status": "experienced", "tractor_model": "K-744", "previous_sw_version": None},
+            {
+                "name": "Steering Control v1.0", "path": "steer/steer_v1.0.bin", "path_instruction": "steer/steer_v1.0.pdf",
+                "release_date": datetime(2023, 6, 1), "end_actuality": None,
+                "description": "Базовая прошивка рулевого", "producer": "Кировец", 
+                "is_actual": True, "is_archive": False, "is_critical": True, 
+                "status": "serial", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            
+            # ПО ДЛЯ АВТОПИЛОТА
+            {
+                "name": "AgroPilot Autopilot v1.0", "path": "autopilot/agropilot_v1.0.bin", "path_instruction": "autopilot/agropilot_v1.0.pdf",
+                "release_date": datetime(2023, 8, 15), "end_actuality": datetime(2024, 6, 1),
+                "description": "Базовая версия автопилота AgroPilot", "producer": "Cognitive Technologies", 
+                "is_actual": False, "is_archive": True, "is_critical": False, 
+                "status": "experienced", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            {
+                "name": "AgroPilot Autopilot v2.0", "path": "autopilot/agropilot_v2.0.bin", "path_instruction": "autopilot/agropilot_v2.0.pdf",
+                "release_date": datetime(2024, 6, 10), "end_actuality": None,
+                "description": "Автопилот с поддержкой RTK и AI-распознаванием", "producer": "Cognitive Technologies", 
+                "is_actual": True, "is_archive": False, "is_critical": True, 
+                "status": "serial", "tractor_model": "K-7", "previous_sw_version": None
+            },
+            {
+                "name": "GeoPilot System v1.0", "path": "autopilot/geopilot_v1.0.bin", "path_instruction": "autopilot/geopilot_v1.0.pdf",
+                "release_date": datetime(2024, 1, 20), "end_actuality": None,
+                "description": "Геодезическая система автопилотирования", "producer": "ГеоСкан", 
+                "is_actual": True, "is_archive": False, "is_critical": False, 
+                "status": "serial", "tractor_model": "K-525", "previous_sw_version": None
+            },
+            {
+                "name": "RTK-Pilot Pro v1.0", "path": "autopilot/rtkpilot_v1.0.bin", "path_instruction": "autopilot/rtkpilot_v1.0.pdf",
+                "release_date": datetime(2024, 3, 5), "end_actuality": None,
+                "description": "Высокоточный RTK автопилот", "producer": "RTK Systems", 
+                "is_actual": True, "is_archive": False, "is_critical": False, 
+                "status": "experienced", "tractor_model": "K-744", "previous_sw_version": None
+            },
         ]
+
+        # Применяем фильтрацию к каждому ПО
+        for sw_data in softwares_raw_data:
+            filter_manager = SoftwareFilterManager(sw_data)
+            # Фильтрация уже применена в конструкторе
 
         softwares = []
         sw_by_key = {}
 
-        for s_data in softwares_data:
+        for s_data in softwares_raw_data:
             existing = session.query(Software).filter_by(path=s_data["path"]).first()
             if not existing:
                 sw = Software(**s_data)
@@ -303,7 +353,7 @@ def fill_realistic_data():
         session.flush()
         print(f"✅ Добавлено/обновлено {len(softwares)} ПО (включая {len([sw for sw in softwares if 'Pilot' in sw.name])} для автопилотов).")
 
-        # --- 4. Связи ПО и Компонентов (ДОБАВЛЕНЫ СВЯЗИ ДЛЯ АВТОПИЛОТА) ---
+        # --- 4. Связи ПО и Компонентов ---
         component_sw_mapping = {
             "ДВС Weichai WP12": ["Weichai-ECU-1.0", "Weichai-ECU-2.0"],
             "ДВС Cummins X12": ["Cummins-ECU-1.0", "Cummins-ECU-2.0"],
@@ -370,8 +420,8 @@ def fill_realistic_data():
         session.flush()
         print(f"✅ Добавлено {tractor_links_count} связей Трактор-ПО-Компоненты.")
 
-        # --- 6. СОЗДАНИЕ ТЕСТОВЫХ СООБЩЕНИЙ ---
-        if moderators and (dealers or engineers):
+        # --- 6. СОЗДАНИЕ ТЕСТОВЫХ СООБЩЕНИЙ (только если есть пользователи) ---
+        if users and moderators and (dealers or engineers):
             print(f"\n📨 СОЗДАНИЕ ТЕСТОВЫХ СООБЩЕНИЙ")
             
             messages_created = 0
@@ -477,8 +527,11 @@ def fill_realistic_data():
             print(f"   • Корневых сообщений: {messages_created}")
             print(f"   • Ответов: {replies_created}")
             print(f"   • Всего сообщений: {messages_created + replies_created}")
+        else:
+            print(f"\n⚠️ ПРОПУСК СОЗДАНИЯ СООБЩЕНИЙ: недостаточно пользователей в системе")
+            print(f"   (модераторы: {len(moderators)}, дилеры: {len(dealers)}, инженеры: {len(engineers)})")
 
-        # --- 7. Вывод статистики ---
+        # --- 7. Вывод статистики и проверка фильтрации ---
         session.commit()
         
         print("\n" + "="*70)
@@ -495,7 +548,24 @@ def fill_realistic_data():
         print(f"   • Всего: {len(softwares)}")
         print(f"   • Из них для автопилотов: {len([sw for sw in softwares if 'Pilot' in sw.name])}")
         
-        # Проверяем, что все ПО имеют name
+        # Проверяем корректность фильтрации
+        print(f"\n🔍 ПРОВЕРКА ФИЛЬТРАЦИИ ПО:")
+        
+        # Проверка правила: is_archive и is_actual
+        invalid_pairs = session.query(Software).filter(
+            Software.is_archive == True,
+            Software.is_actual == True
+        ).count()
+        print(f"   • Нарушений правила 'архивный ≠ актуальный': {invalid_pairs} (должно быть 0)")
+        
+        # Проверка критического ПО
+        critical_archived = session.query(Software).filter(
+            Software.is_critical == True,
+            Software.is_archive == True
+        ).count()
+        print(f"   • Критическое ПО в архиве: {critical_archived} (должно быть 0)")
+        
+        # Проверка ПО без name
         softwares_without_name = [sw for sw in softwares if sw.name is None]
         if softwares_without_name:
             print(f"   ⚠️ ВНИМАНИЕ: {len(softwares_without_name)} ПО без name!")

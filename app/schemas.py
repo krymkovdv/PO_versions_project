@@ -350,12 +350,19 @@ class TractorFilterRequest(BaseModel):
 class TractorComponentRequest(BaseModel):
     vins: List[str]
 
-class TractorComponentResponse(BaseModel):
-    vin: str
+class ComponentInfo(BaseModel):
+    """Информация об одном компоненте"""
     component_type: str
     comp_model: str
     is_actual: Optional[bool] = None
     is_critical: Optional[bool] = None
+    software_id: Optional[int] = None
+    software_name: Optional[str] = None
+    software_path: Optional[str] = None
+
+class TractorComponentResponse(BaseModel):
+    vin: str
+    components: List[ComponentInfo]
 
 # ============================================
 # Ответы для поиска
@@ -442,6 +449,9 @@ class TractorSearchResponse(BaseModel):
     last_activity: Optional[datetime] = None
     sw_name: Optional[str] = None
     description: Optional[str] = None
+    # software_path: Optional[str] = None
+    # software_id: Optional[int] = None
+    # software_name: Optional[str] = None
 
 
     class Config:
