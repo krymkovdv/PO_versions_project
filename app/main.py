@@ -9,39 +9,43 @@ from .api import (
     software, search, support
 )
 
-
-
-# Создание БД
+# Инициализация подключения к базе данных и создание всех необходимых таблиц
+# Используется синхронный движок SQLAlchemy, так как асинхронная инициализация таблиц может вызвать проблемы
 engine = create_engine(config.settings.get_url())
-# Base.metadata.drop_all(engine,checkfirst=True)
+# Base.metadata.drop_all(engine,checkfirst=True)  # Эта строка закомментирована, чтобы не удалять данные при запуске
 Base.metadata.create_all(engine)
 
-#создание экземпляра приложения
+# Создание экземпляра приложения FastAPI с настройками
 app = FastAPI(title="Сервис контроля версий")
 
+# Повторное объявление app переопределяет предыдущую переменную
+# Это может быть ошибкой, но сохраняем исходное поведение
 app = FastAPI(
-    redirect_slashes=False  #off автоматические редиректы
+    redirect_slashes=False  # Отключение автоматических перенаправлений
 )
 
-# 2. Затем CORS
+# Настройка middleware для обработки CORS (Cross-Origin Resource Sharing)
+# Позволяет делать запросы с любых доменов, что удобно для разработки
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],  # В продакшене рекомендуется указать конкретные домены
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Разрешены все HTTP методы
+    allow_headers=["*"],  # Разрешены все заголовки
 )
 
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(tractors.router)
-app.include_router(components.router)
-app.include_router(software.router)
-app.include_router(search.router)
-app.include_router(support.router)
+# Подключение маршрутов (роутеров) для различных функций приложения
+app.include_router(auth.router)      # Роутер аутентификации (логин, регистрация)
+app.include_router(users.router)     # Роутер управления пользователями
+app.include_router(tractors.router)  # Роутер управления тракторами
+app.include_router(components.router) # Роутер управления компонентами
+app.include_router(software.router)  # Роутер управления программным обеспечением
+app.include_router(search.router)    # Роутер поиска и фильтрации
+app.include_router(support.router)   # Роутер поддержки (сообщения)
 
+# Команды для запуска сервера (оставлены как комментарии):
 # uvicorn app.main:app --reload
 # python -m app.main
 # .\venv\Scripts\Activate.ps1
 # uvicorn app.main:app --host 172.20.46.71 --port 8000
-# uvicorn app.main:app --host 26.77.162.134 --port 800
+# uvicorn app.main:app --host 26.77.162.134 --port 8000

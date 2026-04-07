@@ -7,6 +7,7 @@ from ..authorization import require_role, get_current_user
 from ..log import logger
 from sqlalchemy.exc import SQLAlchemyError
 
+# Создание маршрутизатора для компонентов трактора
 router = APIRouter(prefix="/components", tags=["Components"])
 
 @router.get("", response_model=list[schemas.ComponentSchema])
@@ -14,6 +15,16 @@ def get_component(
     session: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
+    """
+    Получение списка всех компонентов трактора
+    
+    Args:
+        session: Сессия базы данных
+        current_user: Текущий аутентифицированный пользователь
+    
+    Returns:
+        Список компонентов
+    """
     try:
         logger.info(f"[get_component] запрос успешно выполнен user={current_user.username} role={current_user.role}")
         return crud.components.get_components(session)
@@ -32,6 +43,18 @@ def get_component(
 
 @router.post("", response_model=schemas.ComponentSchema, status_code=status.HTTP_201_CREATED,dependencies=[Depends(require_role("moderator"))])
 def create_component(component: schemas.ComponentSchema, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
+    """
+    Создание нового компонента трактора
+    Доступно только для модераторов
+    
+    Args:
+        component: Данные компонента для создания
+        db: Сессия базы данных
+        current_user: Текущий аутентифицированный пользователь
+    
+    Returns:
+        Созданный компонент
+    """
     try:
         # Проверка на дубликат terminal_id
         if crud.components.get_component_by_id(db, component.id):
@@ -47,6 +70,15 @@ def create_component(component: schemas.ComponentSchema, db: Session = Depends(g
 
 @router.delete("/{row_id}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(require_role("moderator"))])
 def delete_component(id: int, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
+    """
+    Удаление компонента по ID
+    Доступно только для модераторов
+    
+    Args:
+        id: ID компонента для удаления
+        db: Сессия базы данных
+        current_user: Текущий аутентифицированный пользователь
+    """
     success = crud.components.delete_component(db, id)
     if not success:
         logger.error(f"[delete_component] неизвестная ошибка user={current_user.username} role={current_user.role}")
@@ -60,7 +92,19 @@ def update_component(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
 ):
+    """
+    Обновление информации о компоненте
+    Доступно только для модераторов
+    
+    Args:
+        component_id: ID компонента для обновления
+        component_update: Данные для обновления
+        db: Сессия базы данных
+        current_user: Текущий аутентифицированный пользователь
+    
+    Returns:
+        Обновленный компонент
+    """
     if current_user.role != "moderator":
         raise HTTPException(status_code=403, detail="Only moderator can update components")
     return crud.components.update_component(db, component_id, component_update)
-
