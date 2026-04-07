@@ -356,6 +356,7 @@ class TractorComponentResponse(BaseModel):
     comp_model: str
     is_actual: bool
     is_critical: bool
+    software_path: Optional[str] = None
 
     
 # ============================================

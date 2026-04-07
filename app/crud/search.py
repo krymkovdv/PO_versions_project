@@ -649,6 +649,7 @@ def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponent
         models.Tractor.vin,
         models.Component.type.label("component_type"),
         models.Component.name.label("comp_model"),
+        models.Software.path.label("software_path"),
         models.Software.is_critical,
         models.Software.is_actual,
         models.Software.is_archive
@@ -676,13 +677,15 @@ def get_tractor_components_by_vin(db: Session, request: schemas.TractorComponent
     # Формируем ответ
     response = []
     for r in results:
+        software_path = r.software_path[33:] if r.software_path else None
         response.append(
             schemas.TractorComponentResponse(
                 vin=r.vin,
                 component_type=r.component_type,
                 comp_model=r.comp_model,
                 is_critical=r.is_critical,
-                is_actual=r.is_actual
+                is_actual=r.is_actual,
+                software_path=software_path
             )
         )
     return response
