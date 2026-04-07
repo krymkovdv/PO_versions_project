@@ -519,7 +519,6 @@ class TractorSearchResponse2(BaseModel):
 class AssignSoftwareRequest(BaseModel):
     """Запрос на назначение программного обеспечения"""
     # Поля ПО
-    name: str = Field(..., min_length=1)  # Имя ПО (обязательное поле)
     software_release_date: Optional[datetime] = None  # Дата выпуска
     software_description: Optional[str] = None  # Описание
     software_is_actual: Optional[bool] = None  # Актуальность
