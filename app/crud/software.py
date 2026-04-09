@@ -238,26 +238,14 @@ def check_file_size(file: UploadFile, max_size: int) -> int:
     file.file.seek(original_pos)
     return size
 
-
 def assign_software_to_components(
     db: Session,
     file: UploadFile,
     software_data: schemas.AssignSoftwareRequest,
-    base_name: str,
     instruction_file: Optional[UploadFile] = None
 ) -> schemas.SoftwareResponse:
     """
     Назначает ПО нескольким компонентам и тракторам
-    
-    Args:
-        db: Сессия базы данных
-        file: Файл ПО (обязательный)
-        software_data: Данные ПО из схемы
-        instruction_file: Файл инструкции (необязательный)
-        base_name: Базовое имя для name/inner_name
-    
-    Returns:
-        schemas.SoftwareResponse: Данные созданного ПО
     """
     # 1. Проверка размера файла ПО
     check_file_size(file, config.MAX_FILE_SIZE)
@@ -278,7 +266,6 @@ def assign_software_to_components(
         if instruction_file and instruction_file.filename:
             saved_instruction_filename = save_uploaded_file(instruction_file, instruction_file.filename)
             logger.info(f"[assign_software] Сохранён файл инструкции: {saved_instruction_filename}")
-        # Если instruction_file == None или filename пустой → saved_instruction_filename остаётся None
         
         # 5. Валидация массивов компонентов
         n_models = len(software_data.component_models)
@@ -295,10 +282,21 @@ def assign_software_to_components(
         if n_models == 0:
             raise HTTPException(400, "Должен быть указан хотя бы один компонент")
         
-        # 6. Создаём ПО
+        # 6. Формируем name из сохранённого имени файла БЕЗ расширения
+        name_without_extension = os.path.splitext(saved_filename)[0]
+
+        if len(name_without_extension) > 33:
+            name_without_extension = name_without_extension[33:]
+            logger.info(f"[assign_software] Обрезан name, удалены первые 33 символа: {name_without_extension}")
+        else:
+            # Если имя короче 33 символов, можно либо оставить как есть, либо установить пустую строку
+            # По умолчанию оставляем как есть
+            logger.warning(f"[assign_software] Длина name меньше 33 символов ({len(name_without_extension)}), обрезка не выполнена")
+        
+        # 7. Создаём ПО
         fw = models.Software(
-            name=software_data.name,  # Using the name field from the request
-            path=saved_filename,
+            name=name_without_extension,  # <-- name = путь без расширения
+            path=saved_filename,           # <-- path = полный путь с расширением
             release_date=software_data.software_release_date,
             description=software_data.software_description,
             is_actual=software_data.software_is_actual,
@@ -311,11 +309,11 @@ def assign_software_to_components(
             path_instruction=saved_instruction_filename 
         )
         db.add(fw)
-        db.flush() 
+        db.flush()
         
-        logger.info(f"[assign_software] Created software id={fw.id}, producer={fw.producer}")
+        logger.info(f"[assign_software] Created software id={fw.id}, name={fw.name}, path={fw.path}")
         
-
+        # 8. Создаём связи с компонентами
         for i in range(n_models):
             comp_model = software_data.component_models[i]
             comp_type = software_data.component_types[i]
@@ -347,6 +345,8 @@ def assign_software_to_components(
             db.flush()
             
             logger.info(f"[assign_software] Created software-component link link_id={link.id}")
+        
+        # 9. Деактивируем старые версии ПО
         previous_sw_version_past = fw.previous_sw_version
         while previous_sw_version_past != None:
             prev_fw = db.query(models.Software).filter(models.Software.id == previous_sw_version_past).first()
@@ -358,19 +358,21 @@ def assign_software_to_components(
             else:
                 logger.warning(f"[assign_software] Previous software version {previous_sw_version_past} not found")
                 break
-
         
-        # 8. Коммитим все изменения
+        # 10. Коммитим все изменения
         db.commit()
         db.refresh(fw)
         
         logger.info(f"[assign_software] Successfully completed for software id={fw.id}")
         
-        # 9. Возвращаем ответ
+        # 11. Возвращаем ответ
+        # Получаем оригинальное имя файла без расширения для inner_name
+        original_name_without_ext = os.path.splitext(file.filename)[0] if file.filename else "unknown"
+        
         return schemas.SoftwareResponse(
             id=fw.id,
-            name=fw.producer,
-            inner_name=base_name,
+            name=fw.name,  # путь без расширения
+            inner_name=original_name_without_ext,  # оригинальное имя файла без расширения
             release_date=fw.release_date,
             description=fw.description,
             download_url=f"/software/download/{fw.id}"

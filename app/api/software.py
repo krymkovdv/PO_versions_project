@@ -225,7 +225,6 @@ def get_all_software_component_links(
     status_code=201,
 )
 def assign_software_to_components_route(
-    name:  str = Form(...),
     file: UploadFile = File(..., description="Файл ПО"),
     instruction_file: Annotated[
         Optional[Union[UploadFile, str]], 
@@ -338,8 +337,7 @@ def assign_software_to_components_route(
                 )
     
     # 5. Создание схемы данных
-    software_data = schemas.AssignSoftwareRequest(
-        name=name,  # Adding the name field to the schema
+    software_data = schemas.AssignSoftwareRequest(  # Adding the name field to the schema
         software_release_date=rd,
         software_description=software_description,
         software_is_actual=software_is_actual,
@@ -356,21 +354,19 @@ def assign_software_to_components_route(
     
     # 6. Вызов CRUD
     try:
-        logger.info(
+        logger.info(    
             f"[software/assign] producer={software_producer}, "
             f"components={len(component_models_list)}, "
             f"user={current_user.username}, "
             f"instruction={'present' if instruction_file else 'absent'}"
         )
         
-        base_name = os.path.splitext(file.filename)[0] if file.filename else "unknown"
         
         return crud.software.assign_software_to_components(
             db,
             file=file,
             software_data=software_data,
             instruction_file=instruction_file,  
-            base_name=base_name
         )
         
     except HTTPException:

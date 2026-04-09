@@ -10,14 +10,43 @@ from .software import _deserialize_tractor_models
 logger = logging.getLogger(__name__)
 
 def get_components(db: Session):
+    """
+    Получение всех компонентов из базы данных
+    
+    Args:
+        db: Сессия базы данных
+        
+    Returns:
+        Список всех компонентов
+    """
     stmt = select(models.Component)
     result = db.execute(stmt).scalars().all()
     return result
 
 def get_component_by_id(db: Session, id: int):
+    """
+    Получение компонента по его ID
+    
+    Args:
+        db: Сессия базы данных
+        id: ID компонента
+        
+    Returns:
+        Компонент с указанным ID или None, если не найден
+    """
     return db.query(models.Component).filter(models.Component.id == id).first()
 
 def create_component(db: Session, component: schemas.ComponentSchema):
+    """
+    Создание нового компонента в базе данных
+    
+    Args:
+        db: Сессия базы данных
+        component: Данные компонента для создания
+        
+    Returns:
+        Созданный компонент
+    """
     db_component = models.Component(
         type=component.type,
         name=component.name,
@@ -29,6 +58,16 @@ def create_component(db: Session, component: schemas.ComponentSchema):
     return db_component
 
 def delete_component(db: Session, id: int):
+    """
+    Удаление компонента из базы данных
+    
+    Args:
+        db: Сессия базы данных
+        id: ID компонента для удаления
+        
+    Returns:
+        True, если компонент был удален, False, если не найден
+    """
     component = db.query(models.Component).filter(models.Component.id == id).first()
     if component is None:
         return False
@@ -37,6 +76,17 @@ def delete_component(db: Session, id: int):
     return True
 
 def update_component(db: Session, component_id: int, component_update: schemas.ComponentUpdate):
+    """
+    Обновление информации о компоненте
+    
+    Args:
+        db: Сессия базы данных
+        component_id: ID компонента для обновления
+        component_update: Данные для обновления
+        
+    Returns:
+        Обновленный компонент
+    """
     db_comp = db.query(models.Component).filter(models.Component.id == component_id).first()
     if not db_comp:
         raise HTTPException(status_code=404, detail="Component not found")
@@ -63,6 +113,16 @@ def get_agg_by_trac_and_comp(
     """
     Получает уникальные модели компонентов с учётом фильтров.
     Возвращает список словарей: [{'id': 1, 'name': 'Engine-X'}, ...]
+    
+    Args:
+        db: Сессия базы данных
+        trac_model: Фильтр по моделям тракторов
+        type_comp: Фильтр по типам компонентов
+        producers: Фильтр по производителям
+        status: Фильтр по статусу ПО
+        
+    Returns:
+        Список словарей с ID и именами компонентов
     """
     query = db.query(
         models.Component.id,
@@ -135,6 +195,16 @@ def get_component_producers(
     """
     Получает уникальных производителей компонентов с учётом фильтров.
     Возвращает список словарей: [{'producer': 'Bosch'}, ...]
+    
+    Args:
+        db: Сессия базы данных
+        trac_model: Фильтр по моделям тракторов
+        type_comp: Фильтр по типам компонентов
+        component_models: Фильтр по моделям компонентов
+        status: Фильтр по статусу ПО
+        
+    Returns:
+        Список словарей с именами производителей
     """
     query = db.query(
         models.Component.producer
