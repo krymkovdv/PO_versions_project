@@ -121,7 +121,7 @@ def get_tractor_models_for_software_table(
         query = query.filter(models.Software.status.in_(software_status))
     
     #  Исключаем архивные записи (опционально)
-    query = query.filter(models.Software.is_archive == False)
+    # query = query.filter(models.Software.is_archive == False)
     
     # Выполняем запрос
     software_records = db.execute(query).scalars().all()
