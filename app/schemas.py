@@ -508,7 +508,7 @@ class TractorSearchResponse2(BaseModel):
     region: str  # Регион
     oh_hour: Optional[str] = None  # Моточасы
     last_activity: Optional[datetime] = None  # Время последней активности
-    sw_name: Optional[str] = None  # Имя текущего ПО
+    # sw_name: Optional[str] = None  # Имя текущего ПО
     description: Optional[str] = None  # Описание
     componentParts_id: Optional[int] = None  # ID компонента
     component_id: Optional[int] = None  # ID компонента
@@ -516,6 +516,7 @@ class TractorSearchResponse2(BaseModel):
     current_sw_version: Optional[int] = None  # Текущая версия ПО
     recommend_sw_version: Optional[str] = None  # Рекомендуемая версия ПО
     component_type: Optional[str] = None  # Тип компонента
+    software_name:Optional[str] = None
 
     class Config:
         from_attributes = True
