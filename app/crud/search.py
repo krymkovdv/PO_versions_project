@@ -700,6 +700,7 @@ def get_tractor_by_vin(db: Session, vin: str):
             models.Component.id.label("component_id"),
             models.Component.name.label("comp_model"),
             models.Software.id.label("current_sw_version"),
+            models.Software.name.label("soft_name"),
             models.Software.id.label("recommend_sw_version"),
             models.Component.type.label("component_type")
         )
@@ -736,13 +737,14 @@ def get_tractor_by_vin(db: Session, vin: str):
                 "region": r.region,
                 "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
                 "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-                "sw_name": extract_original_filename(os.path.basename(r.software_path)) if r.software_path else None,
+                # "sw_name": extract_original_filename(os.path.basename(r.software_path)) if r.software_path else None,
                 "description": r.description,
                 "component_id": r.component_id,
                 "comp_model": r.comp_model,
                 "current_sw_version": r.current_sw_version,
                 "recommend_sw_version": str(r.recommend_sw_version) if r.recommend_sw_version is not None else "",
-                "component_type": r.component_type
+                "component_type": r.component_type,
+                "software_name":r.soft_name
             }
             for r in results
         ]
