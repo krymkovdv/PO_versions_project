@@ -1,13 +1,27 @@
 from fastapi import FastAPI
 from sqlalchemy import create_engine
-from . import config
-from .models import Base
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+import sys
 
-from .api import (
-    auth, users, tractors, components, 
-    software, search, support
-)
+try:
+    from . import config
+    from .models import Base
+    from .api import (
+        auth, users, tractors, components,
+        software, search, support
+    )
+except ImportError:
+    # Поддержка запуска файла напрямую: python .\app\main.py
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    from app import config
+    from app.models import Base
+    from app.api import (
+        auth, users, tractors, components,
+        software, search, support
+    )
 
 # Инициализация подключения к базе данных и создание всех необходимых таблиц
 # Используется синхронный движок SQLAlchemy, так как асинхронная инициализация таблиц может вызвать проблемы
