@@ -234,6 +234,7 @@ class SoftwareUpdate(BaseModel):
     tractor_model: List[str] = Field(default_factory=list)
     previous_sw_version: Optional[int] = None
     path_instruction: Optional[str] = None
+    # component_type:Optional[str] = None
 
     @field_validator('status')
     @classmethod
