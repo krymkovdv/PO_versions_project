@@ -168,7 +168,7 @@ def get_archive_component_by_filters(
             models.Software.tractor_model,
             models.Software.description,
             models.Component.type,
-            models.Component.name,
+            models.Component.name.label('name_comp'),
             models.Component.id.label("id_Component")
         )
         .select_from(models.Software)
@@ -243,7 +243,7 @@ def get_archive_component_by_filters(
             "is_archive": r.is_archive,
             "is_actual": r.is_actual,
             "is_critical": r.is_critical,
-            "name_component": r.name,
+            "name_component": r.name_comp,
             "id_Firmwares": r.id_Firmwares,
             "id_Component":r.id_Component,
             "status": r.status,

@@ -519,6 +519,17 @@ def update_software_file(
     
     # 5. Update the database record
     software_item.path = saved_filename
+    
+    # 👇 ДОБАВИТЬ ЭТУ ЛОГИКУ - обновляем name из path без расширения
+    name_without_extension = os.path.splitext(saved_filename)[0]
+    if len(name_without_extension) > 33:
+        name_without_extension = name_without_extension[33:]  # Удаляем первые 33 символа
+        logger.info(f"[update_software_file] Trimmed name, removed first 33 chars: {name_without_extension}")
+    else:
+        logger.warning(f"[update_software_file] Name length ({len(name_without_extension)}) <= 33, no trim applied")
+    
+    software_item.name = name_without_extension
+    
     db.commit()
     db.refresh(software_item)
     
@@ -527,7 +538,7 @@ def update_software_file(
     
     return schemas.SoftwareMetadata(
         id=software_item.id,
-        name=software_item.producer,
+        name=software_item.name,  # Теперь здесь будет name без расширения
         inner_name=None,
         filename_original=original_filename,
         filename_for_download=original_filename,
