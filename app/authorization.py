@@ -8,6 +8,9 @@ from .models import UserDB
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
 import logging
+from ldap3 import Server, Connection, ALL
+from ldap3.core.exceptions import LDAPException
+from ldap3.utils.conv import escape_filter_chars
 
 logger = logging.getLogger(__name__)
 
@@ -163,3 +166,63 @@ def extract_user_and_role_from_token(token: str) -> tuple[str, str]:
         return username, role
     except JWTError:
         return "anonymous", "anonymous"
+
+def LDAP_AUTH(
+    domain: str,
+    username: str,
+    password: str,
+    base_dn: str | None = None,
+    user_filter: str | None = None,
+) -> bool:
+    """ авторизация в LDAP
+
+    :param domain: домен
+    :param username: авторизующийся пользователь
+    :param password: пароль пользователя
+    :return: bool
+    """
+    can_auth = False
+    conn = None
+    try:
+        if not username or not password:
+            return False
+
+        # Bind под credentials пользователя: LDAP сам подтверждает или отклоняет логин.
+        server = Server(f"ldap://{domain}", get_info=ALL, connect_timeout=5)
+        conn = Connection(
+            server,
+            user=f"{username}@{domain}",
+            password=password,
+            auto_bind=True,
+            receive_timeout=5,
+        )
+        can_auth = True
+
+        # Опциональная дополнительная проверка: пользователь существует и активен по LDAP-фильтру.
+        if base_dn and user_filter:
+            escaped_username = escape_filter_chars(username)
+            base_filter = user_filter.format(username=escaped_username)
+            if "{username}" in user_filter:
+                search_filter = base_filter
+            else:
+                # Если в шаблоне нет {username}, добавляем фильтр по sAMAccountName автоматически.
+                search_filter = f"(&{base_filter}(sAMAccountName={escaped_username}))"
+            can_auth = conn.search(
+                search_base=base_dn,
+                search_filter=search_filter,
+                attributes=["cn"],
+                size_limit=1,
+            ) and len(conn.entries) > 0
+    except LDAPException as err:
+        logger.warning("[LDAP_AUTH] LDAP error for user %s: %s", username, err)
+    except Exception:
+        logger.error("[LDAP_AUTH] Unexpected error", exc_info=True)
+    finally:
+        # Закрываем соединение в любом случае.
+        try:
+            if conn:
+                conn.unbind()
+        except Exception:
+            logger.error("[LDAP_AUTH] Failed to unbind LDAP connection", exc_info=True)
+    return can_auth
+
