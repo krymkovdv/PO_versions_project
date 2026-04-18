@@ -446,6 +446,7 @@ class SoftwareComponentInfoResponse(BaseModel):
     
     # Информация о ПО
     id_firmwares: int  # ID прошивки
+    software_name: str  # 👈 ДОБАВИТЬ ЭТО ПОЛЕ - название ПО из БД
     software_path: Optional[str] = None  # Путь к файлу ПО
     software_release_date: Optional[datetime] = None  # Дата выпуска ПО
     software_end_actuality: Optional[datetime] = None  # Дата окончания актуальности
@@ -457,7 +458,7 @@ class SoftwareComponentInfoResponse(BaseModel):
     software_status: Optional[str] = None  # Статус ПО
     software_tractor_models: List[str] = Field(default_factory=list)  # Модели тракторов для ПО
     software_previous_sw_version: Optional[int] = None  # ID предыдущей версии ПО
-    software_path_instruction: Optional[str]  # Путь к инструкции по установке
+    software_path_instruction: Optional[str] = None  # Путь к инструкции по установке
     
     # Информация о компоненте
     id_component: int  # ID компонента
@@ -465,24 +466,16 @@ class SoftwareComponentInfoResponse(BaseModel):
     component_name: str  # Имя компонента
     component_producer: str  # Производитель компонента
     
-
-    
     model_config = ConfigDict(from_attributes=True)
     
-    @computed_field
-    @property
-    def name(self) -> str:
-        """Вычисляемое поле: извлекает имя файла из software_path"""
-        if not self.software_path:
-            return ""
-        return Path(self.software_path).name
-    
+    # Оставляем computed_field для имени файла (из пути)
     @computed_field
     @property
     def filename(self) -> str:
-        """Псевдоним для name (для совместимости)"""
-        return self.name
-
+        """Имя файла из пути"""
+        if not self.software_path:
+            return ""
+        return Path(self.software_path).name
 class TractorSearchResponse(BaseModel):
     """Ответ поиска тракторов"""
     vin: str  # VIN трактора
