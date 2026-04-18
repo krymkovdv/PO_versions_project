@@ -388,13 +388,13 @@ def get_software_component_by_ids(
     return [
         {
             # ПО
-            "id_firmwares": r.id_firmwares,
-            'software_name': r.software_name,
-            "software_path": r.software_path[33:],
+            "id_firmwares": r.id_firmwares if r.id_firmwares else None,
+            'software_name': r.software_name if r.software_name else None,
+            "software_path": r.software_path[33:] if r.software_path else None,
             "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
             "software_end_actuality": r.software_end_actuality.isoformat() if r.software_end_actuality else None, 
-            "software_description": r.software_description,
-            "software_producer": r.software_producer,
+            "software_description": r.software_description if r.software_description else None,
+            "software_producer": r.software_producer if r.software_producer else None,
             "software_is_actual": r.software_is_actual,
             "software_is_archive": r.software_is_archive,
             "software_is_critical": r.software_is_critical,
