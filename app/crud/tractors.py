@@ -125,14 +125,24 @@ def get_tractor_models_for_software_table(
     
     # Выполняем запрос
     software_records = db.execute(query).scalars().all()
-    
+    EXCLUDED_MODELS = {'default_model', 'кауау', 'ТЕСТ', 'K742MCT1', '{default_model}', '{K742MCT1}'}
     #  Собираем и десериализуем модели тракторов
     unique_models = set()
     for sw in software_records:
         models_list = software._deserialize_tractor_models(sw.tractor_model)
         for model in models_list:
-            if model:  # Исключаем пустые значения
+            if model and isinstance(model, str):
+                # Отбрасываем явный мусор
+                if model in EXCLUDED_MODELS:
+                    continue
+                # Отбрасываем строки, содержащие default_model (даже внутри кавычек)
+                if 'default_model' in model:
+                    continue
+                # Отбрасываем слишком длинные строки (признак вложенности)
+                if len(model) > 100:
+                    continue
                 unique_models.add(model.strip())
-    
+    filtered_models = [m for m in unique_models if m not in EXCLUDED_MODELS]
+    return [{"model": model} for model in sorted(filtered_models)]
     # Возвращаем в нужном формате
-    return [{"model": model} for model in sorted(unique_models)]
+  
