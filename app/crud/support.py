@@ -274,6 +274,11 @@ class SupportCRUD:
         
         read_status.is_read = True
         read_status.read_at = datetime.now(timezone.utc)
+        message = db.query(models.SupportMessage).filter(models.SupportMessage.id == message_id).first()
+        if message and not message.is_read:
+            message.is_read = True
+            db.add(message)
+        
         db.commit()
         
         return True
