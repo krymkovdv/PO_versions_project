@@ -340,6 +340,7 @@ def get_software_component_by_ids(
             # ПО
             models.Software.id.label("id_firmwares"),
             models.Software.path.label("software_path"),
+            models.Software.name.label("software_name"),
             models.Software.release_date.label("software_release_date"),
             models.Software.end_actuality.label("software_end_actuality"),
             models.Software.description.label("software_description"),
@@ -388,6 +389,7 @@ def get_software_component_by_ids(
         {
             # ПО
             "id_firmwares": r.id_firmwares,
+            'software_name': r.software_name,
             "software_path": r.software_path[33:],
             "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
             "software_end_actuality": r.software_end_actuality.isoformat() if r.software_end_actuality else None, 
