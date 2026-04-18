@@ -19,6 +19,48 @@ def _serialize_tractor_models(models_list: list) -> str:
     """Сериализует список моделей в JSON-строку"""
     return json.dumps(models_list, ensure_ascii=False)
 
+def normalize_tractor_model(raw: str) -> str:
+    """
+    Приводит поле tractor_model к стандартному JSON-списку.
+    Обрабатывает:
+      - валидный JSON (оставляет как есть)
+      - строки вида "{K-7}" -> ["K-7"]
+      - строки вида "{K-525,K-7,K-742МСТ}" -> ["K-525","K-7","K-742МСТ"]
+      - многократно экранированные JSON (как ранее)
+    """
+    if not raw:
+        return "[]"
+    
+    # Многократная попытка распарсить JSON
+    current = raw
+    for _ in range(5):
+        try:
+            parsed = json.loads(current)
+            if isinstance(parsed, list):
+                # Рекурсивно разбираем элементы (на случай склеек внутри)
+                new_list = []
+                for item in parsed:
+                    if isinstance(item, str) and item.startswith('{') and item.endswith('}'):
+                        # Разбираем внутренность фигурных скобок
+                        inner = item[1:-1]
+                        parts = [p.strip() for p in inner.split(',') if p.strip()]
+                        new_list.extend(parts)
+                    else:
+                        new_list.append(item)
+                return json.dumps(new_list, ensure_ascii=False)
+            current = parsed
+        except (json.JSONDecodeError, TypeError):
+            break
+    
+    # Если не JSON, но похоже на "{...}"
+    if isinstance(raw, str) and raw.startswith('{') and raw.endswith('}'):
+        inner = raw[1:-1]
+        parts = [p.strip() for p in inner.split(',') if p.strip()]
+        return json.dumps(parts, ensure_ascii=False)
+    
+    # Если ничего не помогло – одиночная модель
+    return json.dumps([raw], ensure_ascii=False)
+
 def _deserialize_tractor_models(models_str: str) -> list:
     """Десериализует JSON-строку в список моделей"""
     if not models_str:
@@ -183,16 +225,35 @@ def update_software(db: Session, sw_id: int, software_update: schemas.SoftwareUp
     db_sw = db.query(models.Software).filter(models.Software.id == sw_id).first()
     if not db_sw:
         raise HTTPException(status_code=404, detail="Software not found")
-    for field, value in software_update.model_dump(exclude_unset=True).items():
-        if value is not None:
-            setattr(db_sw, field, value)
-    try:
-        db.commit()
-        db.refresh(db_sw)
-        return db_sw
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="Update failed due to integrity constraint")
+    
+    update_data = software_update.model_dump(exclude_unset=True)
+    
+    # Особое поле: tractor_model
+    if "tractor_model" in update_data:
+        raw_value = update_data["tractor_model"]
+        # Если пришёл список – сериализуем
+        if isinstance(raw_value, list):
+            update_data["tractor_model"] = _serialize_tractor_models(raw_value)
+        # Если пришла строка – возможно, это уже JSON, но проверим на двойную сериализацию
+        elif isinstance(raw_value, str):
+            # Попробуем десериализовать и снова сериализовать для нормализации
+            try:
+                as_list = json.loads(raw_value)
+                if isinstance(as_list, list):
+                    update_data["tractor_model"] = _serialize_tractor_models(as_list)
+            except:
+                # Не JSON – возможно, ошибочная строка, лучше сохранить как есть?
+                # Но для чистоты обернём в список
+                update_data["tractor_model"] = _serialize_tractor_models([raw_value])
+    
+    for field, value in update_data.items():
+        setattr(db_sw, field, value)
+    
+    db.commit()
+    db.refresh(db_sw)
+    # Для ответа десериализуем
+    db_sw.tractor_model = _deserialize_tractor_models(db_sw.tractor_model)
+    return db_sw
     
 def secure_filename(filename: str) -> str:
     """Очищает имя файла от опасных символов"""
@@ -303,7 +364,7 @@ def assign_software_to_components(
             is_archive=software_data.software_is_archive,
             is_critical=software_data.software_is_critical,
             status=software_data.software_status,
-            tractor_model=json.dumps(software_data.software_tractor_models),
+            tractor_model=_serialize_tractor_models(software_data.software_tractor_models),
             producer=software_data.software_producer,
             previous_sw_version=software_data.software_previous_version,
             path_instruction=saved_instruction_filename 

@@ -431,6 +431,7 @@ def get_next_software_versions(
         db.query(
             models.Software.id.label("id_firmwares"),
             models.Software.path.label("software_path"),
+             models.Software.name.label("software_name"),
             models.Software.release_date.label("software_release_date"),
             models.Software.end_actuality.label("software_end_actuality"),
             models.Software.description.label("software_description"),
@@ -475,6 +476,7 @@ def get_next_software_versions(
     return [
         {
             "id_firmwares": r.id_firmwares,
+            'software_name': r.software_name,
             "software_path": r.software_path[33:] if r.software_path else None,
             "software_release_date": r.software_release_date.isoformat() if r.software_release_date else None,
             "software_end_actuality": r.software_end_actuality.isoformat() if r.software_end_actuality else None, 
@@ -693,6 +695,7 @@ def get_tractor_by_vin(db: Session, vin: str):
             models.Tractor.vin,
             models.Tractor.model,
             models.Tractor.dealer,
+            models.Tractor.consumer,
             models.Tractor.assembly_date,
             models.Tractor.region,
             models.Tractor.oh_hour,
@@ -734,7 +737,8 @@ def get_tractor_by_vin(db: Session, vin: str):
             {
                 "vin": r.vin,
                 "model": r.model,
-                "consumer": r.dealer,
+                "dealer": r.dealer,
+                "consumer": r.consumer,
                 "assembly_date": r.assembly_date.isoformat() if r.assembly_date else None,
                 "region": r.region,
                 "oh_hour": str(r.oh_hour) if r.oh_hour is not None else "",
@@ -756,6 +760,7 @@ def get_tractor_by_vin(db: Session, vin: str):
             "vin": tractor.vin,
             "model": tractor.model,
             "consumer": tractor.consumer,
+            "dealer": tractor.dealer,
             "assembly_date": tractor.assembly_date.isoformat() if tractor.assembly_date else None,
             "region": tractor.region,
             "oh_hour": str(tractor.oh_hour) if tractor.oh_hour is not None else "",

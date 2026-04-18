@@ -154,12 +154,13 @@ async def mark_message_read(
     if current_user.role != "moderator":
         raise HTTPException(status_code=403, detail="Only moderators can mark messages as read")
     
-    read_status = SupportCRUD.mark_as_read(db, message_id, current_user.id)
+    read_status = SupportCRUD.read_message(db, current_user.id, message_id)
     
-    if read_status:
-        return {"status": "marked as read"}
-    else:
-        raise HTTPException(status_code=404, detail="Message not found")
+    return {
+        "message_id": message_id,
+        "is_read": read_status.is_read,
+        "read_at": read_status.read_at
+    }
 
 @router.get("/moderators")
 async def get_moderators(
@@ -300,3 +301,20 @@ def get_unread_replies_count_api(
     """
     count = SupportCRUD.get_unread_count_for_moderator(db, current_user.id)
     return {"unread_count": count}
+
+@router.patch("/messages/{message_id}/toggle-read")
+async def toggle_message_read(
+    message_id: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Переключить статус прочтения сообщения (только для модераторов)"""
+    if current_user.role != "moderator":
+        raise HTTPException(status_code=403, detail="Only moderators can change read status")
+    
+    read_status = SupportCRUD.read_message(db, current_user.id, message_id)
+    return {
+        "message_id": message_id,
+        "is_read": read_status.is_read,
+        "read_at": read_status.read_at
+    }
