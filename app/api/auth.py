@@ -17,14 +17,17 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     username = form_data.username.strip()
 
     if settings.ldap_enabled:
-        if not settings.ldap_domain:
-            logger.error("[login] LDAP включен, но LDAP_DOMAIN не задан")
+        if not (settings.ldap_server or settings.ldap_domain):
+            logger.error("[login] LDAP включен, но не задан LDAP_SERVER или LDAP_DOMAIN")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="LDAP is not configured")
 
         ldap_ok = LDAP_AUTH(
             domain=settings.ldap_domain,
             username=username,
             password=form_data.password,
+            server_address=settings.ldap_server,
+            port=settings.ldap_port,
+            use_ssl=settings.ldap_use_ssl,
             base_dn=settings.ldap_base_dn or None,
             user_filter=settings.ldap_user_filter or None,
         )

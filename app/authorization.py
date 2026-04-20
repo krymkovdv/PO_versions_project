@@ -8,9 +8,11 @@ from .models import UserDB
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
 import logging
+import socket
 from ldap3 import Server, Connection, ALL
 from ldap3.core.exceptions import LDAPException
 from ldap3.utils.conv import escape_filter_chars
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +173,9 @@ def LDAP_AUTH(
     domain: str,
     username: str,
     password: str,
+    server_address: str | None = None,
+    port: int | None = None,
+    use_ssl: bool | None = None,
     base_dn: str | None = None,
     user_filter: str | None = None,
 ) -> bool:
@@ -183,30 +188,130 @@ def LDAP_AUTH(
     """
     can_auth = False
     conn = None
+
+    def parse_ldap_target(raw_address: str) -> tuple[str, int | None, bool]:
+        """Нормализуем LDAP адрес: поддерживаем host, host:port, ldap://host[:port], ldaps://host[:port]."""
+        value = (raw_address or "").strip()
+        if not value:
+            return "", None, False
+
+        if "://" in value:
+            parsed = urlparse(value)
+            host = parsed.hostname or ""
+            parsed_port = parsed.port
+            parsed_ssl = parsed.scheme.lower() == "ldaps"
+            return host, parsed_port, parsed_ssl
+
+        host = value
+        parsed_port = None
+        if ":" in value:
+            candidate_host, candidate_port = value.rsplit(":", 1)
+            if candidate_port.isdigit():
+                host = candidate_host
+                parsed_port = int(candidate_port)
+        return host.strip(), parsed_port, False
+
     try:
         if not username or not password:
             return False
 
-        # Bind под credentials пользователя: LDAP сам подтверждает или отклоняет логин.
-        server = Server(f"ldap://{domain}", get_info=ALL, connect_timeout=5)
-        conn = Connection(
-            server,
-            user=f"{username}@{domain}",
-            password=password,
-            auto_bind=True,
-            receive_timeout=5,
-        )
-        can_auth = True
+        ldap_target = server_address or domain
+        server_host, parsed_port, parsed_ssl = parse_ldap_target(ldap_target)
+        if not server_host:
+            logger.warning("[LDAP_AUTH] LDAP server address is empty or invalid")
+            return False
 
-        # Опциональная дополнительная проверка: пользователь существует и активен по LDAP-фильтру.
-        if base_dn and user_filter:
-            escaped_username = escape_filter_chars(username)
-            base_filter = user_filter.format(username=escaped_username)
-            if "{username}" in user_filter:
-                search_filter = base_filter
-            else:
-                # Если в шаблоне нет {username}, добавляем фильтр по sAMAccountName автоматически.
-                search_filter = f"(&{base_filter}(sAMAccountName={escaped_username}))"
+        effective_port = port if port is not None else parsed_port
+        effective_ssl = use_ssl if use_ssl is not None else parsed_ssl
+        resolved_port = effective_port or (636 if effective_ssl else 389)
+
+        # Быстрый precheck DNS/адреса, чтобы в логах было ясно, что именно не так с host.
+        try:
+            socket.getaddrinfo(server_host, resolved_port)
+        except OSError as resolve_err:
+            logger.warning(
+                "[LDAP_AUTH] LDAP host is not resolvable/reachable: host=%s port=%s error=%s",
+                server_host,
+                resolved_port,
+                resolve_err,
+            )
+            return False
+
+        # Bind под credentials пользователя: LDAP сам подтверждает или отклоняет логин.
+        server = Server(
+            server_host,
+            port=effective_port,
+            use_ssl=effective_ssl,
+            get_info=ALL,
+            connect_timeout=5,
+        )
+
+        raw_username = username.strip()
+        sam_account_name = raw_username
+        if "\\" in sam_account_name:
+            sam_account_name = sam_account_name.split("\\")[-1]
+        if "@" in sam_account_name:
+            sam_account_name = sam_account_name.split("@", 1)[0]
+
+        candidate_users: list[str] = []
+
+        def add_candidate(value: str) -> None:
+            candidate = (value or "").strip()
+            if candidate and candidate not in candidate_users:
+                candidate_users.append(candidate)
+
+        add_candidate(raw_username)
+        if domain:
+            add_candidate(f"{sam_account_name}@{domain}")
+            netbios_domain = domain.split(".", 1)[0].upper()
+            add_candidate(f"{netbios_domain}\\{sam_account_name}")
+
+        bind_error_details = ""
+        bound_user = ""
+
+        for candidate_user in candidate_users:
+            current_conn = Connection(
+                server,
+                user=candidate_user,
+                password=password,
+                auto_bind=False,
+                receive_timeout=5,
+            )
+            if current_conn.bind():
+                conn = current_conn
+                can_auth = True
+                bound_user = candidate_user
+                break
+
+            result = current_conn.result or {}
+            bind_error_details = (
+                f"description={result.get('description')} "
+                f"message={result.get('message')} "
+                f"code={result.get('result')}"
+            )
+            try:
+                current_conn.unbind()
+            except Exception:
+                logger.error("[LDAP_AUTH] Failed to unbind LDAP connection", exc_info=True)
+
+        if not can_auth:
+            logger.warning(
+                "[LDAP_AUTH] LDAP bind rejected for user %s: host=%s port=%s ssl=%s tried=%s details=%s",
+                username,
+                server_host,
+                resolved_port,
+                effective_ssl,
+                candidate_users,
+                bind_error_details or "n/a",
+            )
+            return False
+
+        # Опциональная дополнительная проверка выполняется только
+        # если фильтр явно привязан к конкретному username через {username}.
+        if base_dn and user_filter and "{username}" in user_filter:
+            filter_username = sam_account_name if sam_account_name else bound_user
+            escaped_username = escape_filter_chars(filter_username)
+            search_filter = user_filter.format(username=escaped_username)
             can_auth = conn.search(
                 search_base=base_dn,
                 search_filter=search_filter,
@@ -214,7 +319,14 @@ def LDAP_AUTH(
                 size_limit=1,
             ) and len(conn.entries) > 0
     except LDAPException as err:
-        logger.warning("[LDAP_AUTH] LDAP error for user %s: %s", username, err)
+        logger.warning(
+            "[LDAP_AUTH] LDAP error for user %s: host=%s port=%s ssl=%s error=%s",
+            username,
+            server_host if 'server_host' in locals() else 'unknown',
+            resolved_port if 'resolved_port' in locals() else 'unknown',
+            effective_ssl if 'effective_ssl' in locals() else 'unknown',
+            err,
+        )
     except Exception:
         logger.error("[LDAP_AUTH] Unexpected error", exc_info=True)
     finally:
