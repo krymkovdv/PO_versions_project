@@ -713,3 +713,22 @@ def get_instruction_file_info(db: Session, software_id: int):
             self.filename = filename
     
     return FileInfo(exists, size_bytes, full_path, os.path.basename(software.path_instruction))
+
+  # backend/utils/validators.py (новый файл
+
+def validate_tractor_models(models: list[str]) -> None:
+    """
+    Проверяет список моделей тракторов:
+    - не пустые строки
+    - длина не более 10 символов
+    - только разрешённые символы: буквы (русские/английские), цифры, дефис, подчёркивание
+    """
+    allowed_pattern = re.compile(r'^[A-Za-zА-Яа-я0-9_-]+$')
+    
+    for model in models:
+        if not model or not model.strip():
+            raise HTTPException(400, f"Модель трактора не может быть пустой: '{model}'")
+        if len(model) > 10:
+            raise HTTPException(400, f"Модель трактора '{model}' превышает максимальную длину 10 символов")
+        if not allowed_pattern.match(model):
+            raise HTTPException(400, f"Модель трактора '{model}' содержит недопустимые символы. Разрешены: буквы, цифры, дефис, подчёркивание")
