@@ -267,18 +267,12 @@ async def delete_message(
     )
 
 
-@router.patch("/close-message/{message_id}/{moderator_id}")  # Лучше использовать PATCH для частичного обновления
+@router.patch("/close-message/{message_id}/{moderator_id}")  
 async def close_message(
     message_id: int, 
     db: Session = Depends(get_session), 
     current_user: models.UserDB = Depends(get_current_user)
 ):
-    # Проверка роли (только модераторы могут закрывать сообщения)
-    if current_user.role != "moderator":
-        raise HTTPException(
-            status_code=403,
-            detail="Only for moderators"
-        )
 
     result = SupportCRUD.close_message(db, message_id, current_user.id)
 
