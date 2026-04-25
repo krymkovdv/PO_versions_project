@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, status
 from sqlalchemy.orm import Session
-
+from  ..crud.software import validate_tractor_models
 from .. import schemas, crud, models
 from ..database import get_session
 from ..authorization import require_role, get_current_user
@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import FileResponse, Response
 from datetime import datetime
 import os
+import json
 
 
 router = APIRouter(prefix="/software", tags=["Software"])
@@ -96,6 +97,23 @@ def update_software(
 ):
     if current_user.role != "moderator" and current_user.role != "engineer":
         raise HTTPException(status_code=403, detail="Only moderator can update software")
+    
+    # Валидация моделей тракторов, если поле присутствует в запросе
+    if software_update.tractor_model is not None:
+        # tractor_model может быть list или str - нормализуем
+        models_list = software_update.tractor_model
+        if isinstance(models_list, str):
+            try:
+                # Пробуем распарсить как JSON (если сохранён в таком виде)
+                models_list = json.loads(models_list)
+            except:
+                # Иначе считаем, что это одиночная модель в виде строки
+                models_list = [models_list]
+        elif models_list is None:
+            models_list = []
+        # Вызываем валидатор
+        validate_tractor_models(models_list)
+    
     return crud.software.update_software(db, sw_id, software_update)
 
 
@@ -318,11 +336,19 @@ def assign_software_to_components_route(
         logger.error(f"[software/assign] ошибка парсинга: {str(e)}")
         raise HTTPException(400, f"Invalid format: {str(e)}")
     
-    # 3. Валидация статуса
+    # 3.Валидация моделей тракторов
+
+# Валидация моделей тракторов
+    try:
+            validate_tractor_models(tractor_models_list)
+    except HTTPException as e:
+            raise e
+            
+    # 4. Валидация статуса
     if software_status not in ["serial", "in operation", "experienced"]:
         raise HTTPException(400, "Invalid status. Must be: 'serial', 'in operation', 'experienced'")
     
-    # 4. Парсинг previous_sw_version
+    # 5. Парсинг previous_sw_version
     prev_sw_ver_int: Optional[int] = None
     if previous_sw_version and isinstance(previous_sw_version, str):
         stripped = previous_sw_version.strip()
@@ -336,7 +362,7 @@ def assign_software_to_components_route(
                     detail=f"previous_sw_version должен быть целым числом, получено: '{previous_sw_version}'"
                 )
     
-    # 5. Создание схемы данных
+    # 6. Создание схемы данных
     software_data = schemas.AssignSoftwareRequest(  # Adding the name field to the schema
         software_release_date=rd,
         software_description=software_description,
@@ -352,7 +378,7 @@ def assign_software_to_components_route(
         component_producers=component_producers_list
     )
     
-    # 6. Вызов CRUD
+    # 7. Вызов CRUD
     try:
         logger.info(    
             f"[software/assign] producer={software_producer}, "
