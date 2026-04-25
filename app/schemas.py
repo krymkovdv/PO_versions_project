@@ -125,6 +125,12 @@ class TractorsSchema(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
+
+class UserInfo(BaseModel):
+    id: int
+    username: str
+    role: str
+
 class TractorUpdate(BaseModel):
     """Схема для обновления информации о тракторе (все поля опциональны)"""
     model: Optional[str] = None

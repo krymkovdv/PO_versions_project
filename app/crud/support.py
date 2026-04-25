@@ -447,7 +447,7 @@ class SupportCRUD:
             # ✅ Обновляем статус прочтения для этого модератора
             read_status = db.query(models.MessageReadStatus).filter(
                 models.MessageReadStatus.message_id == message_id,
-                models.MessageReadStatus.moderator_id == moderator_id
+                # models.MessageReadStatus.moderator_id == moderator_id
             ).first()
             
             if read_status:

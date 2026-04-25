@@ -124,7 +124,7 @@ def get_tractors_by_filters(
 ):
     logger.info(f"[tractor-info] фильтры={filters.dict()} user={current_user.username} role={current_user.role}")
     try:
-        data = crud.search.get_tractors_by_filters(db, filters)
+        data = crud.search.get_tractors_by_filters(db, filters, current_user)
         logger.info(f"[tractor-info] найдено записей: {len(data)} user={current_user.username} role={current_user.role}")
         return data
     except Exception as e:
