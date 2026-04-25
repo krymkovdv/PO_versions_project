@@ -8,6 +8,9 @@ from .models import UserDB
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
 import logging
+from ldap3 import Server, Connection, ALL
+from ldap3.core.exceptions import LDAPException
+from ldap3.utils.conv import escape_filter_chars
 
 logger = logging.getLogger(__name__)
 
@@ -163,3 +166,92 @@ def extract_user_and_role_from_token(token: str) -> tuple[str, str]:
         return username, role
     except JWTError:
         return "anonymous", "anonymous"
+
+def LDAP_AUTH(
+    domain: str,
+    username: str,
+    password: str,
+    server_address: str | None = None,
+    port: int | None = None,
+    use_ssl: bool | None = None,
+    base_dn: str | None = None,
+    user_filter: str | None = None,
+) -> bool:
+    """ авторизация в LDAP
+
+    :param domain: домен
+    :param username: авторизующийся пользователь
+    :param password: пароль пользователя
+    :return: bool
+    """
+    can_auth = False
+    conn = None
+
+    try:
+        if not username or not password:
+            return False
+
+        # Bind под credentials пользователя: LDAP сам подтверждает или отклоняет логин.
+        server = Server(f"ldap://{domain}", get_info=ALL)
+
+        raw_username = username.strip()
+        sam_account_name = raw_username
+        if "\\" in sam_account_name:
+            sam_account_name = sam_account_name.split("\\")[-1]
+        if "@" in sam_account_name:
+            sam_account_name = sam_account_name.split("@", 1)[0]
+
+        current_conn = Connection(server, user=f"{username}@{domain}", password=password)
+        if current_conn.bind():
+            conn = current_conn
+            can_auth = True
+        else:
+            result = current_conn.result or {}
+            bind_error_details = (
+                f"description={result.get('description')} "
+                f"message={result.get('message')} "
+                f"code={result.get('result')}"
+            )
+            logger.warning(
+                "[LDAP_AUTH] LDAP bind rejected for user %s: domain=%s details=%s",
+                username,
+                domain,
+                bind_error_details or "n/a",
+            )
+            try:
+                current_conn.unbind()
+            except Exception:
+                logger.error("[LDAP_AUTH] Failed to unbind LDAP connection", exc_info=True)
+            return False
+
+        # Опциональная дополнительная проверка выполняется только
+        # после успешного bind. Если в фильтре есть {username}, подставляем его.
+        if base_dn and user_filter:
+            escaped_username = escape_filter_chars(sam_account_name)
+            search_filter = user_filter
+            if "{username}" in user_filter:
+                search_filter = user_filter.format(username=escaped_username)
+            can_auth = conn.search(
+                search_base=base_dn,
+                search_filter=search_filter,
+                attributes=["cn"],
+                size_limit=1,
+            ) and len(conn.entries) > 0
+    except LDAPException as err:
+        logger.warning(
+            "[LDAP_AUTH] LDAP error for user %s: domain=%s error=%s",
+            username,
+            domain,
+            err,
+        )
+    except Exception:
+        logger.error("[LDAP_AUTH] Unexpected error", exc_info=True)
+    finally:
+        # Закрываем соединение в любом случае.
+        try:
+            if conn:
+                conn.unbind()
+        except Exception:
+            logger.error("[LDAP_AUTH] Failed to unbind LDAP connection", exc_info=True)
+    return can_auth
+

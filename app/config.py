@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     algorithm: str         # Алгоритм шифрования JWT токенов
     access_token_expire_minutes: int  # Время жизни токена в минутах
 
+    # LDAP авторизация
+    ldap_enabled: bool = False
+    ldap_domain: str = ""
+    ldap_server: str = ""
+    ldap_port: int | None = None
+    ldap_use_ssl: bool = False
+    ldap_base_dn: str = ""
+    ldap_user_filter: str = "(&(objectClass=user)(objectCategory=Person)(!(userAccountControl:1.2.840.113556.1.4.803:=2))(sAMAccountName={username}))"
+    ldap_auto_provision: bool = True
+    ldap_default_role: str = "dealer"
+
     # Путь к файлу .env
     env_path: ClassVar[str] = os.path.join(os.path.dirname(__file__), '.env')
     
