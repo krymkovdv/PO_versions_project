@@ -108,6 +108,24 @@ class UserCreate(BaseModel):
             raise ValueError("Password too long (max 72 bytes in UTF-8)")
         return v
 
+class UserUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    password: Optional[str] = Field(None, min_length=6)
+    role: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+    @field_validator('role', mode='before')
+    @classmethod
+    def validate_role(cls, v):
+        """Валидатор роли пользователя"""
+        if v is None:
+            return v
+        ALLOWED_ROLES = {'moderator', 'dealer', 'engineer'}
+        if v not in ALLOWED_ROLES:
+            raise ValueError(f"Role must be one of: {', '.join(ALLOWED_ROLES)}")
+        return v
+        
 # ============================================
 # Тракторы
 # ============================================

@@ -45,6 +45,40 @@ def post_user(user: schemas.UserCreate, db: Session = Depends(get_session), curr
     logger.info(f"[post_user] создан пользователь {user_in.username} user={current_user.username} role={current_user.role}")
     return {"username": user_in.username, "role": user_in.role}
 
+# routers/users.py
+
+@router.put("/{id}", dependencies=[Depends(require_role("moderator"))])
+def update_user(
+    id: int, 
+    user_update: schemas.UserUpdate, 
+    db: Session = Depends(get_session), 
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    try:
+        updated_user = crud.users.update_user(db, user_id=id, user_update=user_update)
+        
+        if not updated_user:
+            logger.warning(f"[update_user] пользователь {id} не найден. moderator={current_user.username}")
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        logger.info(f"[update_user] успешно обновлен user_id={id} moderator={current_user.username} role={current_user.role}")
+        return updated_user
+        
+    except HTTPException:
+        # Пробрасываем бизнес-ошибки (404, 409) без изменений
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"[update_user] ошибка SQLAlchemy {str(e)} moderator={current_user.username}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка базы данных при обновлении: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"[update_user] неизвестная ошибка {str(e)} moderator={current_user.username}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Неизвестная ошибка: {str(e)}"
+        )
 @router.delete("", dependencies=[Depends(require_role("moderator"))])
 def delete_user(id: int, db: Session = Depends(get_session), current_user: models.UserDB = Depends(get_current_user)):
     if crud.users.delete_users(db, id):
