@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, Response
 from datetime import datetime
 import os
 import json
-
+from ..crud.support import DealerNotificationCRUD  
 
 router = APIRouter(prefix="/software", tags=["Software"])
 
@@ -378,7 +378,7 @@ def assign_software_to_components_route(
         component_producers=component_producers_list
     )
     
-    # 7. Вызов CRUD
+   # 7. Вызов CRUD
     try:
         logger.info(    
             f"[software/assign] producer={software_producer}, "
@@ -387,13 +387,80 @@ def assign_software_to_components_route(
             f"instruction={'present' if instruction_file else 'absent'}"
         )
         
-        
-        return crud.software.assign_software_to_components(
+        # Вызываем CRUD и получаем результат с информацией о созданном ПО
+        result = crud.software.assign_software_to_components(
             db,
             file=file,
             software_data=software_data,
             instruction_file=instruction_file,  
         )
+        
+        # ========== УВЕДОМЛЕНИЯ ДЛЯ ДИЛЕРОВ ==========
+        try:
+            # Находим все тракторы, которые имеют компоненты указанных моделей
+            affected_tractors = db.query(
+                models.Tractor.id,
+                models.Tractor.vin,
+                models.Tractor.dealer,  # ← В вашей модели поле называется 'dealer', а не 'consumer'
+                models.Tractor.model
+            ).join(
+                models.Tractor_Software_And_Component_Link,
+                models.Tractor.id == models.Tractor_Software_And_Component_Link.tractor_id
+            ).join(
+                models.Software_Component_Link,
+                models.Tractor_Software_And_Component_Link.soft_comp_link_id == models.Software_Component_Link.id
+            ).join(
+                models.Component,
+                models.Software_Component_Link.component_id == models.Component.id  
+            ).filter(
+                models.Component.name.in_(component_models_list)
+            ).distinct().all()
+            
+            if affected_tractors:
+                logger.info(
+                    f"[software/assign/notify] Найдено тракторов: {len(affected_tractors)}, "
+                    f"software_id={result.id}"
+                )
+                
+                for tractor in affected_tractors:
+                    # Ищем дилера по полю 'dealer' (username), как в вашей модели
+                    dealer_user = None
+                    if tractor.dealer:  # ← Исправлено: tractor.dealer вместо tractor.consumer
+                        dealer_user = db.query(models.UserDB).filter(
+                            models.UserDB.username == tractor.dealer,  # ← dealer содержит username
+                            models.UserDB.role == "dealer"
+                        ).first()
+                    
+                    if dealer_user:
+                        DealerNotificationCRUD.create_notification(
+                            db=db,
+                            dealer_id=dealer_user.id,
+                            tractor_id=tractor.id,
+                            software_id=result.id,
+                            software_name=software_data.software_description or software_producer,
+                            software_version=software_data.software_status,
+                            message=(
+                                f"На трактор {tractor.model} (VIN: {tractor.vin}) "
+                                f"добавлено ПО: {software_producer}"
+                            )
+                        )
+                        logger.info(
+                            f"[notify] dealer={dealer_user.username}, vin={tractor.vin}"
+                        )
+                    else:
+                        logger.warning(
+                            f"[notify] Дилер не найден: vin={tractor.vin}, dealer={tractor.dealer}"
+                        )
+                        
+        except Exception as notify_err:
+            # Ошибка уведомлений НЕ должна ломать основную операцию
+            logger.error(
+                f"[software/assign/notify] Ошибка: {str(notify_err)}",
+                exc_info=True
+            )
+        # ========== КОНЕЦ УВЕДОМЛЕНИЙ ==========
+        
+        return result
         
     except HTTPException:
         raise

@@ -6,7 +6,7 @@ from ..log import logger
 from typing import Optional, List, Dict, Any
 from fastapi import HTTPException, status
 from collections import defaultdict
-from sqlalchemy import func, and_ 
+from sqlalchemy import func, and_ , and_
 
 class SupportCRUD:
     
