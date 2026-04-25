@@ -19,6 +19,8 @@ class UserDB(Base):
     password_hash = Column(String, nullable=False)  # Хэш пароля (не сам пароль!)
     role = Column(String, default="dealer", nullable=False)  # Роль пользователя (engineer, dealer, moderator)
 
+    notifications = relationship("DealerNotification", back_populates="dealer")
+
     # Отношения: пользователь может отправлять сообщения и иметь статусы прочтения
     sent_messages = relationship("SupportMessage", foreign_keys="SupportMessage.sender_id", back_populates="sender")
     message_read_status = relationship("MessageReadStatus", foreign_keys="MessageReadStatus.moderator_id", back_populates="moderator")
@@ -178,7 +180,7 @@ class DealerNotification(Base):
     tractor_id: Mapped[int] = mapped_column(Integer, ForeignKey("tractors.id"), nullable=True)
     tractor_vin: Mapped[Optional[str]] = mapped_column(String(17), index=True) # Денормализация для быстрого доступа
     
-    software_id: Mapped[int] = mapped_column(Integer, ForeignKey("software.id"))
+    software_id: Mapped[int] = mapped_column(Integer, ForeignKey("softwares.id"))
     software_name: Mapped[str] = mapped_column(String(255))
     software_version: Mapped[str] = mapped_column(String(50))
     

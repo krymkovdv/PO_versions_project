@@ -6,7 +6,7 @@ from ..log import logger
 from typing import Optional, List, Dict, Any
 from fastapi import HTTPException, status
 from collections import defaultdict
-from sqlalchemy import func
+from sqlalchemy import func, and_ 
 
 class SupportCRUD:
     
@@ -510,7 +510,7 @@ class DealerNotificationCRUD:
     def create_notification(
         db: Session, 
         dealer_id: int, 
-        tractor_id: int, 
+        tractor_id: Optional[int], 
         software_id: int,
         software_name: str,
         software_version: str,
@@ -519,7 +519,7 @@ class DealerNotificationCRUD:
         """Создает новое уведомление для дилера"""
         
         # Получаем VIN трактора для отображения (опционально)
-        tractor = db.query(models.Tractor).filter(models.Tractor.id == tractor_id).first()
+        tractor = db.query(models.Tractor).filter(models.Tractor.id == tractor_id).first() if tractor_id else None
         vin = tractor.vin if tractor else None
         
         new_notification = models.DealerNotification(

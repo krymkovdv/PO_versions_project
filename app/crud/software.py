@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from typing import Optional
 import json
+from ..crud.notifications import create_notifications_for_software_update  # добавьте импорт
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +252,9 @@ def update_software(db: Session, sw_id: int, software_update: schemas.SoftwareUp
     
     db.commit()
     db.refresh(db_sw)
+
+     # 👇 НОВЫЙ КОД: создаём уведомления для дилеров после успешного обновления
+    create_notifications_for_software_update(db, sw_id, db_sw)
     # Для ответа десериализуем
     db_sw.tractor_model = _deserialize_tractor_models(db_sw.tractor_model)
     return db_sw
