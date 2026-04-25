@@ -9,7 +9,7 @@ from .. import schemas, crud, models
 from ..database import get_session
 from ..authorization import get_current_user
 from ..log import logger
-from ..crud.support import SupportCRUD
+from ..crud.support import SupportCRUD, DealerNotificationCRUD
 
 router = APIRouter(prefix="/support", tags=["Support Chat"])
 
@@ -318,3 +318,106 @@ async def toggle_message_read(
         "is_read": read_status.is_read,
         "read_at": read_status.read_at
     }
+
+router = APIRouter(prefix="/dealer/notifications", tags=["Dealer Notifications"])
+
+@router.post("", response_model=schemas.DealerNotificationResponse, status_code=status.HTTP_201_CREATED)
+async def create_notification(
+    notification: schemas.DealerNotificationCreate,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """
+    Создать уведомление для дилера.
+    Доступно: администраторам, модераторам или системе (при привязке ПО).
+    """
+    if current_user.role not in ["admin", "moderator", "system"]:
+        # Опционально: разрешить, если пользователь привязан к этому дилеру
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    
+    # Проверка существования дилера
+    dealer = db.query(models.UserDB).filter(
+        models.UserDB.id == notification.dealer_id,
+        models.UserDB.role == "dealer"
+    ).first()
+    
+    if not dealer:
+        raise HTTPException(status_code=404, detail="Dealer not found")
+    
+    new_notification = DealerNotificationCRUD.create_notification(
+        db=db,
+        dealer_id=notification.dealer_id,
+        tractor_id=notification.tractor_id,
+        software_id=notification.software_id,
+        software_name=notification.software_name,
+        software_version=notification.software_version,
+        message=notification.message
+    )
+    
+    return new_notification
+
+@router.get("", response_model=List[schemas.DealerNotificationResponse])
+async def get_my_notifications(
+    unread_only: bool = Query(False, description="Только непрочитанные"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получить список уведомлений текущего дилера"""
+    
+    if current_user.role != "dealer":
+        # Модераторы могут смотреть уведомления конкретного дилера через другой эндпоинт
+        raise HTTPException(status_code=403, detail="Only dealers can access this endpoint")
+    
+    return DealerNotificationCRUD.get_notifications_for_dealer(
+        db, current_user.id, unread_only, limit, offset
+    )
+
+@router.get("/unread-count", response_model=dict)
+async def get_unread_count(
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Получить количество непрочитанных уведомлений"""
+    
+    if current_user.role != "dealer":
+        raise HTTPException(status_code=403, detail="Only for dealers")
+        
+    count = DealerNotificationCRUD.get_unread_count(db, current_user.id)
+    return {"unread_count": count}
+
+@router.patch("/{notification_id}/read", response_model=schemas.DealerNotificationResponse)
+async def mark_notification_read(
+    notification_id: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Отметить уведомление как прочитанное"""
+    
+    if current_user.role != "dealer":
+        raise HTTPException(status_code=403, detail="Only dealers can mark their notifications as read")
+        
+    result = DealerNotificationCRUD.mark_as_read(db, notification_id, current_user.id)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="Notification not found or access denied")
+    
+    return result
+
+@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_notification(
+    notification_id: int,
+    db: Session = Depends(get_session),
+    current_user: models.UserDB = Depends(get_current_user)
+):
+    """Удалить уведомление"""
+    
+    success = DealerNotificationCRUD.delete_notification(
+        db, notification_id, current_user.id, current_user.role
+    )
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Notification not found or access denied")
+    
+    return None  # Возвращает 204 No Content

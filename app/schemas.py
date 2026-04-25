@@ -645,3 +645,32 @@ class UnreadRepliesCountResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DealerNotificationCreate(BaseModel):
+    """Схема для создания нового уведомления"""
+    dealer_id: int = Field(..., gt=0, description="ID дилера")
+    tractor_id: int = Field(..., gt=0, description="ID трактора")
+    software_id: int = Field(..., gt=0, description="ID добавленного ПО")
+    software_name: str = Field(..., max_length=255, description="Название ПО")
+    software_version: str = Field(..., max_length=50, description="Версия ПО")
+    message: Optional[str] = Field(None, max_length=500, description="Доп. сообщение")
+
+    class Config:
+        from_attributes = True
+
+class DealerNotificationResponse(BaseModel):
+    """Схема ответа с данными уведомления"""
+    id: int
+    dealer_id: int
+    tractor_vin: Optional[str] = None
+    software_name: str
+    software_version: str
+    message: Optional[str] = None
+    is_read: bool = False
+    created_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class NotificationStatusUpdate(BaseModel):
+    """Схема для обновления статуса прочтения"""
+    is_read: bool = Field(..., description="Новый статус прочтения")

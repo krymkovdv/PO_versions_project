@@ -502,3 +502,129 @@ class SupportCRUD:
             query = query.filter(models.SupportMessage.is_closed == False)
         
         return query.scalar() or 0
+    
+class DealerNotificationCRUD:
+    """CRUD операции для уведомлений дилеров"""
+
+    @staticmethod
+    def create_notification(
+        db: Session, 
+        dealer_id: int, 
+        tractor_id: int, 
+        software_id: int,
+        software_name: str,
+        software_version: str,
+        message: Optional[str] = None
+    ) -> models.DealerNotification:
+        """Создает новое уведомление для дилера"""
+        
+        # Получаем VIN трактора для отображения (опционально)
+        tractor = db.query(models.Tractor).filter(models.Tractor.id == tractor_id).first()
+        vin = tractor.vin if tractor else None
+        
+        new_notification = models.DealerNotification(
+            dealer_id=dealer_id,
+            tractor_id=tractor_id,
+            tractor_vin=vin,
+            software_id=software_id,
+            software_name=software_name,
+            software_version=software_version,
+            message=message,
+            is_read=False,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_notification)
+        db.commit()
+        db.refresh(new_notification)
+        
+        logger.info(
+            f"[notification/create] Создано уведомление: "
+            f"dealer_id={dealer_id}, software={software_name} v{software_version}"
+        )
+        
+        return new_notification
+
+    @staticmethod
+    def get_notifications_for_dealer(
+        db: Session, 
+        dealer_id: int, 
+        unread_only: bool = False,
+        limit: int = 50,
+        offset: int = 0
+    ) -> List[models.DealerNotification]:
+        """Получает список уведомлений для конкретного дилера"""
+        
+        query = db.query(models.DealerNotification).filter(
+            models.DealerNotification.dealer_id == dealer_id
+        )
+        
+        if unread_only:
+            query = query.filter(models.DealerNotification.is_read == False)
+            
+        return query.order_by(
+            models.DealerNotification.created_at.desc()
+        ).offset(offset).limit(limit).all()
+
+    @staticmethod
+    def mark_as_read(
+        db: Session, 
+        notification_id: int, 
+        dealer_id: int
+    ) -> Optional[models.DealerNotification]:
+        """Отмечает уведомление как прочитанное (проверка прав владения)"""
+        
+        notification = db.query(models.DealerNotification).filter(
+            and_(
+                models.DealerNotification.id == notification_id,
+                models.DealerNotification.dealer_id == dealer_id
+            )
+        ).first()
+        
+        if not notification:
+            return None
+            
+        notification.is_read = True
+        notification.read_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(notification)
+        
+        logger.info(f"[notification/read] Уведомление {notification_id} прочитано дилером {dealer_id}")
+        return notification
+
+    @staticmethod
+    def get_unread_count(db: Session, dealer_id: int) -> int:
+        """Возвращает количество непрочитанных уведомлений"""
+        return db.query(models.DealerNotification).filter(
+            and_(
+                models.DealerNotification.dealer_id == dealer_id,
+                models.DealerNotification.is_read == False
+            )
+        ).count()
+
+    @staticmethod
+    def delete_notification(
+        db: Session, 
+        notification_id: int, 
+        dealer_id: int, 
+        user_role: str
+    ) -> bool:
+        """Удаляет уведомление (Дилер - только свои, Модератор - любые)"""
+        
+        query = db.query(models.DealerNotification).filter(
+            models.DealerNotification.id == notification_id
+        )
+        
+        # Если не админ/модератор, проверяем принадлежность
+        if user_role not in ["admin", "moderator"]:
+            query = query.filter(models.DealerNotification.dealer_id == dealer_id)
+            
+        notification = query.first()
+        
+        if not notification:
+            return False
+            
+        db.delete(notification)
+        db.commit()
+        logger.info(f"[notification/delete] Уведомление {notification_id} удалено")
+        return True

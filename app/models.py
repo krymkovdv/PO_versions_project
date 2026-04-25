@@ -1,8 +1,9 @@
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, Boolean, Date, CHAR, Table, String, event,CheckConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, Boolean, Date, CHAR, Table, String, event, CheckConstraint
 from datetime import datetime, timezone, date
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.orm.attributes import get_history
+from typing import Optional
 
 # Базовый класс для всех моделей SQLAlchemy
 class Base(DeclarativeBase): 
@@ -168,3 +169,25 @@ class MessageReadStatus(Base):
     # Отношения
     message = relationship("SupportMessage", foreign_keys=[message_id])
     moderator = relationship("UserDB", foreign_keys=[moderator_id])
+
+class DealerNotification(Base):
+    __tablename__ = "dealer_notifications"
+    
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    dealer_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    tractor_id: Mapped[int] = mapped_column(Integer, ForeignKey("tractors.id"), nullable=True)
+    tractor_vin: Mapped[Optional[str]] = mapped_column(String(17), index=True) # Денормализация для быстрого доступа
+    
+    software_id: Mapped[int] = mapped_column(Integer, ForeignKey("software.id"))
+    software_name: Mapped[str] = mapped_column(String(255))
+    software_version: Mapped[str] = mapped_column(String(50))
+    
+    message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(timezone.utc))
+    
+    # Связи
+    dealer: Mapped["UserDB"] = relationship("UserDB", back_populates="notifications")
+    # tractor и software можно добавить при необходимости
