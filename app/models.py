@@ -22,6 +22,7 @@ class UserDB(Base):
     # Отношения: пользователь может отправлять сообщения и иметь статусы прочтения
     sent_messages = relationship("SupportMessage", foreign_keys="SupportMessage.sender_id", back_populates="sender")
     message_read_status = relationship("MessageReadStatus", foreign_keys="MessageReadStatus.moderator_id", back_populates="moderator")
+    notifications = relationship("DealerNotification", foreign_keys="DealerNotification.dealer_id", back_populates="dealer")
     
     __table_args__ = (
             CheckConstraint(
@@ -170,24 +171,32 @@ class MessageReadStatus(Base):
     message = relationship("SupportMessage", foreign_keys=[message_id])
     moderator = relationship("UserDB", foreign_keys=[moderator_id])
 
+
 class DealerNotification(Base):
     __tablename__ = "dealer_notifications"
     
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    dealer_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
-    tractor_id: Mapped[int] = mapped_column(Integer, ForeignKey("tractors.id"), nullable=True)
-    tractor_vin: Mapped[Optional[str]] = mapped_column(String(17), index=True) # Денормализация для быстрого доступа
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     
-    software_id: Mapped[int] = mapped_column(Integer, ForeignKey("software.id"))
-    software_name: Mapped[str] = mapped_column(String(255))
-    software_version: Mapped[str] = mapped_column(String(50))
+    # Связь с дилером (пользователем с ролью 'dealer')
+    dealer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     
-    message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Связь с трактором (опционально)
+    tractor_id = Column(Integer, ForeignKey("tractors.id"), nullable=True, index=True)
+    tractor_vin = Column(String(17), nullable=True, index=True)  # Денормализация для быстрого поиска
     
-    is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(timezone.utc))
+    # Информация о ПО
+    software_id = Column(Integer, ForeignKey("softwares.id"), nullable=False)
+    software_name = Column(String(255), nullable=False)
+    software_version = Column(String(50), nullable=False)
     
-    # Связи
-    dealer: Mapped["UserDB"] = relationship("UserDB", back_populates="notifications")
-    # tractor и software можно добавить при необходимости
+    # Текст уведомления
+    message = Column(Text, nullable=True)
+    
+    # Статус прочтения
+    is_read = Column(Boolean, default=False, index=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    
+    # Отношения
+    dealer = relationship("UserDB", foreign_keys=[dealer_id], back_populates="notifications")
+    # tractor = relationship("Tractor", foreign_keys=[tractor_id], back_populates="dealer_notifications")  # опционально
