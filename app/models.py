@@ -187,7 +187,7 @@ class DealerNotification(Base):
     tractor_vin = Column(String(17), nullable=True, index=True)  # Денормализация для быстрого поиска
     
     # Информация о ПО
-    software_id = Column(Integer, ForeignKey("softwaress.id"), nullable=False)
+    software_id = Column(Integer, ForeignKey("softwares.id"), nullable=False)
     software_name = Column(String(255), nullable=False)
     software_version = Column(String(50), nullable=False)
     
