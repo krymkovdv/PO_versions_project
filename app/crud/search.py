@@ -504,7 +504,7 @@ def get_next_software_versions(
 # # ============================================
 # # Страница 4: Тракторы
 # # ============================================
-def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
+def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter, current_user: schemas.UserInfo):
     """Получить тракторы по фильтрам — только базовая информация (уникальные VIN)"""
     
     # Основной запрос — БЕЗ джойнов с Software
@@ -519,6 +519,10 @@ def get_tractors_by_filters(db: Session, filter: schemas.TractorFilter):
         models.Tractor.last_activity,
         models.Tractor.dealer,
     ).select_from(models.Tractor)
+
+
+    if current_user.role == "dealer":
+        query = query.filter(models.Tractor.dealer == current_user.username)
 
     # 🔄 Фильтр по is_actual — через EXISTS (без дублирования строк)
     if filter.is_actual is not None:
