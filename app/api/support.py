@@ -265,7 +265,7 @@ async def delete_message(
     )
 
 
-@router.patch("/close-message/{message_id}/{moderator_id}")  
+@message_router.patch("/close-message/{message_id}/{moderator_id}")  
 async def close_message(
     message_id: int, 
     db: Session = Depends(get_session), 
