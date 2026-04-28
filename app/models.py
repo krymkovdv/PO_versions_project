@@ -19,6 +19,8 @@ class UserDB(Base):
     password_hash = Column(String, nullable=False)  # Хэш пароля (не сам пароль!)
     role = Column(String, default="dealer", nullable=False)  # Роль пользователя (engineer, dealer, moderator)
 
+    notifications = relationship("DealerNotification", back_populates="dealer")
+
     # Отношения: пользователь может отправлять сообщения и иметь статусы прочтения
     sent_messages = relationship("SupportMessage", foreign_keys="SupportMessage.sender_id", back_populates="sender")
     message_read_status = relationship("MessageReadStatus", foreign_keys="MessageReadStatus.moderator_id", back_populates="moderator")
