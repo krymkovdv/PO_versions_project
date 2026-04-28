@@ -11,11 +11,11 @@ from ..authorization import get_current_user
 from ..log import logger
 from ..crud.support import SupportCRUD, DealerNotificationCRUD
 
-router = APIRouter(prefix="/support", tags=["Support Chat"])
+message_router = APIRouter(prefix="/support", tags=["Support Chat"])
 
 # ========== ЭНДПОИНТЫ (названия сохранены как было) ==========
 
-@router.post("/messages")
+@message_router.post("/messages")
 async def send_to_moderators(
     message: schemas.SupportMessageCreate,  
     db: Session = Depends(get_session),
@@ -40,7 +40,7 @@ async def send_to_moderators(
         "status": "sent to all moderators"
     }
 
-@router.post("/messages/reply")
+@message_router.post("/messages/reply")
 async def reply_to_message(
     reply: schemas.SupportReplyRequest,
     db: Session = Depends(get_session),
@@ -65,7 +65,7 @@ async def reply_to_message(
         "original_message_content": result["original_message"].content
     }
 
-@router.get("/conversation/{user_id}")
+@message_router.get("/conversation/{user_id}")
 async def get_conversation_with_user(
     user_id: int,
     db: Session = Depends(get_session),
@@ -95,7 +95,7 @@ async def get_conversation_with_user(
         "messages": conversation
     }
 
-@router.get("/messages")
+@message_router.get("/messages")
 async def get_messages(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
@@ -130,7 +130,7 @@ async def get_messages(
             for msg in messages
         ]
 
-@router.get("/unread")
+@message_router.get("/unread")
 async def get_unread(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
@@ -143,7 +143,7 @@ async def get_unread(
     count = SupportCRUD.get_unread_count(db, current_user.id)
     return {"unread_count": count}
 
-@router.post("/messages/{message_id}/read")
+@message_router.post("/messages/{message_id}/read")
 async def mark_message_read(
     message_id: int,
     db: Session = Depends(get_session),
@@ -162,7 +162,7 @@ async def mark_message_read(
         "read_at": read_status.read_at
     }
 
-@router.get("/moderators")
+@message_router.get("/moderators")
 async def get_moderators(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
@@ -171,7 +171,7 @@ async def get_moderators(
     moderators = SupportCRUD.get_all_moderators(db)
     return {"moderators": moderators}
 
-@router.get("/users")
+@message_router.get("/users")
 async def get_users_for_moderator(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
@@ -184,7 +184,7 @@ async def get_users_for_moderator(
     users = SupportCRUD.get_users_for_moderator(db, current_user.id)
     return {"users": users}
 
-@router.get("/unread/replies-count")
+@message_router.get("/unread/replies-count")
 async def get_user_unread_replies(
     last_checked: Optional[str] = Query(None),
     db: Session = Depends(get_session),
@@ -211,7 +211,7 @@ async def get_user_unread_replies(
     
     return {"unread_replies_count": count}
 
-@router.get("/read-message/{message_id}")
+@message_router.get("/read-message/{message_id}")
 async def read_message(message_id:int, db:Session = Depends(get_session), currnet_user: models.UserDB = Depends(get_current_user)):
     if currnet_user.role != "moderator":
         raise HTTPException(
@@ -225,9 +225,7 @@ async def read_message(message_id:int, db:Session = Depends(get_session), currne
         "read_at": result.read_at
     }
 
-# ========== НОВЫЙ ЭНДПОИНТ ДЛЯ УДАЛЕНИЯ ==========
-
-@router.delete("/messages/{message_id}", response_model=schemas.SupportMessageDeleteResponse)
+@message_router.delete("/messages/{message_id}", response_model=schemas.SupportMessageDeleteResponse)
 async def delete_message(
     message_id: int,
     delete_request: Optional[schemas.SupportMessageDeleteRequest] = Body(None),
@@ -267,7 +265,7 @@ async def delete_message(
     )
 
 
-@router.patch("/close-message/{message_id}/{moderator_id}")  # Лучше использовать PATCH для частичного обновления
+@message_router.patch("/close-message/{message_id}/{moderator_id}")  # Лучше использовать PATCH для частичного обновления
 async def close_message(
     message_id: int, 
     db: Session = Depends(get_session), 
@@ -290,7 +288,7 @@ async def close_message(
     }
 
 
-@router.get("/support/unread-count", response_model=schemas.UnreadRepliesCountResponse, status_code=status.HTTP_200_OK)
+@message_router.get("/support/unread-count", response_model=schemas.UnreadRepliesCountResponse, status_code=status.HTTP_200_OK)
 def get_unread_replies_count_api(
     current_user: models.UserDB = Depends(get_current_user),
     db: Session = Depends(get_session)
@@ -302,7 +300,7 @@ def get_unread_replies_count_api(
     count = SupportCRUD.get_unread_count_for_moderator(db, current_user.id)
     return {"unread_count": count}
 
-@router.patch("/messages/{message_id}/toggle-read")
+@message_router.patch("/messages/{message_id}/toggle-read")
 async def toggle_message_read(
     message_id: int,
     db: Session = Depends(get_session),
@@ -319,9 +317,9 @@ async def toggle_message_read(
         "read_at": read_status.read_at
     }
 
-router = APIRouter(prefix="/dealer/notifications", tags=["Dealer Notifications"])
+notification_router = APIRouter(prefix="/notifications", tags=["Dealer Notifications"])
 
-@router.post("", response_model=schemas.DealerNotificationResponse, status_code=status.HTTP_201_CREATED)
+@notification_router.post("", response_model=schemas.DealerNotificationResponse, status_code=status.HTTP_201_CREATED)
 async def create_notification(
     notification: schemas.DealerNotificationCreate,
     db: Session = Depends(get_session),
@@ -356,7 +354,7 @@ async def create_notification(
     
     return new_notification
 
-@router.get("", response_model=List[schemas.DealerNotificationResponse])
+@notification_router.get("", response_model=List[schemas.DealerNotificationResponse])
 async def get_my_notifications(
     unread_only: bool = Query(False, description="Только непрочитанные"),
     limit: int = Query(50, ge=1, le=100),
@@ -374,7 +372,7 @@ async def get_my_notifications(
         db, current_user.id, unread_only, limit, offset
     )
 
-@router.get("/unread-count", response_model=dict)
+@notification_router.get("/unread-count", response_model=dict)
 async def get_unread_count(
     db: Session = Depends(get_session),
     current_user: models.UserDB = Depends(get_current_user)
@@ -387,7 +385,7 @@ async def get_unread_count(
     count = DealerNotificationCRUD.get_unread_count(db, current_user.id)
     return {"unread_count": count}
 
-@router.patch("/{notification_id}/read", response_model=schemas.DealerNotificationResponse)
+@notification_router.patch("/{notification_id}/read", response_model=schemas.DealerNotificationResponse)
 async def mark_notification_read(
     notification_id: int,
     db: Session = Depends(get_session),
@@ -405,7 +403,7 @@ async def mark_notification_read(
     
     return result
 
-@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+@notification_router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_notification(
     notification_id: int,
     db: Session = Depends(get_session),

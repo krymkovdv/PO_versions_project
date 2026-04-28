@@ -482,7 +482,7 @@ class SupportCRUD:
     def get_unread_count_for_moderator(
         db: Session, 
         moderator_id: int, 
-        include_closed: bool = False  # ✅ Опционально: учитывать закрытые или нет
+        include_closed: bool = False  
     ) -> int:
         """
         Возвращает количество сообщений, которые модератор ещё не прочитал.
@@ -494,7 +494,7 @@ class SupportCRUD:
         ).filter(
             models.MessageReadStatus.moderator_id == moderator_id,
             models.SupportMessage.is_read == False,
-            models.SupportMessage.parent_message_id == None  # ✅ Только главные сообщения, не ответы
+            models.SupportMessage.parent_message_id == None 
         )
         
         # ✅ Опционально: исключить закрытые обращения из подсчёта

@@ -55,7 +55,8 @@ app.include_router(tractors.router)  # Роутер управления тра�
 app.include_router(components.router) # Роутер управления компонентами
 app.include_router(software.router)  # Роутер управления программным обеспечением
 app.include_router(search.router)    # Роутер поиска и фильтрации
-app.include_router(support.router)   # Роутер поддержки (сообщения)
+app.include_router(support.message_router)   # Роутер поддержки (сообщения)
+app.include_router(support.notification_router) # Роутер поддержки (уведомления)
 
 # Команды для запуска сервера (оставлены как комментарии):
 # uvicorn app.main:app --reload
