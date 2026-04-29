@@ -282,7 +282,7 @@ async def close_message(
     }
 
 
-@message_router.get("/support/unread-count", response_model=schemas.UnreadRepliesCountResponse, status_code=status.HTTP_200_OK)
+@message_router.get("/unread-count", response_model=schemas.UnreadRepliesCountResponse, status_code=status.HTTP_200_OK)
 def get_unread_replies_count_api(
     current_user: models.UserDB = Depends(get_current_user),
     db: Session = Depends(get_session)
