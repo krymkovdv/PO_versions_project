@@ -67,10 +67,11 @@ def _deserialize_tractor_models(models_str: str) -> list:
     """Десериализует JSON-строку в список моделей"""
     if not models_str:
         return []
+    max_cleaning_iterations = 5
 
     def _clean_model_name(value: str) -> str:
         cleaned = value.strip()
-        for _ in range(5):
+        for _ in range(max_cleaning_iterations):
             prev = cleaned
             if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {"'", '"'}:
                 cleaned = cleaned[1:-1].strip()
@@ -85,7 +86,7 @@ def _deserialize_tractor_models(models_str: str) -> list:
         if not inner:
             return []
         pg_array_values = next(csv.reader([inner], delimiter=",", quotechar='"', escapechar="\\"))
-        return [v for v in pg_array_values if v is not None]
+        return [v for v in pg_array_values if v]
 
     def _prepare_list(values: list) -> list[str]:
         result = []
@@ -96,7 +97,7 @@ def _deserialize_tractor_models(models_str: str) -> list:
                     try:
                         result.extend(_prepare_list(_parse_pg_array(normalized_item)))
                         continue
-                    except Exception:
+                    except (csv.Error, ValueError, TypeError, StopIteration):
                         pass
                 normalized = _clean_model_name(normalized_item)
                 if normalized:
@@ -112,7 +113,7 @@ def _deserialize_tractor_models(models_str: str) -> list:
         if raw.startswith("{") and raw.endswith("}"):
             try:
                 return _prepare_list(_parse_pg_array(raw))
-            except Exception:
+            except (csv.Error, ValueError, TypeError, StopIteration):
                 pass
 
     try:
@@ -124,7 +125,7 @@ def _deserialize_tractor_models(models_str: str) -> list:
             if loaded.startswith("{") and loaded.endswith("}"):
                 try:
                     return _prepare_list(_parse_pg_array(loaded))
-                except Exception:
+                except (csv.Error, ValueError, TypeError, StopIteration):
                     pass
             cleaned = _clean_model_name(loaded)
             return [cleaned] if cleaned else []
