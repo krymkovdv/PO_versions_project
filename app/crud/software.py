@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from typing import Optional
 import json
+import csv
 from ..crud.notifications import create_notifications_for_software_update  # добавьте импорт
 
 logger = logging.getLogger(__name__)
@@ -66,11 +67,72 @@ def _deserialize_tractor_models(models_str: str) -> list:
     """Десериализует JSON-строку в список моделей"""
     if not models_str:
         return []
+
+    def _clean_model_name(value: str) -> str:
+        cleaned = value.strip()
+        for _ in range(5):
+            prev = cleaned
+            if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {"'", '"'}:
+                cleaned = cleaned[1:-1].strip()
+            if len(cleaned) >= 2 and cleaned[0] == "(" and cleaned[-1] == ")":
+                cleaned = cleaned[1:-1].strip()
+            if cleaned == prev:
+                break
+        return cleaned
+
+    def _parse_pg_array(raw_value: str) -> list[str]:
+        inner = raw_value[1:-1].strip()
+        if not inner:
+            return []
+        pg_array_values = next(csv.reader([inner], delimiter=",", quotechar='"', escapechar="\\"))
+        return [v for v in pg_array_values if v is not None]
+
+    def _prepare_list(values: list) -> list[str]:
+        result = []
+        for item in values:
+            if isinstance(item, str):
+                normalized_item = item.strip()
+                if normalized_item.startswith("{") and normalized_item.endswith("}"):
+                    try:
+                        result.extend(_prepare_list(_parse_pg_array(normalized_item)))
+                        continue
+                    except Exception:
+                        pass
+                normalized = _clean_model_name(normalized_item)
+                if normalized:
+                    result.append(normalized)
+            elif item is not None:
+                normalized = _clean_model_name(str(item))
+                if normalized:
+                    result.append(normalized)
+        return result
+
+    if isinstance(models_str, str):
+        raw = models_str.strip()
+        if raw.startswith("{") and raw.endswith("}"):
+            try:
+                return _prepare_list(_parse_pg_array(raw))
+            except Exception:
+                pass
+
     try:
-        return json.loads(models_str)
+        loaded = json.loads(models_str)
+        if isinstance(loaded, list):
+            return _prepare_list(loaded)
+        if isinstance(loaded, str):
+            loaded = loaded.strip()
+            if loaded.startswith("{") and loaded.endswith("}"):
+                try:
+                    return _prepare_list(_parse_pg_array(loaded))
+                except Exception:
+                    pass
+            cleaned = _clean_model_name(loaded)
+            return [cleaned] if cleaned else []
+        return []
     except (json.JSONDecodeError, TypeError):
         # Для обратной совместимости - если старая строка
-        return [models_str] if models_str else []
+        cleaned = _clean_model_name(models_str)
+        return [cleaned] if cleaned else []
 
 def get_software(db: Session):
     """Получение всего ПО с десериализацией моделей"""
