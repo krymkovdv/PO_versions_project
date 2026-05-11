@@ -15,6 +15,7 @@ import csv
 from ..crud.notifications import create_notifications_for_software_update  # добавьте импорт
 
 logger = logging.getLogger(__name__)
+MAX_MODEL_NAME_CLEANUP_ITERATIONS = 5
 
 #Software
 def _serialize_tractor_models(models_list: list) -> str:
@@ -67,11 +68,10 @@ def _deserialize_tractor_models(models_str: str) -> list:
     """Десериализует JSON-строку в список моделей"""
     if not models_str:
         return []
-    max_cleaning_iterations = 5
 
     def _clean_model_name(value: str) -> str:
         cleaned = value.strip()
-        for _ in range(max_cleaning_iterations):
+        for _ in range(MAX_MODEL_NAME_CLEANUP_ITERATIONS):
             prev = cleaned
             if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {"'", '"'}:
                 cleaned = cleaned[1:-1].strip()
@@ -82,6 +82,8 @@ def _deserialize_tractor_models(models_str: str) -> list:
         return cleaned
 
     def _parse_pg_array(raw_value: str) -> list[str]:
+        if not (isinstance(raw_value, str) and raw_value.startswith("{") and raw_value.endswith("}")):
+            raise ValueError("Invalid PostgreSQL array literal format")
         inner = raw_value[1:-1].strip()
         if not inner:
             return []
@@ -97,8 +99,8 @@ def _deserialize_tractor_models(models_str: str) -> list:
                     try:
                         result.extend(_prepare_list(_parse_pg_array(normalized_item)))
                         continue
-                    except (csv.Error, ValueError, TypeError, StopIteration):
-                        pass
+                    except (csv.Error, ValueError, TypeError, StopIteration) as exc:
+                        logger.debug("[_deserialize_tractor_models] parse nested PG array failed: %s", exc)
                 normalized = _clean_model_name(normalized_item)
                 if normalized:
                     result.append(normalized)
@@ -113,8 +115,8 @@ def _deserialize_tractor_models(models_str: str) -> list:
         if raw.startswith("{") and raw.endswith("}"):
             try:
                 return _prepare_list(_parse_pg_array(raw))
-            except (csv.Error, ValueError, TypeError, StopIteration):
-                pass
+            except (csv.Error, ValueError, TypeError, StopIteration) as exc:
+                logger.debug("[_deserialize_tractor_models] parse PG array failed: %s", exc)
 
     try:
         loaded = json.loads(models_str)
@@ -125,8 +127,8 @@ def _deserialize_tractor_models(models_str: str) -> list:
             if loaded.startswith("{") and loaded.endswith("}"):
                 try:
                     return _prepare_list(_parse_pg_array(loaded))
-                except (csv.Error, ValueError, TypeError, StopIteration):
-                    pass
+                except (csv.Error, ValueError, TypeError, StopIteration) as exc:
+                    logger.debug("[_deserialize_tractor_models] parse PG array from JSON string failed: %s", exc)
             cleaned = _clean_model_name(loaded)
             return [cleaned] if cleaned else []
         return []
