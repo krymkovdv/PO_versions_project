@@ -15,6 +15,7 @@ import csv
 from ..crud.notifications import create_notifications_for_software_update  # добавьте импорт
 
 logger = logging.getLogger(__name__)
+# Ограничение глубины распаковки обёрток (кавычки/скобки) для защиты от зацикливания на битых данных.
 MAX_MODEL_NAME_CLEANUP_ITERATIONS = 5
 
 #Software
@@ -99,7 +100,7 @@ def _deserialize_tractor_models(models_str: str) -> list:
                     try:
                         result.extend(_prepare_list(_parse_pg_array(normalized_item)))
                         continue
-                    except (csv.Error, ValueError, TypeError, StopIteration) as exc:
+                    except (csv.Error, ValueError, TypeError) as exc:
                         logger.debug("[_deserialize_tractor_models] parse nested PG array failed: %s", exc)
                 normalized = _clean_model_name(normalized_item)
                 if normalized:
@@ -115,7 +116,7 @@ def _deserialize_tractor_models(models_str: str) -> list:
         if raw.startswith("{") and raw.endswith("}"):
             try:
                 return _prepare_list(_parse_pg_array(raw))
-            except (csv.Error, ValueError, TypeError, StopIteration) as exc:
+            except (csv.Error, ValueError, TypeError) as exc:
                 logger.debug("[_deserialize_tractor_models] parse PG array failed: %s", exc)
 
     try:
@@ -127,7 +128,7 @@ def _deserialize_tractor_models(models_str: str) -> list:
             if loaded.startswith("{") and loaded.endswith("}"):
                 try:
                     return _prepare_list(_parse_pg_array(loaded))
-                except (csv.Error, ValueError, TypeError, StopIteration) as exc:
+                except (csv.Error, ValueError, TypeError) as exc:
                     logger.debug("[_deserialize_tractor_models] parse PG array from JSON string failed: %s", exc)
             cleaned = _clean_model_name(loaded)
             return [cleaned] if cleaned else []
