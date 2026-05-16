@@ -1,4 +1,4 @@
-from . import software, tractors, components, users, search, software_component_link, tractor_software_component_link
+from . import software, tractors, components, users, search, software_component_link, tractor_software_component_link, knowledge_base
 """
 Модуль CRUD операций системы управления версиями программного обеспечения для тракторов
 

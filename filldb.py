@@ -4,9 +4,10 @@ from app.database import get_session
 from app.models import (
     Tractor, Component, Software, 
     Software_Component_Link, Tractor_Software_And_Component_Link,
-    SupportMessage, MessageReadStatus, UserDB
+    SupportMessage, MessageReadStatus, UserDB, KnowledgeBase
 )
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import random
 
 
@@ -53,6 +54,95 @@ class SoftwareFilterManager:
             self.software_data['is_archive'] = False
             if not self.software_data.get('is_actual', False):
                 self.software_data['is_actual'] = True
+
+
+def fill_knowledge_base(session: Session):
+    """Заполняет таблицу KnowledgeBase тестовыми данными"""
+    
+    print("\n📚 ЗАПОЛНЕНИЕ БАЗЫ ЗНАНИЙ (KnowledgeBase)")
+    
+    knowledge_base_data = [
+        # instruction_about_rework - инструкции по доработке/модернизации
+        ("instruction_about_rework", "/docs/rework/kpp_728_modernization_v1.pdf"),
+        ("instruction_about_rework", "/docs/rework/hydraulic_system_upgrade_v2.pdf"),
+        ("instruction_about_rework", "/docs/rework/autopilot_retrofit_kit.pdf"),
+        ("instruction_about_rework", "/docs/rework/ecu_firmware_update_procedure.pdf"),
+        ("instruction_about_rework", "/docs/rework/bk_agro_v3_to_v4_migration.pdf"),
+        ("instruction_about_rework", "/docs/rework/steering_system_modification.pdf"),
+        ("instruction_about_rework", "/docs/rework/electrical_harness_upgrade.pdf"),
+        ("instruction_about_rework", "/docs/rework/can_bus_termination_fix.pdf"),
+        
+        # instruction_about_exploitation - инструкции по эксплуатации
+        ("instruction_about_exploitation", "/docs/exploitation/k7_tractor_manual.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/k525_operator_guide.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/weichai_engine_operation.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/cummins_maintenance_schedule.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/autopilot_user_guide.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/hydraulic_system_operation.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/kpp_730_operation_guide.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/bk_agro_interface_manual.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/safety_regulations.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/fuel_system_guide.pdf"),
+        ("instruction_about_exploitation", "/docs/exploitation/cooling_system_manual.pdf"),
+        
+        # diagnostic - диагностические инструкции
+        ("diagnostic", "/docs/diagnostic/error_codes_reference.pdf"),
+        ("diagnostic", "/docs/diagnostic/ecu_diagnostic_procedure.pdf"),
+        ("diagnostic", "/docs/diagnostic/can_bus_troubleshooting.pdf"),
+        ("diagnostic", "/docs/diagnostic/autopilot_calibration_diag.pdf"),
+        ("diagnostic", "/docs/diagnostic/engine_performance_test.pdf"),
+        ("diagnostic", "/docs/diagnostic/hydraulic_pressure_test.pdf"),
+        ("diagnostic", "/docs/diagnostic/electrical_system_check.pdf"),
+        ("diagnostic", "/docs/diagnostic/kpp_gear_sensor_test.pdf"),
+        ("diagnostic", "/docs/diagnostic/battery_diagnostic.pdf"),
+        ("diagnostic", "/docs/diagnostic/sensor_testing_procedure.pdf"),
+        
+        # protocol - протоколы испытаний/осмотров
+        ("protocol", "/docs/protocols/engine_acceptance_test.pdf"),
+        ("protocol", "/docs/protocols/autopilot_field_test_v2.pdf"),
+        ("protocol", "/docs/protocols/software_validation_report.pdf"),
+        ("protocol", "/docs/protocols/kpp_bench_test_results.pdf"),
+        ("protocol", "/docs/protocols/hydraulic_system_test.pdf"),
+        ("protocol", "/docs/protocols/electromagnetic_compatibility_test.pdf"),
+        ("protocol", "/docs/protocols/climate_chamber_test.pdf"),
+        ("protocol", "/docs/protocols/vibration_resistance_test.pdf"),
+        ("protocol", "/docs/protocols/telematic_data_validation.pdf"),
+        ("protocol", "/docs/protocols/fuel_efficiency_test.pdf"),
+    ]
+    
+    added_count = 0
+    skipped_count = 0
+    
+    for doc_type, doc_path in knowledge_base_data:
+        existing = session.query(KnowledgeBase).filter_by(path=doc_path).first()
+        if not existing:
+            kb_entry = KnowledgeBase(type=doc_type, path=doc_path)
+            session.add(kb_entry)
+            added_count += 1
+        else:
+            skipped_count += 1
+    
+    session.flush()
+    
+    print(f"   • Добавлено записей: {added_count}")
+    print(f"   • Пропущено (уже существуют): {skipped_count}")
+    print(f"   • Всего в БД: {session.query(KnowledgeBase).count()}")
+    
+    # Вывод статистики по типам
+    type_stats = session.query(KnowledgeBase.type, func.count(KnowledgeBase.id)).group_by(KnowledgeBase.type).all()
+    if type_stats:
+        print(f"\n   📊 Статистика по типам документов:")
+        type_names = {
+            "instruction_about_rework": "📝 Инструкции по доработке",
+            "instruction_about_exploitation": "📖 Инструкции по эксплуатации",
+            "diagnostic": "🔧 Диагностические инструкции",
+            "protocol": "📋 Протоколы"
+        }
+        for doc_type, count in type_stats:
+            display_name = type_names.get(doc_type, doc_type)
+            print(f"      • {display_name}: {count}")
+    
+    return added_count
 
 
 def fill_realistic_data():
@@ -531,7 +621,10 @@ def fill_realistic_data():
             print(f"\n⚠️ ПРОПУСК СОЗДАНИЯ СООБЩЕНИЙ: недостаточно пользователей в системе")
             print(f"   (модераторы: {len(moderators)}, дилеры: {len(dealers)}, инженеры: {len(engineers)})")
 
-        # --- 7. Вывод статистики и проверка фильтрации ---
+        # --- 7. ЗАПОЛНЕНИЕ БАЗЫ ЗНАНИЙ (KnowledgeBase) ---
+        fill_knowledge_base(session)
+
+        # --- 8. Вывод статистики и проверка фильтрации ---
         session.commit()
         
         print("\n" + "="*70)
@@ -585,6 +678,23 @@ def fill_realistic_data():
         print(f"   • Корневых сообщений: {root_messages}")
         print(f"   • Ответов: {replies}")
         print(f"   • Статусов прочтения: {session.query(MessageReadStatus).count()}")
+        
+        # Статистика по KnowledgeBase
+        kb_count = session.query(KnowledgeBase).count()
+        kb_by_type = session.query(KnowledgeBase.type, func.count(KnowledgeBase.id)).group_by(KnowledgeBase.type).all()
+        
+        print(f"\n📚 База знаний (KnowledgeBase):")
+        print(f"   • Всего документов: {kb_count}")
+        if kb_by_type:
+            type_names = {
+                "instruction_about_rework": "Инструкции по доработке",
+                "instruction_about_exploitation": "Инструкции по эксплуатации",
+                "diagnostic": "Диагностические инструкции",
+                "protocol": "Протоколы"
+            }
+            for doc_type, count in kb_by_type:
+                display_name = type_names.get(doc_type, doc_type)
+                print(f"   • {display_name}: {count}")
         
         print(f"\n✅ База данных успешно заполнена!")
         print("="*70)

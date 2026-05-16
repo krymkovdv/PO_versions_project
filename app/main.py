@@ -9,7 +9,7 @@ try:
     from .models import Base
     from .api import (
         auth, users, tractors, components,
-        software, search, support
+        software, search, support, knowledge_base
     )
 except ImportError:
     # Поддержка запуска файла напрямую: python .\app\main.py
@@ -20,7 +20,7 @@ except ImportError:
     from app.models import Base
     from app.api import (
         auth, users, tractors, components,
-        software, search, support
+        software, search, support, knowledge_base
     )
 
 # Инициализация подключения к базе данных и создание всех необходимых таблиц
@@ -57,6 +57,7 @@ app.include_router(software.router)  # Роутер управления про�
 app.include_router(search.router)    # Роутер поиска и фильтрации
 app.include_router(support.message_router)   # Роутер поддержки (сообщения)
 app.include_router(support.notification_router) # Роутер поддержки (уведомления)
+app.include_router(knowledge_base.router)
 
 # Команды для запуска сервера (оставлены как комментарии):
 # uvicorn app.main:app --reload

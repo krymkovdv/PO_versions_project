@@ -1,0 +1,10 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.defaultInterpreterPath": "C:\\Users\\s8923\\AppData\\Local\\Python\\bin\\python.exe",
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.executeInFileDir": true,
+    "[python]": {
+        "editor.formatOnType": true,
+        "editor.wordBasedSuggestions": "off"
+    }
+}
