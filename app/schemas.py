@@ -684,5 +684,6 @@ class NotificationStatusUpdate(BaseModel):
     is_read: bool = Field(..., description="Новый статус прочтения")
 
 class KnowledgeBase(BaseModel):
+    id: int
     type: str
     path: str

@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, Response
 from datetime import datetime
 import os
 import json
+import shutil
 
 router = APIRouter(prefix="/knowledge_base", tags=["KnowledgeBase"])
 
@@ -21,3 +22,63 @@ def get_knowledge_base(
     session: Session = Depends(get_session)
 ):
     return crud.knowledge_base.get_knowledge_base(session, type)
+
+@router.post("/upload", status_code=201)
+def upload_file(
+    file: UploadFile = File(...),
+    current_user = Depends(require_role("moderator"))
+):
+    # Создаём папку если нет
+    os.makedirs("uploads/knowledge_base", exist_ok=True)
+    
+    # Генерируем уникальное имя
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{timestamp}_{file.filename}"
+    file_path = os.path.join("uploads/knowledge_base", filename)
+    
+    # Сохраняем файл
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    return {"path": file_path}
+
+
+# 2. POST "" - сохранить путь в БД (JSON)
+@router.post("", status_code=201)
+def create_knowledge_base(
+    data: schemas.KnowledgeBase,  # ← JSON с type и path
+    db: Session = Depends(get_session),
+    current_user = Depends(require_role("moderator"))
+):
+    db_entry = models.KnowledgeBase(
+        type=data.type,
+        path=data.path
+    )
+    db.add(db_entry)
+    db.commit()
+    db.refresh(db_entry)
+    return db_entry
+
+
+@router.get("/download/{file_id}")
+def download_knowledge_base_file(
+    file_id: int,
+    db: Session = Depends(get_session),
+    current_user = Depends(get_current_user)  # любой авторизованный
+):
+    # Получаем запись из БД
+    entry = db.query(models.KnowledgeBase).filter(models.KnowledgeBase.id == file_id).first()
+    
+    if not entry:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Проверяем, существует ли файл
+    if not os.path.exists(entry.path):
+        raise HTTPException(status_code=404, detail="File not found on server")
+    
+    # Возвращаем файл
+    return FileResponse(
+        path=entry.path,
+        filename=os.path.basename(entry.path),
+        media_type="application/octet-stream"
+    )
