@@ -686,4 +686,8 @@ class NotificationStatusUpdate(BaseModel):
 class KnowledgeBase(BaseModel):
     id: int
     type: str
+    path: str       
+
+class KnowledgeBaseAdd(BaseModel):
+    type: str
     path: str

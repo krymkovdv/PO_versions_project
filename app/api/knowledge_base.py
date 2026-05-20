@@ -46,7 +46,7 @@ def upload_file(
 # 2. POST "" - сохранить путь в БД (JSON)
 @router.post("", status_code=201)
 def create_knowledge_base(
-    data: schemas.KnowledgeBase,  # ← JSON с type и path
+    data: schemas.KnowledgeBaseAdd,  # ← JSON с type и path
     db: Session = Depends(get_session),
     current_user = Depends(require_role("moderator"))
 ):
