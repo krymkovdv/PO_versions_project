@@ -7,6 +7,8 @@ from pathlib import Path
 # ============================================
 # Вспомогательные функции для regex-поиска
 # ============================================
+
+
 def wildcard_to_psql_regex(pattern: str) -> str:
     """
     Преобразует wildcard-паттерн в PostgreSQL regex
@@ -680,3 +682,12 @@ class DealerNotificationResponse(BaseModel):
 class NotificationStatusUpdate(BaseModel):
     """Схема для обновления статуса прочтения"""
     is_read: bool = Field(..., description="Новый статус прочтения")
+
+class KnowledgeBase(BaseModel):
+    id: int
+    type: str
+    path: str       
+
+class KnowledgeBaseAdd(BaseModel):
+    type: str
+    path: str

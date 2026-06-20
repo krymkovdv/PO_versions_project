@@ -202,3 +202,9 @@ class DealerNotification(Base):
     # Отношения
     dealer = relationship("UserDB", foreign_keys=[dealer_id], back_populates="notifications")
     # tractor = relationship("Tractor", foreign_keys=[tractor_id], back_populates="dealer_notifications")  # опционально
+
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_base"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    type = Column(String(255), nullable=False)
+    path = Column(Text, unique=True, nullable=False)
