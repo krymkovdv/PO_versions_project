@@ -82,3 +82,30 @@ def download_knowledge_base_file(
         filename=os.path.basename(entry.path),
         media_type="application/octet-stream"
     )
+
+@router.delete("/{file_id}", status_code=204)
+def delete_knowledge_base_file(
+    file_id: int,
+    db: Session = Depends(get_session),
+    current_user = Depends(require_role("moderator"))
+):
+    # Получаем запись из БД
+    entry = db.query(models.KnowledgeBase).filter(models.KnowledgeBase.id == file_id).first()
+    
+    if not entry:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Удаляем физический файл (если существует)
+    if entry.path and os.path.exists(entry.path):
+        try:
+            os.remove(entry.path)
+            logger.info(f"Deleted file: {entry.path}")
+        except OSError as e:
+            logger.error(f"Error deleting file {entry.path}: {e}")
+            # Продолжаем удаление записи из БД, даже если файл не удалился
+    
+    # Удаляем запись из БД
+    db.delete(entry)
+    db.commit()
+    
+    return Response(status_code=204)
