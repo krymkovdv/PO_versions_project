@@ -248,6 +248,7 @@ class SoftwareCreate(BaseModel):
 
 class SoftwareUpdate(BaseModel):
     """Схема для обновления информации о программном обеспечении"""
+    name: Optional[str] = None
     path: Optional[str] = None
     release_date: Optional[datetime] = None
     end_actuality: Optional[datetime] = None
